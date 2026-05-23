@@ -54,6 +54,41 @@ Return:
 4. optimized Claude prompt
 """
 
+def load_relevant_skills(user_input: str) -> str:
+    skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills")
+    if not os.path.isdir(skills_dir):
+        return ""
+
+    lowered = user_input.lower()
+    relevant = []
+
+    for fname in sorted(os.listdir(skills_dir)):
+        if not fname.endswith(".md"):
+            continue
+
+        # Keywords from filename parts (e.g. "powerquery-column-errors" → ["powerquery","column","errors"])
+        stem_keywords = fname[:-3].lower().split("-")
+
+        skill_path = os.path.join(skills_dir, fname)
+        with open(skill_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Keywords from the title line (first non-empty content line, stripped of backslash-escaped #)
+        title_keywords = []
+        for line in content.splitlines():
+            word = line.lstrip("\\").lstrip("#").strip().lower()
+            if word:
+                title_keywords = [w for w in word.split() if len(w) > 2]
+                break
+
+        all_keywords = set(stem_keywords + title_keywords)
+
+        if any(kw in lowered for kw in all_keywords):
+            relevant.append(f"--- Skill: {fname} ---\n{content}\n")
+            console.print(f"[dim]Loaded skill: {fname}[/dim]")
+
+    return "\n".join(relevant)
+
 def classify_task(user_input: str):
 
     response = openai_client.chat.completions.create(
@@ -66,12 +101,16 @@ def classify_task(user_input: str):
 
     return response.choices[0].message.content.strip()
 
-def generate_claude_scope(user_input: str):
+def generate_claude_scope(user_input: str, skills_context: str = ""):
+
+    system_prompt = CLAUDE_SCOPE_PROMPT
+    if skills_context:
+        system_prompt += f"\n\nRelevant skills loaded for this task:\n{skills_context}"
 
     response = openai_client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": CLAUDE_SCOPE_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input}
         ]
     )
@@ -130,7 +169,8 @@ def main():
                 "\n[bold cyan]Generating Claude scope...[/bold cyan]"
             )
 
-            scope = generate_claude_scope(user_input)
+            skills_context = load_relevant_skills(user_input)
+            scope = generate_claude_scope(user_input, skills_context)
 
             console.print(
                 f"\n[bold magenta]Claude Plan:[/bold magenta]\n{scope}"
