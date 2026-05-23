@@ -4,6 +4,7 @@ from anthropic import Anthropic
 from rich.console import Console
 import datetime
 import os
+import re
 import subprocess
 
 load_dotenv()
@@ -77,6 +78,65 @@ def append_interaction_log(user_input: str, category: str, scope: str = "") -> N
     )
     with open(path, "a", encoding="utf-8") as f:
         f.write(entry)
+
+CONSOLIDATION_PROMPT = """You are a memory consolidation assistant for Alfred, an AI orchestrator.
+
+Given the existing session summary and recent interaction logs, produce an updated cumulative summary.
+
+Preserve all useful history from the existing summary. Incorporate any new architectural changes, implemented features, design decisions, or planned work found in the interactions. Keep the summary concise — use bullet points, not prose.
+
+Maintain these sections (omit empty ones):
+- Current Architecture
+- Current Features
+- Current Skills
+- Important Design Rules
+- Next Planned Features
+
+Return only the updated markdown. Do not wrap in code blocks.
+"""
+
+CONSOLIDATION_THRESHOLD = 10
+INTERACTIONS_TO_KEEP = 5
+
+def consolidate_memory_if_needed() -> None:
+    logs_path = os.path.join(_ROOT, "logs", "interactions.md")
+    if not os.path.isfile(logs_path):
+        return
+
+    with open(logs_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    count = len(re.findall(r"^## \d{4}-\d{2}-\d{2}", content, re.MULTILINE))
+    if count < CONSOLIDATION_THRESHOLD:
+        return
+
+    existing_summary = read_memory_summary()
+    user_content = (
+        f"Existing summary:\n{existing_summary}\n\nRecent interactions:\n{content}"
+    )
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": CONSOLIDATION_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
+    )
+    new_summary = response.choices[0].message.content.strip()
+
+    summary_path = os.path.join(_ROOT, "memory", "session-summary.md")
+    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write(new_summary)
+
+    # Split on each entry header, keep trailing newline so the file stays clean
+    entries = re.split(r"(?=^## \d{4}-\d{2}-\d{2})", content, flags=re.MULTILINE)
+    entries = [e for e in entries if e.strip()]
+    recent = entries[-INTERACTIONS_TO_KEEP:]
+    with open(logs_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(recent).lstrip("\n") + "\n")
+
+    console.print("[dim]Memory consolidated.[/dim]")
 
 def load_relevant_skills(user_input: str) -> str:
     skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills")
@@ -224,6 +284,7 @@ def main():
                 )
 
         append_interaction_log(user_input, category, scope)
+        consolidate_memory_if_needed()
 
 if __name__ == "__main__":
     main()
