@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from anthropic import Anthropic
 from rich.console import Console
+import datetime
 import os
 import subprocess
 
@@ -54,6 +55,29 @@ Return:
 4. optimized Claude prompt
 """
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def read_memory_summary() -> str:
+    path = os.path.join(_ROOT, "memory", "session-summary.md")
+    if not os.path.isfile(path):
+        return ""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+def append_interaction_log(user_input: str, category: str, scope: str = "") -> None:
+    logs_dir = os.path.join(_ROOT, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    path = os.path.join(logs_dir, "interactions.md")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = (
+        f"\n## {timestamp}\n"
+        f"**Category:** {category}\n"
+        f"**Input:** {user_input}\n"
+        f"**Scope:** {scope[:500]}\n"
+    )
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(entry)
+
 def load_relevant_skills(user_input: str) -> str:
     skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills")
     if not os.path.isdir(skills_dir):
@@ -104,6 +128,9 @@ def classify_task(user_input: str):
 def generate_claude_scope(user_input: str, skills_context: str = ""):
 
     system_prompt = CLAUDE_SCOPE_PROMPT
+    memory = read_memory_summary()
+    if memory:
+        system_prompt += f"\n\n## Current project memory\n{memory}"
     if skills_context:
         system_prompt += f"\n\nRelevant skills loaded for this task:\n{skills_context}"
 
@@ -163,6 +190,8 @@ def main():
             f"\n[bold green]Task Type:[/bold green] {category}"
         )
 
+        scope = ""
+
         if category in ["POWERBI", "CLAUDE_EXECUTION"]:
 
             console.print(
@@ -193,6 +222,8 @@ def main():
                 console.print(
                     "\n[bold yellow]Plan ready. Send to Claude manually if needed.[/bold yellow]"
                 )
+
+        append_interaction_log(user_input, category, scope)
 
 if __name__ == "__main__":
     main()
