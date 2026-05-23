@@ -43,6 +43,14 @@ CLAUDE_EXECUTION
 Return ONLY the category name.
 """
 
+GENERAL_RESPONSE_PROMPT = """
+You are Alfred, an AI orchestration assistant — precise, calm, and quietly indispensable.
+
+Speak like a senior operator who has seen everything and remains unflappable: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
+
+Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION), optimized Claude Code prompt generation, skill-based context injection, memory consolidation, and auto-dispatch to Claude.
+"""
+
 CLAUDE_SCOPE_PROMPT = """
 You are an AI orchestration planner.
 
@@ -251,6 +259,21 @@ def classify_task(user_input: str):
     return response.choices[0].message.content.strip()
 
 
+def generate_general_response(user_input: str) -> str:
+    memory = read_memory_summary()
+    system = GENERAL_RESPONSE_PROMPT
+    if memory:
+        system += f"\n\n## Project context\n{memory}"
+    response = openai_client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_input},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
 def generate_claude_scope(user_input: str, skills_context: str = ""):
     system_prompt = CLAUDE_SCOPE_PROMPT
     memory = read_memory_summary()
@@ -360,6 +383,17 @@ def _render_claude_result(result: subprocess.CompletedProcess) -> None:
         console.print(f"\n[bold red]Claude Error:[/bold red]\n{result.stderr}")
 
 
+def _render_general_response(response: str) -> None:
+    console.print(
+        Panel(
+            Markdown(response),
+            title="[bold cyan]Alfred[/bold cyan]",
+            border_style="cyan",
+            padding=(0, 2),
+        )
+    )
+
+
 def _show_header() -> None:
     console.print(
         Panel.fit(
@@ -388,35 +422,47 @@ def _show_menu() -> None:
 # ── Menu actions ───────────────────────────────────────────────────────────────
 
 def _action_ask_alfred() -> None:
-    try:
-        user_input = console.input("\n[bold yellow]Ask Alfred > [/bold yellow]")
-    except EOFError:
-        return
+    console.print("\n[dim]You're now in Alfred mode. Type 'back', 'menu', or 'exit' to return to the main menu.[/dim]")
 
-    if not user_input.strip():
-        return
+    while True:
+        try:
+            user_input = console.input("\n[bold yellow]Alfred > [/bold yellow]")
+        except EOFError:
+            return
 
-    category = classify_task(user_input)
-    console.print(f"\n[bold green]Task Type:[/bold green] {category}")
+        stripped = user_input.strip()
+        if not stripped:
+            continue
 
-    scope = ""
+        if stripped.lower() in {"back", "menu", "exit"}:
+            console.print("[dim]Returning to main menu.[/dim]")
+            return
 
-    if category in ["POWERBI", "CLAUDE_EXECUTION"]:
-        console.print("\n[bold cyan]Generating Claude scope...[/bold cyan]")
-        skills_context = load_relevant_skills(user_input)
-        scope = generate_claude_scope(user_input, skills_context)
-        console.print(f"\n[bold magenta]Claude Plan:[/bold magenta]\n{scope}")
+        category = classify_task(stripped)
+        console.print(f"\n[bold green]Task Type:[/bold green] {category}")
 
-        if should_send_to_claude(user_input, category):
-            console.print("\n[bold cyan]Auto-dispatching to Claude...[/bold cyan]")
-            _render_claude_result(run_claude(scope))
-        else:
-            console.print(
-                "\n[bold yellow]Plan ready. Send to Claude manually if needed.[/bold yellow]"
-            )
+        scope = ""
 
-    append_interaction_log(user_input, category, scope)
-    consolidate_memory_if_needed()
+        if category == "GENERAL":
+            response = generate_general_response(stripped)
+            _render_general_response(response)
+
+        elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
+            console.print("\n[bold cyan]Generating Claude scope...[/bold cyan]")
+            skills_context = load_relevant_skills(stripped)
+            scope = generate_claude_scope(stripped, skills_context)
+            console.print(f"\n[bold magenta]Claude Plan:[/bold magenta]\n{scope}")
+
+            if should_send_to_claude(stripped, category):
+                console.print("\n[bold cyan]Auto-dispatching to Claude...[/bold cyan]")
+                _render_claude_result(run_claude(scope))
+            else:
+                console.print(
+                    "\n[bold yellow]Plan ready. Send to Claude manually if needed.[/bold yellow]"
+                )
+
+        append_interaction_log(stripped, category, scope)
+        consolidate_memory_if_needed()
 
 
 def _action_view_memory() -> None:
