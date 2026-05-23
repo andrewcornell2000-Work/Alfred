@@ -83,9 +83,12 @@ def main():
 
     while True:
 
-        user_input = console.input(
-            "\n[bold yellow]Ask Alfred > [/bold yellow]"
-        )
+        try:
+            user_input = console.input(
+                "\n[bold yellow]Ask Alfred > [/bold yellow]"
+            )
+        except EOFError:
+            break
 
         if user_input.lower() == "exit":
             break
