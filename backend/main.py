@@ -154,6 +154,52 @@ def consolidate_memory_if_needed() -> None:
     console.print("[dim]Memory consolidated.[/dim]")
 
 
+STOPWORDS = {
+    "power", "query", "error", "errors", "issue", "issues",
+    "data", "file", "files", "the", "and", "for", "not", "found",
+}
+
+COMPOUND_EXPANSIONS = {
+    "powerquery": "power query",
+    "powerbi": "power bi",
+}
+
+SKILL_MATCH_THRESHOLD = 2
+
+
+def _build_skill_matchers(fname: str, content: str):
+    raw_parts = fname[:-3].lower().split("-")
+    expanded_parts = [COMPOUND_EXPANSIONS.get(p, p) for p in raw_parts]
+
+    title_words = []
+    for line in content.splitlines():
+        text = line.lstrip("\\").lstrip("#").strip().lower()
+        if text:
+            title_words = re.findall(r"[a-z]+", text)
+            break
+
+    single_keywords = set()
+    for part in expanded_parts:
+        if " " not in part and part not in STOPWORDS and len(part) > 2:
+            single_keywords.add(part)
+    for word in title_words:
+        if word not in STOPWORDS and len(word) > 2:
+            single_keywords.add(word)
+
+    strong_phrases = set()
+    for part in expanded_parts:
+        if " " in part:
+            strong_phrases.add(part)
+    for i in range(len(expanded_parts) - 1):
+        strong_phrases.add(f"{expanded_parts[i]} {expanded_parts[i + 1]}")
+    for i in range(len(expanded_parts) - 2):
+        strong_phrases.add(
+            f"{expanded_parts[i]} {expanded_parts[i + 1]} {expanded_parts[i + 2]}"
+        )
+
+    return single_keywords, strong_phrases
+
+
 def load_relevant_skills(user_input: str) -> str:
     skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills")
     if not os.path.isdir(skills_dir):
@@ -166,22 +212,16 @@ def load_relevant_skills(user_input: str) -> str:
         if not fname.endswith(".md"):
             continue
 
-        stem_keywords = fname[:-3].lower().split("-")
-
         skill_path = os.path.join(skills_dir, fname)
         with open(skill_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        title_keywords = []
-        for line in content.splitlines():
-            word = line.lstrip("\\").lstrip("#").strip().lower()
-            if word:
-                title_keywords = [w for w in word.split() if len(w) > 2]
-                break
+        single_keywords, strong_phrases = _build_skill_matchers(fname, content)
 
-        all_keywords = set(stem_keywords + title_keywords)
+        match_count = sum(1 for kw in single_keywords if kw in lowered)
+        match_count += sum(1 for phrase in strong_phrases if phrase in lowered)
 
-        if any(kw in lowered for kw in all_keywords):
+        if match_count >= SKILL_MATCH_THRESHOLD:
             relevant.append(f"--- Skill: {fname} ---\n{content}\n")
             console.print(f"[dim]Loaded skill: {fname}[/dim]")
 
