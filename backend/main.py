@@ -3,6 +3,7 @@ from openai import OpenAI
 from anthropic import Anthropic
 from rich.console import Console
 import os
+import subprocess
 
 load_dotenv()
 
@@ -77,6 +78,30 @@ def generate_claude_scope(user_input: str):
 
     return response.choices[0].message.content.strip()
 
+def run_claude(prompt: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["claude", "-p", prompt],
+        capture_output=True,
+        text=True,
+    )
+
+DANGEROUS_KEYWORDS = [
+    "delete", "remove", "overwrite", "credentials", "password",
+    "entire onedrive", "all folders", "whole workspace",
+]
+
+ACTION_KEYWORDS = ["inspect", "run", "edit", "use mcp", "use claude"]
+
+def should_send_to_claude(user_input: str, category: str) -> bool:
+    lowered = user_input.lower()
+    if any(kw in lowered for kw in DANGEROUS_KEYWORDS):
+        return False
+    if category == "CLAUDE_EXECUTION":
+        return True
+    if category == "POWERBI" and any(kw in lowered for kw in ACTION_KEYWORDS):
+        return True
+    return False
+
 def main():
 
     console.print("[bold cyan]AI Orchestrator online.[/bold cyan]")
@@ -110,6 +135,24 @@ def main():
             console.print(
                 f"\n[bold magenta]Claude Plan:[/bold magenta]\n{scope}"
             )
+
+            if should_send_to_claude(user_input, category):
+                console.print(
+                    "\n[bold cyan]Auto-dispatching to Claude...[/bold cyan]"
+                )
+                result = run_claude(scope)
+                if result.returncode == 0:
+                    console.print(
+                        f"\n[bold green]Claude Response:[/bold green]\n{result.stdout}"
+                    )
+                else:
+                    console.print(
+                        f"\n[bold red]Claude Error:[/bold red]\n{result.stderr}"
+                    )
+            else:
+                console.print(
+                    "\n[bold yellow]Plan ready. Send to Claude manually if needed.[/bold yellow]"
+                )
 
 if __name__ == "__main__":
     main()
