@@ -87,3 +87,21 @@ First inspection target:
 - `backend/main.py` (primary orchestrator that likely manages projects, autosave, and memory)
 - `memory/` folder files related to project memory management (e.g., `autosave.md`, `current-focus.md`, `session-summary.md`)
 - `bac
+
+## 2026-05-24 18:24:33
+**Category:** CLAUDE_EXECUTION
+**Provider:** codex
+**Input:** Add Project Mode and Learning / Creator Mode to Alfred's terminal menu. Project Mode should let me create, select, resume, view, archive, and delete project memory under projects/. Learning / Creator Mode should let me conversationally teach Alfred skills, routing rules, tool requirements, and self-improvements. Use Codex for implementation. Make surgical changes only, preserve existing architecture, and keep the terminal UX lightweight.
+**Scope:** Likely issue:
+- Alfred currently lacks terminal menu support for Project Mode and Learning/Creator Mode workflows.
+
+First inspection target:
+- The main terminal user interface code responsible for displaying and handling the menu (likely in `backend/main.py` or the CLI entrypoint).
+
+Forbidden scope:
+- Avoid broad refactors or rewrites of existing terminal UI.
+- Avoid changes outside menu and command handling (e.g., do not modify memory consolidation, autosave logic).
+
+---
+
+Optimized Claude Code 

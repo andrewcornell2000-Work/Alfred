@@ -5,6 +5,17 @@ setlocal
 set "REPO=%~dp0"
 if "%REPO:~-1%"=="\" set "REPO=%REPO:~0,-1%"
 
+:: Refresh PATH from Windows environment before checking installed tools
+for /f "tokens=2,*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "PATH=%%B;%PATH%"
+for /f "tokens=2,*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "PATH=%%B;%PATH%"
+
+:: Add npm global CLI shims to PATH (codex.cmd / claude.cmd on Windows)
+if exist "%APPDATA%\npm" (
+    set "PATH=%APPDATA%\npm;%PATH%"
+)
+
+for /f "delims=" %%I in ('npm prefix -g 2^>nul') do if exist "%%I" set "PATH=%%I;%PATH%"
+
 echo.
 echo =====================================================
 echo   Alfred Installer

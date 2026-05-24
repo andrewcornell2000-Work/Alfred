@@ -10,6 +10,17 @@ if exist "%REPO%\node\node.exe" (
     set "PATH=%REPO%\node;%PATH%"
 )
 
+:: Refresh PATH from Windows environment in case setup.ps1 just updated it
+for /f "tokens=2,*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "PATH=%%B;%PATH%"
+for /f "tokens=2,*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "PATH=%%B;%PATH%"
+
+:: Add npm global CLI shims to PATH (codex.cmd / claude.cmd on Windows)
+if exist "%APPDATA%\npm" (
+    set "PATH=%APPDATA%\npm;%PATH%"
+)
+
+for /f "delims=" %%I in ('npm prefix -g 2^>nul') do if exist "%%I" set "PATH=%%I;%PATH%"
+
 :: Check for updates if this is a git repo (requires network; skips silently if offline)
 if exist "%REPO%\.git" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\check-updates.ps1"

@@ -1,7 +1,15 @@
 @echo off
-cd /d "C:\Users\ACO324\OneDrive - Maersk Group\Desktop\ai-orchestrator"
-call .venv\Scripts\activate.bat
-python backend/main.py
-echo.
-echo Alfred has exited. Press any key to close this window.
-pause >nul
+setlocal
+
+:: Resolve repo root from this script's location (portable, no hardcoded paths)
+set "REPO=%~dp0"
+if "%REPO:~-1%"=="\" set "REPO=%REPO:~0,-1%"
+
+:: Add npm global CLI shims to PATH (codex.cmd / claude.cmd on Windows)
+if exist "%APPDATA%\npm" (
+    set "PATH=%APPDATA%\npm;%PATH%"
+)
+
+call "%REPO%\run-alfred.bat"
+
+endlocal

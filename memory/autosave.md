@@ -22,3 +22,9 @@
 **Category:** CLAUDE_EXECUTION
 **Provider:** codex
 **Outcome:** Likely issue: - Potential partial or incomplete implementation of project workspace memory features such as project lifecycle management, autosave, session summarization, and cross-machine sync due to
+
+## 2026-05-24 18:24:33
+**Request:** Add Project Mode and Learning / Creator Mode to Alfred's terminal menu. Project Mode should let me create, select, resume, view, archive, and delete project memory under projects/. Learning / Creator 
+**Category:** CLAUDE_EXECUTION
+**Provider:** codex
+**Outcome:** Likely issue: - Alfred currently lacks terminal menu support for Project Mode and Learning/Creator Mode workflows.  First inspection target: - The main terminal user interface code responsible for dis

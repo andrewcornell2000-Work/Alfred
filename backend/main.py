@@ -640,13 +640,31 @@ def run_claude(prompt: str) -> subprocess.CompletedProcess:
     )
 
 
+def _resolve_codex_executable() -> str:
+    return (
+        os.getenv("CODEX_BIN")
+        or shutil.which("codex.cmd")
+        or shutil.which("codex")
+        or "codex.cmd"
+    )
+
+
 def run_codex(prompt: str) -> subprocess.CompletedProcess:
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
-    return subprocess.run(
-        [os.getenv("CODEX_BIN", "codex.cmd"), "-q", full_prompt],
-        capture_output=True,
-        text=True,
-    )
+    args = [_resolve_codex_executable(), full_prompt]
+    try:
+        return subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        message = (
+            "Codex CLI was not found. Run Install-Alfred.bat to install @openai/codex, "
+            "then open a new terminal and run 'codex login'. If Codex is installed in a "
+            "custom location, set CODEX_BIN to the full path of codex.cmd."
+        )
+        return subprocess.CompletedProcess(args, 127, "", message)
 
 
 DANGEROUS_KEYWORDS = [

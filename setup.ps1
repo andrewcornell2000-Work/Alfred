@@ -31,6 +31,44 @@ function Refresh-Path {
                 [System.Environment]::GetEnvironmentVariable("PATH","User")
 }
 
+function Add-PathEntry([string]$PathEntry) {
+    if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
+        return $false
+    }
+
+    $currentParts = @($env:PATH -split ';' | Where-Object { $_ })
+    if (-not ($currentParts | Where-Object { $_.TrimEnd('\') -ieq $PathEntry.TrimEnd('\') })) {
+        $env:PATH = "$PathEntry;$env:PATH"
+    }
+
+    $userPath = [System.Environment]::GetEnvironmentVariable("PATH","User")
+    $userParts = @($userPath -split ';' | Where-Object { $_ })
+    if (-not ($userParts | Where-Object { $_.TrimEnd('\') -ieq $PathEntry.TrimEnd('\') })) {
+        $updatedUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
+            $PathEntry
+        } else {
+            "$userPath;$PathEntry"
+        }
+        [System.Environment]::SetEnvironmentVariable("PATH", $updatedUserPath, "User")
+    }
+
+    return $true
+}
+
+function Get-NpmGlobalBin {
+    if (-not (Find-Command "npm")) { return $null }
+    $prefix = & npm prefix -g 2>$null | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($prefix)) { return $null }
+    return $prefix.Trim()
+}
+
+function Ensure-NpmGlobalPath {
+    $npmGlobalBin = Get-NpmGlobalBin
+    if ([string]::IsNullOrWhiteSpace($npmGlobalBin)) { return $null }
+    $null = Add-PathEntry $npmGlobalBin
+    return $npmGlobalBin
+}
+
 function Invoke-WingetInstall([string]$PackageId, [string]$Name) {
     if (-not (Find-Command "winget")) {
         Write-Info "winget not available -- install $Name manually."
@@ -158,6 +196,10 @@ if (Find-Command "npm") {
     $npmVer = & npm --version 2>&1 | Select-Object -First 1
     Write-OK "npm -- $npmVer"
     $hasNpm = $true
+    $npmGlobalBin = Ensure-NpmGlobalPath
+    if ($npmGlobalBin) {
+        Write-OK "npm global CLI path -- $npmGlobalBin"
+    }
 } else {
     Write-Warn "npm not found (should come bundled with Node.js)."
 }
@@ -183,8 +225,15 @@ if (-not $hasNpm) {
             Write-Host "  Installing $($tool.Description) (npm install -g $($tool.Package))..." -ForegroundColor Cyan
             npm install -g $tool.Package
             if ($LASTEXITCODE -eq 0) {
-                Write-Done "$($tool.Description) installed."
-                $toolStatus[$tool.Command] = $true
+                $null = Ensure-NpmGlobalPath
+                if (Find-Command $tool.Command) {
+                    Write-Done "$($tool.Description) installed."
+                    $toolStatus[$tool.Command] = $true
+                } else {
+                    Write-Fail "$($tool.Description) installed, but '$($tool.Command)' is not on PATH."
+                    Write-Info "Open a new terminal or add the npm global folder to PATH."
+                    $toolStatus[$tool.Command] = $false
+                }
             } else {
                 Write-Fail "$($tool.Description) install failed."
                 Write-Info "Run manually: npm install -g $($tool.Package)"
