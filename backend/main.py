@@ -857,6 +857,7 @@ def _show_menu() -> None:
     t.add_row("5", "Show Dispatch Rules")
     t.add_row("6", "Run Claude Directly")
     t.add_row("7", "Exit")
+    t.add_row("8", "Dev Portal")
     console.print(t)
 
 
@@ -872,6 +873,85 @@ def get_clipboard_text() -> str:
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "Get-Clipboard failed")
     return result.stdout.strip()
+
+
+def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool:
+    scope = ""
+    outcome = ""
+
+    # Dev Portal forces the guarded learning flow even for plain-language notes.
+    if force_learning or is_learning_mode_task(stripped):
+        console.print("\n[dim]Learning / Creator Mode - discussing before routing.[/dim]")
+        discussion = generate_learning_discussion(stripped)
+        _render_general_response(discussion)
+        try:
+            confirm = console.input(
+                "\n[bold yellow]Proceed with this change? (y/n) > [/bold yellow]"
+            )
+        except EOFError:
+            return False
+        if confirm.strip().lower() not in {"y", "yes"}:
+            console.print("[dim]Change discarded - nothing written or dispatched.[/dim]")
+            append_interaction_log(stripped, "LEARNING_DECLINED", "", "openai_mini")
+            append_autosave_entry(
+                stripped, "LEARNING_DECLINED", "openai_mini", "Request declined by user"
+            )
+            compress_autosave_if_needed()
+            return True
+        console.print("[dim]Confirmed. Proceeding with routing...[/dim]")
+        category = "CLAUDE_EXECUTION"
+        provider = "codex"
+    else:
+        category = classify_task(stripped)
+        provider = choose_provider(stripped, category)
+
+    provider_color = PROVIDER_COLORS.get(provider, "bold white")
+    provider_label = PROVIDER_LABELS.get(provider, provider)
+    console.print(
+        f"\n[bold green]Category:[/bold green] {category}  "
+        f"[{provider_color}]Provider: {provider_label}[/{provider_color}]"
+    )
+
+    if category == "GENERAL":
+        response = generate_general_response(stripped)
+        _render_general_response(response)
+        outcome = response[:200]
+
+    elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
+        console.print("\n[bold cyan]Generating scope...[/bold cyan]")
+        skills_context = load_relevant_skills(stripped)
+        scope = generate_claude_scope(stripped, skills_context)
+        console.print(f"\n[bold magenta]Plan:[/bold magenta]\n{scope}")
+        outcome = scope[:200]
+
+        if should_send_to_claude(stripped, category, provider):
+            if provider == "codex":
+                console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
+                result = run_codex(scope)
+                _render_provider_result(provider, category, result)
+                outcome = (
+                    result.stdout[:200]
+                    if result.returncode == 0
+                    else f"Error: {result.stderr[:100]}"
+                )
+            else:
+                console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
+                result = run_claude(scope)
+                _render_provider_result(provider, category, result)
+                outcome = (
+                    result.stdout[:200]
+                    if result.returncode == 0
+                    else f"Error: {result.stderr[:100]}"
+                )
+        else:
+            console.print(
+                "\n[bold yellow]Plan ready. Send to provider manually if needed.[/bold yellow]"
+            )
+
+    append_interaction_log(stripped, category, scope, provider)
+    append_autosave_entry(stripped, category, provider, outcome)
+    compress_autosave_if_needed()
+    return True
 
 
 def _action_ask_alfred() -> None:
@@ -997,6 +1077,70 @@ def _action_ask_alfred() -> None:
         append_interaction_log(stripped, category, scope, provider)
         append_autosave_entry(stripped, category, provider, outcome)
         compress_autosave_if_needed()
+
+
+def _action_dev_portal() -> None:
+    console.print(Rule("[bold cyan]Dev Portal[/bold cyan]"))
+    console.print(
+        "[dim]Teach Alfred skills, routing rules, tool requirements, or self-improvements."
+        "  [bold]paste[/bold] = multiline  |  [bold]clip[/bold] = clipboard  |"
+        "  [bold]back[/bold] = menu[/dim]"
+    )
+
+    while True:
+        try:
+            user_input = console.input("\n[bold yellow]Dev Portal > [/bold yellow]")
+        except EOFError:
+            return
+
+        stripped = user_input.strip()
+        if not stripped:
+            continue
+
+        lowered = stripped.lower()
+        if lowered in {"back", "menu", "exit"}:
+            console.print("[dim]Returning to main menu.[/dim]")
+            return
+
+        if lowered in {"skills", "view skills"}:
+            _action_view_skills()
+            continue
+
+        if lowered in {"rules", "dispatch rules", "routing rules"}:
+            _action_show_dispatch_rules()
+            continue
+
+        if lowered in {"clip", "clipboard"}:
+            try:
+                clipboard_text = get_clipboard_text()
+            except Exception as e:
+                console.print(f"[bold red]Clipboard error:[/bold red] {e}")
+                continue
+            if not clipboard_text:
+                console.print("[dim]Clipboard is empty - nothing to process.[/dim]")
+                continue
+            console.print(f"[dim]Read {len(clipboard_text)} character(s) from clipboard.[/dim]")
+            stripped = clipboard_text
+
+        if lowered in {"paste", "multiline"}:
+            console.print("[dim]Paste your input. Type 'done' on its own line when finished.[/dim]")
+            lines = []
+            while True:
+                try:
+                    line = console.input("")
+                except EOFError:
+                    break
+                if line.strip().lower() == "done":
+                    break
+                lines.append(line)
+            stripped = "\n".join(lines).strip()
+            if not stripped:
+                console.print("[dim]No input captured.[/dim]")
+                continue
+            console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
+
+        if not _process_alfred_request(stripped, force_learning=True):
+            return
 
 
 def _action_view_memory() -> None:
@@ -1156,6 +1300,7 @@ _ACTIONS = {
     "4": _action_view_logs,
     "5": _action_show_dispatch_rules,
     "6": _action_run_claude_directly,
+    "8": _action_dev_portal,
 }
 
 
@@ -1183,7 +1328,7 @@ def main():
         if action:
             action()
         else:
-            console.print("[dim]Invalid option. Enter 1-7.[/dim]")
+            console.print("[dim]Invalid option. Enter 1-8.[/dim]")
 
     save_session_exit_summary()
     check_and_offer_git_commit()

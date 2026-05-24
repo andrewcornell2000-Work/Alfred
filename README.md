@@ -80,6 +80,8 @@ Double-click **`run-alfred.bat`**, or from a terminal:
 
 At the `Ask Alfred >` prompt, describe your task. Type `exit` to quit.
 
+Use menu option **8. Dev Portal** when you want to teach Alfred a new skill, routing rule, tool requirement, or self-improvement. Dev Portal discusses the proposed change first, asks for confirmation, then routes the confirmed work through Codex.
+
 ---
 
 ## Running In Development

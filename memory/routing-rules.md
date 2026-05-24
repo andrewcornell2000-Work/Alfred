@@ -27,6 +27,8 @@ Auto-dispatch to Codex/Claude is blocked when:
 
 ## Learning / Creator Mode
 
+Menu option `8. Dev Portal` opens a dedicated Learning / Creator prompt. Requests entered there do not need trigger phrases; they are forced through the same discuss-and-confirm flow before Codex can make changes.
+
 Triggered when the task contains a phrase from `LEARNING_MODE_KEYWORDS` — indicating the user wants to add, modify, or teach Alfred a new rule, feature, or behavior.
 
 **Flow:**

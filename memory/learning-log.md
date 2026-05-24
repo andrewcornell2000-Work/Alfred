@@ -38,3 +38,18 @@
 - Created `memory/learning-log.md` (this file)
 
 **Files modified:** `backend/main.py`, `memory/routing-rules.md` (created), `memory/learning-log.md` (created)
+
+---
+
+## 2026-05-24 - Dev Portal menu option
+
+**Category:** Learning / Creator UX
+**Mode:** Direct implementation (initiated via Codex)
+
+**Change summary:**
+- Added main menu option `8. Dev Portal`
+- Dev Portal lets the user teach Alfred skills, routing rules, tool requirements, and self-improvements from a dedicated prompt
+- Dev Portal forces the existing Learning / Creator confirmation flow before routing confirmed changes to Codex
+- Added quick portal commands for `paste`, `clip`, `skills`, `rules`, and `back`
+
+**Files modified:** `backend/main.py`, `README.md`, `memory/learning-log.md`
