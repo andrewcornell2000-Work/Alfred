@@ -1,47 +1,92 @@
 # Quant Intelligence System
 
-A live trading analysis engine running as a local Flask API (port 5000).
-Alfred routes QUANT-category queries directly to it — no Claude/Codex dispatch needed.
+Alfred's Quant Intelligence plugin is a live trading analysis engine exposed through a Flask API. Alfred routes `QUANT` category requests directly to the API; it does not dispatch Quant questions to Claude Code or Codex.
 
-## What it tracks
-Configurable stock list (default: AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, SPY, QQQ, SMCI).
+## Location
 
-## Signals (8-factor edge model, weights sum to 1.0)
+- Plugin path: `plugins/quant`
+- Flask entrypoint: `plugins/quant/app.py`
+- Default port: `5000`
+- Local base URL: `http://127.0.0.1:5000`
+- Cloud/local override: `QUANT_BASE_URL`
+
+## Setup Notes
+
+Quant has its own dependencies:
+
+```powershell
+.venv\Scripts\activate
+pip install -r plugins\quant\requirements.txt
+```
+
+Run locally:
+
+```powershell
+python plugins\quant\app.py
+```
+
+## What It Tracks
+
+The stock universe is configured in `plugins/quant/config.py`.
+
+Current default:
+
+```text
+NVDA, TSLA, QQQ
+```
+
+Update `STOCKS` in `config.py` to add or remove tickers.
+
+## Signals
+
+The trade engine uses an 8-factor edge model:
+
 | Signal | Weight | Source |
-|---|---|---|
-| Markov regime | 0.18 | 3-state HMM (Bull/Sideways/Bear) |
-| Momentum | 0.18 | RSI, MACD, price trend |
-| Mean reversion | 0.14 | RSI extremes + Bollinger Band position |
-| News sentiment | 0.14 | VADER + financial lexicon |
-| Institutional flow | 0.10 | Insider transactions, 13F, short interest, analyst ratings |
-| Volatility | 0.10 | ATR-based position sizing |
-| Market breadth | 0.08 | Advance/decline, sector rotation |
-| Risk | 0.08 | ATR stops, Kelly sizing |
+|---|---:|---|
+| Markov regime | 0.18 | 3-state Bull/Sideways/Bear transition model |
+| Momentum / technical | 0.18 | RSI, MACD, moving averages, momentum, Bollinger Bands |
+| Mean reversion | 0.14 | RSI extremes and Bollinger Band position |
+| News sentiment | 0.14 | VADER plus financial lexicon over recent headlines |
+| Institutional flow | 0.10 | Insider, institutional, short-interest, analyst, and options-derived signals |
+| Volatility | 0.10 | Realized volatility and expansion checks |
+| Market breadth / macro | 0.08 | VIX, yields, dollar, gold, SPY backdrop |
+| Risk | 0.08 | ATR stops, position sizing, account/risk limits |
 
-Trade status gates: requires ≥ 3 independent signal confirmations for ACTIVE status.
+Trade status requires at least 3 independent confirmations for `ACTIVE` status.
 
-## API endpoints Alfred calls
-- `/api/analyze/<ticker>` — full analysis snapshot
-- `/api/backtest/<ticker>` — historical strategy performance
-- `/api/institutional/<ticker>` — smart-money composite score (0–100)
-- `/api/opportunities` — scan all stocks, returns edge scores + status
-- `/api/macro` — macro regime (Bayesian 5-agent softmax)
-- `/api/paper` — paper trading P&L and open positions
-- `/api/alerts` — recent trade alerts
-- `/api/learning` — signal reliability, Brier score, weight recommendations
-- `/api/refresh` — invalidate data cache
+## API Endpoints
 
-## Output scores
-- **Edge score**: 0–100 (>60 = LONG bias, <40 = SHORT bias)
-- **Institutional flow score**: 0–100 (smart-money composite)
-- **Trade status**: INACTIVE / WATCH / ACTIVE / HIGH_CONVICTION
-- **Smart money bias**: BEARISH / MILDLY_BEARISH / NEUTRAL / MILDLY_BULLISH / BULLISH
+| Endpoint | Purpose |
+|---|---|
+| `/api/analyze/<ticker>` | Full technical, sentiment, options, risk, Markov, and regime snapshot |
+| `/api/backtest/<ticker>` | Historical strategy performance |
+| `/api/institutional/<ticker>` | Smart-money composite score |
+| `/api/opportunities` | Scan configured tickers for trade opportunities |
+| `/api/macro` | Broader market environment |
+| `/api/paper` | Paper trading P/L and open positions |
+| `/api/alerts` | Recent trade alerts |
+| `/api/learning` | Signal reliability, calibration, mistake distribution, recommendations |
+| `/api/refresh` | Clear data cache |
 
-## Example Alfred queries
-- "analyze NVDA" → full snapshot with all 8 signals
-- "what are the best opportunities right now" → scan all tracked stocks
-- "show me smart money on AAPL" → institutional flow detail
-- "how is the paper portfolio doing" → P&L and open positions
-- "backtest MSFT" → historical win rate and Sharpe
-- "what's the macro look like" → regime and breadth
-- "show learning stats" → which signals are working, weight recommendations
+## Output Concepts
+
+- **Final trade score:** 0-100 composite edge score
+- **Direction:** `LONG`, `SHORT`, or `NO TRADE`
+- **Status:** `NO TRADE`, `WATCHLIST`, `ACTIVE`, `HIGH CONVICTION`, `WEAKENING`, `EXIT`, or `INVALIDATED`
+- **Institutional flow score:** 0-100 smart-money composite
+- **Smart money bias:** bearish, neutral, or bullish label from institutional signals
+- **Risk controls:** ATR stop, target, risk/reward, expected value, Kelly, safe Kelly, shares, capital required, leverage, max loss
+
+## Example Alfred Queries
+
+- `analyze NVDA`
+- `what are the best opportunities right now`
+- `show me smart money on TSLA`
+- `how is the paper portfolio doing`
+- `backtest QQQ`
+- `what is the macro environment`
+- `show learning stats`
+
+## Routing Rule
+
+If a user asks about stocks, tickers, trade opportunities, market analysis, institutional flow, options flow, alerts, paper trading, backtesting, or learning performance, classify as `QUANT` and use the Quant API path.

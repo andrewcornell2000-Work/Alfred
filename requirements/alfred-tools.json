@@ -1,10 +1,15 @@
 {
   "version": "1",
   "updated": "2026-05-24",
-  "note": "Master tool manifest for Alfred. setup.ps1 reads python and npm sections. Update this file (and the matching .txt files) when adding tools via learning mode.",
+  "note": "Reference manifest for Alfred tools and plugins. setup.ps1 reads requirements/python-requirements.txt and requirements/npm-tools.txt directly; keep this file in sync when adding tools via learning mode.",
   "python": {
     "source": "requirements/python-requirements.txt",
-    "packages": ["anthropic", "openai", "rich", "python-dotenv", "typer"]
+    "packages": [
+      "rich",
+      "python-dotenv",
+      "typer",
+      "openai"
+    ]
   },
   "npm": {
     "source": "requirements/npm-tools.txt",
@@ -20,7 +25,7 @@
         "package": "@openai/codex",
         "command": "codex",
         "description": "OpenAI Codex CLI",
-        "purpose": "codex routing provider",
+        "purpose": "Codex routing provider for implementation, refactors, tests, and Alfred self-improvement",
         "loginRequired": true
       }
     ]
@@ -31,12 +36,15 @@
   },
   "plugins": {
     "quant_intelligence": {
-      "path": "C:\\Users\\andre\\OneDrive\\Desktop\\Quant",
+      "path": "plugins/quant",
       "entry": "app.py",
       "port": 5000,
       "category": "QUANT",
-      "description": "Live trading analysis engine — 8-signal edge model, paper trading, institutional flow, learning feedback loop",
+      "description": "Live trading analysis engine: 8-signal edge model, paper trading, institutional flow, alerts, and learning feedback",
       "skill": "skills/quant-intelligence.md",
+      "requirements": "plugins/quant/requirements.txt",
+      "baseUrlEnv": "QUANT_BASE_URL",
+      "localBaseUrl": "http://127.0.0.1:5000",
       "autoStart": true
     }
   }

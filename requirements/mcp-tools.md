@@ -37,8 +37,9 @@ When Alfred encounters or learns about a new MCP server during a session:
 ### Hard Rules
 
 - Never store MCP server credentials, tokens, or API keys in this file or any manifest.
-- Tools marked `destructive: true` must be added to Alfred's safety block-list in
-  `backend/main.py` (`BLOCKED_KEYWORDS`) before they are allowed to dispatch.
+- Tools marked `destructive: true` must be represented in Alfred's safety gate in
+  `backend/main.py` (`DANGEROUS_KEYWORDS` and dispatch checks) before they are
+  allowed to dispatch.
 - Never auto-pull from GitHub or auto-install tools without explicit user approval.
   The update flow in `check-updates.ps1` always prompts first.
 
@@ -56,6 +57,6 @@ Example entry format:
 - **Command:** `mcp-server-filesystem`
 - **Purpose:** Gives Claude Code scoped read/write access to local directories
 - **Trust:** official
-- **Destructive:** true (can write/delete files — add to BLOCKED_KEYWORDS gate)
+- **Destructive:** true (can write/delete files - represent in `DANGEROUS_KEYWORDS` and dispatch checks)
 - **Notes:** Requires explicit directory allow-list at runtime via --allowed-dir flag
 -->
