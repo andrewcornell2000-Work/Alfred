@@ -735,7 +735,7 @@ def load_relevant_skills(user_input: str) -> str:
 
 
 def classify_task(user_input: str) -> str:
-    raw = _call_codex(CLASSIFIER_PROMPT, user_input)
+    raw = _call_openai(CLASSIFIER_PROMPT, user_input)
     for cat in ["QUANT", "POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
         if cat in raw.upper():
             return cat
@@ -746,7 +746,7 @@ def generate_general_response(user_input: str) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
-    return _call_codex(system, user_input) or "No response."
+    return _call_openai(system, user_input) or "No response."
 
 
 def generate_claude_scope(user_input: str, skills_context: str = "") -> str:
@@ -808,6 +808,64 @@ def run_claude(prompt: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
     )
+
+
+def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-mini", timeout: int = 60) -> str:
+    """Call OpenAI API with the stored API key."""
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        return ""
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            timeout=timeout,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        console.print(f"[dim red]OpenAI: {str(e)[:120]}[/dim red]")
+        return ""
+
+
+def _setup_openai_key() -> bool:
+    """Guide the user to get and save their OpenAI API key."""
+    console.print("\n[bold yellow]OpenAI API key not found.[/bold yellow]")
+    console.print("Alfred uses GPT-4o-mini for fast classification and general chat.")
+    console.print("\nGet your key at: [bold cyan]https://platform.openai.com/api-keys[/bold cyan]")
+    try:
+        ans = console.input("Open browser now? (y/n) > ")
+        if ans.strip().lower() in {"y", "yes"}:
+            webbrowser.open("https://platform.openai.com/api-keys")
+        key = console.input("Paste your API key (sk-...): ").strip()
+    except EOFError:
+        return False
+
+    if not key.startswith("sk-"):
+        console.print("[bold red]Invalid key — must start with sk-[/bold red]")
+        return False
+
+    env_path = os.path.join(_ROOT, ".env")
+    if os.path.isfile(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "OPENAI_API_KEY" in content:
+            content = re.sub(r"OPENAI_API_KEY=.*", f"OPENAI_API_KEY={key}", content)
+        else:
+            content += f"\nOPENAI_API_KEY={key}\n"
+    else:
+        content = f"OPENAI_API_KEY={key}\n"
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    os.environ["OPENAI_API_KEY"] = key
+    console.print("[bold green]API key saved to .env (stays on this PC only).[/bold green]")
+    return True
 
 
 def _call_codex(system_prompt: str, user_content: str, timeout: int = 60) -> str:
@@ -961,7 +1019,7 @@ def generate_learning_discussion(user_input: str) -> str:
     system = LEARNING_DISCUSSION_PROMPT
     if _memory_context:
         system += f"\n\n## Current project context\n{_memory_context}"
-    return _call_codex(system, user_input) or "No response."
+    return _call_openai(system, user_input) or "No response."
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────
@@ -1554,6 +1612,9 @@ def _check_setup() -> None:
         body = "[bold red]Missing tools — Alfred will not work until these are set up:[/bold red]\n\n"
         body += "\n\n".join(f"[yellow]{m}[/yellow]" for m in missing)
         console.print(Panel(body, title="[bold red]Setup Required[/bold red]", border_style="red", padding=(1, 2)))
+
+    if not os.getenv("OPENAI_API_KEY"):
+        _setup_openai_key()
 
 
 def main():
