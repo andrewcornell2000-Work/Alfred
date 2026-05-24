@@ -12,6 +12,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -130,6 +131,11 @@ Return exactly this format (no code fences, no extra text outside the delimiters
 """
 
 _memory_context: str = ""
+
+# ── Project Memory State ───────────────────────────────────────────────────────
+_active_project: dict = {}          # {} when no project is active
+_project_memory_context: str = ""   # combined context from active project files
+_project_interaction_count: int = 0 # interactions since last project autosave compress
 
 
 def _ensure_memory_files() -> None:
