@@ -135,9 +135,9 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
 
 # ── Quant Intelligence Tool ────────────────────────────────────────────────────
 
-QUANT_PATH = os.getenv("QUANT_PATH", r"C:\Users\andre\OneDrive\Desktop\Quant")
+QUANT_PATH = os.getenv("QUANT_PATH", os.path.join(_ROOT, "plugins", "quant"))
 QUANT_PORT = int(os.getenv("QUANT_PORT", "5000"))
-QUANT_BASE = f"http://127.0.0.1:{QUANT_PORT}"
+QUANT_BASE = os.getenv("QUANT_BASE_URL", f"http://127.0.0.1:{QUANT_PORT}")
 
 _quant_proc: "subprocess.Popen | None" = None
 
