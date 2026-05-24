@@ -28,5 +28,16 @@
   "mcp": {
     "source": "requirements/mcp-tools.md",
     "tools": []
+  },
+  "plugins": {
+    "quant_intelligence": {
+      "path": "C:\\Users\\andre\\OneDrive\\Desktop\\Quant",
+      "entry": "app.py",
+      "port": 5000,
+      "category": "QUANT",
+      "description": "Live trading analysis engine — 8-signal edge model, paper trading, institutional flow, learning feedback loop",
+      "skill": "skills/quant-intelligence.md",
+      "autoStart": true
+    }
   }
 }

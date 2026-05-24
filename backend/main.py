@@ -15,6 +15,10 @@ import re
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
+import webbrowser
 
 load_dotenv()
 
@@ -40,6 +44,12 @@ Classify requests into ONE category only:
 GENERAL
 POWERBI
 CLAUDE_EXECUTION
+QUANT
+
+QUANT: Any request about stocks, trading opportunities, market analysis, backtesting,
+institutional flow, paper trading, portfolio stats, or queries mentioning specific tickers
+(e.g. AAPL, MSFT, NVDA, SPY, TSLA). Also matches: "analyze [ticker]", "opportunities",
+"smart money", "trade signal", "quant".
 
 Return ONLY the category name.
 """
@@ -49,7 +59,7 @@ You are Alfred, an AI orchestration assistant — precise, calm, and quietly ind
 
 Speak like a senior operator who has seen everything and remains unflappable: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
 
-Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION), provider routing (openai_mini / codex / claude_code), optimized prompt generation, skill-based context injection, memory consolidation, and auto-dispatch.
+Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION / QUANT), provider routing (openai_mini / codex / claude_code / quant_tool), optimized prompt generation, skill-based context injection, memory consolidation, auto-dispatch, and the integrated Quant Intelligence System for live stock analysis.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -102,6 +112,190 @@ Return:
 """
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ── Quant Intelligence Tool ────────────────────────────────────────────────────
+
+QUANT_PATH = r"C:\Users\andre\OneDrive\Desktop\Quant"
+QUANT_PORT = 5000
+QUANT_BASE = f"http://127.0.0.1:{QUANT_PORT}"
+
+_quant_proc: "subprocess.Popen | None" = None
+
+QUANT_COMMAND_PROMPT = """
+You are a command parser for the Quant Intelligence System API.
+
+Given a user query about stocks, trading, or market analysis, return ONLY a compact JSON
+object describing the command to execute. No explanation, no code fences.
+
+Available commands:
+{"cmd": "analyze",      "ticker": "AAPL"} — full technical + sentiment + options analysis
+{"cmd": "backtest",     "ticker": "AAPL"} — backtest strategy for a ticker
+{"cmd": "institutional","ticker": "AAPL"} — smart-money / institutional flow
+{"cmd": "opportunities"}                  — scan all tracked stocks for trade signals
+{"cmd": "macro"}                          — current macro environment
+{"cmd": "paper"}                          — paper trading portfolio stats
+{"cmd": "alerts"}                         — recent trade alerts
+{"cmd": "learning"}                       — signal reliability and learning performance
+{"cmd": "refresh"}                        — clear the data cache
+
+Return ONLY the JSON.
+"""
+
+QUANT_SUMMARY_PROMPT = """
+You are Alfred, a precise and unflappable AI assistant.
+
+Summarize the following Quant Intelligence System data in 3-6 bullet points.
+Focus on actionable signals: direction, score, key drivers, risks.
+Be concise and direct. No filler. No "Certainly!".
+"""
+
+
+def _quant_is_running() -> bool:
+    try:
+        urllib.request.urlopen(f"{QUANT_BASE}/api/alerts", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+def _quant_start_server() -> bool:
+    global _quant_proc
+    python_exe = sys.executable
+    try:
+        _quant_proc = subprocess.Popen(
+            [python_exe, "app.py"],
+            cwd=QUANT_PATH,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(10):
+            time.sleep(0.5)
+            if _quant_is_running():
+                return True
+        return False
+    except Exception as e:
+        console.print(f"[bold red]Failed to start Quant server:[/bold red] {e}")
+        return False
+
+
+def _quant_ensure_running() -> bool:
+    if _quant_is_running():
+        return True
+    console.print("[dim]Starting Quant server...[/dim]")
+    ok = _quant_start_server()
+    if ok:
+        console.print("[bold green]Quant server ready.[/bold green]")
+    else:
+        console.print(
+            f"[bold red]Could not start Quant server.[/bold red] "
+            f"Check that app.py exists at [cyan]{QUANT_PATH}[/cyan]"
+        )
+    return ok
+
+
+def _quant_fetch(endpoint: str) -> dict:
+    url = f"{QUANT_BASE}{endpoint}"
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        try:
+            return json.loads(body)
+        except Exception:
+            return {"error": f"HTTP {e.code}: {body[:200]}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _quant_parse_command(user_input: str) -> dict:
+    response = openai_client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": QUANT_COMMAND_PROMPT},
+            {"role": "user", "content": user_input},
+        ],
+    )
+    raw = response.choices[0].message.content.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"cmd": "opportunities"}
+
+
+def _quant_summarize(data: dict, user_input: str) -> str:
+    payload = json.dumps(data, default=str)[:4000]
+    response = openai_client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": QUANT_SUMMARY_PROMPT},
+            {"role": "user", "content": f"User asked: {user_input}\n\nData:\n{payload}"},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+def run_quant_query(user_input: str) -> str:
+    if not _quant_ensure_running():
+        return "Quant server unavailable."
+
+    cmd = _quant_parse_command(user_input)
+    console.print(f"[dim]Quant command: {cmd}[/dim]")
+
+    c = cmd.get("cmd", "opportunities")
+    ticker = cmd.get("ticker", "").upper()
+
+    endpoint_map = {
+        "opportunities": "/api/opportunities",
+        "macro":         "/api/macro",
+        "paper":         "/api/paper",
+        "alerts":        "/api/alerts",
+        "learning":      "/api/learning",
+        "refresh":       "/api/refresh",
+    }
+    ticker_map = {
+        "analyze":       "/api/analyze/",
+        "backtest":      "/api/backtest/",
+        "institutional": "/api/institutional/",
+    }
+
+    if c in ticker_map:
+        if not ticker:
+            return "Please specify a ticker — e.g. 'analyze AAPL'."
+        data = _quant_fetch(f"{ticker_map[c]}{ticker}")
+    elif c in endpoint_map:
+        data = _quant_fetch(endpoint_map[c])
+    else:
+        data = _quant_fetch("/api/opportunities")
+
+    if "error" in data and len(data) == 1:
+        return f"Quant error: {data['error']}"
+
+    return _quant_summarize(data, user_input)
+
+
+def _render_quant_result(summary: str) -> None:
+    console.print(
+        Panel(
+            Markdown(summary),
+            title="[bold green]Quant Intelligence[/bold green]",
+            border_style="green",
+            padding=(0, 2),
+        )
+    )
+
+
+def _action_quant_dashboard() -> None:
+    console.print(Rule("[bold green]Quant Dashboard[/bold green]"))
+    if not _quant_ensure_running():
+        return
+    url = f"http://127.0.0.1:{QUANT_PORT}"
+    console.print(f"[dim]Opening {url}[/dim]")
+    webbrowser.open(url)
+    console.print(
+        "[bold green]Dashboard launched.[/bold green]  "
+        "[dim]Server stays running in the background.[/dim]"
+    )
 
 # ── Memory system ──────────────────────────────────────────────────────────────
 
@@ -839,7 +1033,7 @@ def _show_header() -> None:
     console.print(
         Panel.fit(
             "[bold cyan]Alfred Console[/bold cyan]  [dim]v2[/dim]\n"
-            "[dim]Multi-Provider AI Router — openai_mini / codex / claude_code[/dim]",
+            "[dim]Multi-Provider AI Router — openai_mini / codex / claude_code / quant_tool[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
@@ -858,6 +1052,7 @@ def _show_menu() -> None:
     t.add_row("6", "Run Claude Directly")
     t.add_row("7", "Exit")
     t.add_row("8", "Dev Portal")
+    t.add_row("9", "Quant Dashboard  [dim](launch browser)[/dim]")
     console.print(t)
 
 
@@ -916,6 +1111,12 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
         response = generate_general_response(stripped)
         _render_general_response(response)
         outcome = response[:200]
+
+    elif category == "QUANT":
+        console.print("\n[bold green]Routing to Quant Intelligence System...[/bold green]")
+        summary = run_quant_query(stripped)
+        _render_quant_result(summary)
+        outcome = summary[:200]
 
     elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
         console.print("\n[bold cyan]Generating scope...[/bold cyan]")
@@ -1042,6 +1243,12 @@ def _action_ask_alfred() -> None:
             response = generate_general_response(stripped)
             _render_general_response(response)
             outcome = response[:200]
+
+        elif category == "QUANT":
+            console.print("\n[bold green]Routing to Quant Intelligence System...[/bold green]")
+            summary = run_quant_query(stripped)
+            _render_quant_result(summary)
+            outcome = summary[:200]
 
         elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
             console.print("\n[bold cyan]Generating scope...[/bold cyan]")
@@ -1252,6 +1459,11 @@ def _action_show_dispatch_rules() -> None:
         "[blue]Discuss → confirm → dispatch to Codex[/blue]",
     )
     t.add_row(
+        "Category = QUANT",
+        "quant_tool",
+        "[bold green]Direct Quant API call — no CLI dispatch[/bold green]",
+    )
+    t.add_row(
         "Dangerous keyword detected",
         "—",
         "[red]Blocked — no dispatch[/red]",
@@ -1301,6 +1513,7 @@ _ACTIONS = {
     "5": _action_show_dispatch_rules,
     "6": _action_run_claude_directly,
     "8": _action_dev_portal,
+    "9": _action_quant_dashboard,
 }
 
 
