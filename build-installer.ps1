@@ -17,8 +17,7 @@ Write-Host "Alfred Installer Builder" -ForegroundColor Cyan
 Write-Host "========================" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Install ps2exe if needed ──────────────────────────────────────────────────
-
+# Install ps2exe if needed
 if (-not (Get-Module -ListAvailable -Name ps2exe)) {
     Write-Host "Installing ps2exe module..." -ForegroundColor Cyan
     Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
@@ -29,8 +28,7 @@ if (-not (Get-Module -ListAvailable -Name ps2exe)) {
 
 Import-Module ps2exe -Force
 
-# ── Build ─────────────────────────────────────────────────────────────────────
-
+# Build
 $InputFile  = Join-Path $PSScriptRoot "Alfred-Install.ps1"
 $OutputFile = Join-Path $PSScriptRoot "Alfred-Install.exe"
 
@@ -45,7 +43,7 @@ Invoke-ps2exe `
     -InputFile  $InputFile `
     -OutputFile $OutputFile `
     -Title       "Alfred Installer" `
-    -Description "Alfred AI Assistant — one-click installer" `
+    -Description "Alfred AI Assistant - one-click installer" `
     -Version     "1.0.0" `
     -RequireAdmin
 
