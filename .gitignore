@@ -28,3 +28,12 @@ desktop.ini
 .vscode/
 *.suo
 *.user
+
+# Compiled installer (upload to GitHub Releases, don't commit)
+Alfred-Install.exe
+
+# Logs (runtime only, not synced)
+logs/
+
+# Don't ignore skills/, memory/, requirements/ — those sync to GitHub
+

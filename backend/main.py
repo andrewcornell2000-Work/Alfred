@@ -650,20 +650,14 @@ def check_and_offer_git_commit() -> None:
 
     console.print(f"[bold green]Committed:[/bold green] {msg}")
 
-    try:
-        push_answer = console.input("[bold yellow]Push to origin/main? (y/n) > [/bold yellow]")
-    except EOFError:
-        return
-
-    if push_answer.strip().lower() in {"y", "yes"}:
-        push_result = subprocess.run(
-            ["git", "-C", _ROOT, "push", "origin", "main"],
-            capture_output=True, text=True,
-        )
-        if push_result.returncode == 0:
-            console.print("[bold green]Pushed to origin/main.[/bold green]")
-        else:
-            console.print(f"[bold red]Push failed:[/bold red] {push_result.stderr.strip()}")
+    push_result = subprocess.run(
+        ["git", "-C", _ROOT, "push", "origin", "main"],
+        capture_output=True, text=True,
+    )
+    if push_result.returncode == 0:
+        console.print("[bold green]Pushed to GitHub.[/bold green]")
+    else:
+        console.print(f"[bold yellow]Push skipped:[/bold yellow] {push_result.stderr.strip()[:120]}")
 
 
 STOPWORDS = {
