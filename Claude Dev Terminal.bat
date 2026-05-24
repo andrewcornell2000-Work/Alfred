@@ -1,2 +1,9 @@
 @echo off
-start powershell.exe -NoExit -Command "Set-Location 'C:\Users\ACO324\OneDrive - Maersk Group\Desktop\ai-orchestrator'; Write-Host 'Alfred dev terminal — project root ready.' -ForegroundColor Cyan"
+setlocal
+
+set "REPO=%~dp0"
+if "%REPO:~-1%"=="\" set "REPO=%REPO:~0,-1%"
+
+start powershell.exe -NoExit -NoProfile -Command "Set-Location -LiteralPath '%REPO%'; Write-Host 'Alfred dev terminal - project root ready.' -ForegroundColor Cyan"
+
+endlocal

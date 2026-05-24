@@ -7,11 +7,12 @@
     Python venv, installs Python packages from requirements/python-requirements.txt,
     installs npm CLI tools from requirements/npm-tools.txt, writes .env.template,
     and prints login instructions.
-    Safe to re-run at any time — all steps are idempotent.
+    Safe to re-run at any time -- all steps are idempotent.
 .OUTPUTS
-    Exit 0 — all required components ready; Alfred can start.
-    Exit 1 — .env is missing; add API keys then re-run.
-    Exit 2 — Python not found; install Python then re-run.
+    Exit 0 -- all required components ready; Alfred can start.
+    Exit 1 -- .env is missing; add API keys then re-run.
+    Exit 2 -- Python not found; install Python then re-run.
+    Exit 3 -- Git, Node.js, npm, Claude Code, or Codex is missing.
 #>
 
 $ErrorActionPreference = "Continue"
@@ -29,6 +30,19 @@ function Refresh-Path {
     # Reload Machine + User PATH into the current process after a winget install.
     $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" +
                 [System.Environment]::GetEnvironmentVariable("PATH","User")
+}
+
+function Add-ProcessPathEntry([string]$PathEntry) {
+    if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
+        return $false
+    }
+
+    $currentParts = @($env:PATH -split ';' | Where-Object { $_ })
+    if (-not ($currentParts | Where-Object { $_.TrimEnd('\') -ieq $PathEntry.TrimEnd('\') })) {
+        $env:PATH = "$PathEntry;$env:PATH"
+    }
+
+    return $true
 }
 
 function Add-PathEntry([string]$PathEntry) {
@@ -53,6 +67,34 @@ function Add-PathEntry([string]$PathEntry) {
     }
 
     return $true
+}
+
+function Add-RepoLocalNodeToPath {
+    $candidates = @()
+
+    $legacyPortableNode = Join-Path $Root "node"
+    if (Test-Path (Join-Path $legacyPortableNode "node.exe")) {
+        $candidates += $legacyPortableNode
+    }
+
+    $nodeCacheRoot = Join-Path $Root "Node"
+    if (Test-Path $nodeCacheRoot) {
+        $candidates += @(
+            Get-ChildItem -Path $nodeCacheRoot -Directory -Filter "node-v*-win-x64" -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending |
+                ForEach-Object { $_.FullName }
+        )
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path (Join-Path $candidate "node.exe")) {
+            $null = Add-ProcessPathEntry $candidate
+            Write-OK "Repo-local Node.js path -- $candidate"
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Get-NpmGlobalBin {
@@ -168,6 +210,7 @@ if (Find-Command "git") {
 # Node.js + version tracking for MCP check
 $hasNode = $false
 $nodeVersionMajor = 0
+$null = Add-RepoLocalNodeToPath
 if (Find-Command "node") {
     $nodeVerStr = & node --version 2>&1 | Select-Object -First 1
     Write-OK "Node.js -- $nodeVerStr"
@@ -246,6 +289,9 @@ if (-not $hasNpm) {
 # Convenience flags used by login instructions below
 $hasClaude = $toolStatus["claude"] -eq $true
 $hasCodex  = $toolStatus["codex"]  -eq $true
+$hasSupportedNode = $hasNode -and ($nodeVersionMajor -ge 18)
+$missingNpmTools = @($npmToolList | Where-Object { $toolStatus[$_.Command] -ne $true })
+$allNpmToolsReady = $missingNpmTools.Count -eq 0
 
 # ── MCP prerequisites ─────────────────────────────────────────────────────────
 
@@ -377,11 +423,19 @@ Write-Host "  Setup summary" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-$readyToRun = $hasPython -and $hasEnv
+$readyToRun = $hasPython -and $hasGit -and $hasSupportedNode -and $hasNpm -and $allNpmToolsReady -and $hasEnv
 
 if ($hasPython) { Write-Host "  [x] Python"   -ForegroundColor Green  } else { Write-Host "  [ ] Python 3.10+  --  https://www.python.org/downloads/"  -ForegroundColor Yellow }
 if ($hasGit)    { Write-Host "  [x] Git"      -ForegroundColor Green  } else { Write-Host "  [ ] Git           --  https://git-scm.com/download/win"    -ForegroundColor Yellow }
-if ($hasNode)   { Write-Host "  [x] Node.js"  -ForegroundColor Green  } else { Write-Host "  [ ] Node.js 18+   --  https://nodejs.org/"                 -ForegroundColor Yellow }
+if ($hasSupportedNode) {
+    Write-Host "  [x] Node.js 18+" -ForegroundColor Green
+} elseif ($hasNode) {
+    Write-Host "  [ ] Node.js 18+   --  upgrade from detected major version $nodeVersionMajor" -ForegroundColor Yellow
+} else {
+    Write-Host "  [ ] Node.js 18+   --  https://nodejs.org/" -ForegroundColor Yellow
+}
+
+if ($hasNpm) { Write-Host "  [x] npm" -ForegroundColor Green } else { Write-Host "  [ ] npm           --  installed with Node.js" -ForegroundColor Yellow }
 
 foreach ($tool in $npmToolList) {
     $ok = $toolStatus[$tool.Command] -eq $true
@@ -406,5 +460,6 @@ Write-Host ""
 
 # Exit codes (read by Install-Alfred.bat and run-alfred.bat)
 if (-not $hasPython) { exit 2 }
+if (-not $hasGit -or -not $hasSupportedNode -or -not $hasNpm -or -not $allNpmToolsReady) { exit 3 }
 if (-not $hasEnv)    { exit 1 }
 exit 0

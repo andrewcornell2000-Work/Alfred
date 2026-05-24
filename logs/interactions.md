@@ -105,3 +105,21 @@ Forbidden scope:
 ---
 
 Optimized Claude Code 
+
+## 2026-05-24 18:50:09
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** confirm available providers and whether Codex is callable.
+**Scope:**
+
+## 2026-05-24 18:52:07
+**Category:** CLAUDE_EXECUTION
+**Provider:** codex
+**Input:** Add Project Mode and Learning / Creator Mode to Alfred's terminal menu. Project Mode should let me create, select, resume, view, archive, and safely delete project memory under projects/. Each project should have project.json, summary.md, current-state.md, decisions.md, open-tasks.md, session-history.md, context.md, and archive/. Learning / Creator Mode should be conversational and let me teach Alfred new skills, routing rules, tool requirements, and self-improvements with confirmation before writing files. Save skills under skills/, routing rules under memory/routing-rules.md, learning events under memory/learning-log.md, and tool requirements under requirements/ manifests when needed. Use Codex for implementation. Make surgical changes only, preserve existing architecture and Rich terminal style, keep UX lightweight, avoid unrelated refactors, and do not remove existing memory/autosave/routing behavior.
+**Scope:** Likely issue:
+- Alfred currently lacks terminal UI support for managing project workspace memories and Learning/Creator conversational mode workflows.
+
+First inspection target:
+- Terminal UI code handling main menu and user input loop (likely `backend/main.py` or related CLI code).
+- Project memory file structure handling code under `projects/`.
+- Learning mode interaction and memory write logic related to `skills/`, `memory/routing-rules.md`, `memory/learning-log.md`, and `requirements/` manife

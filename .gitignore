@@ -16,6 +16,8 @@ build/
 
 # Node
 node_modules/
+Node/
+node/
 
 # OS
 .DS_Store
