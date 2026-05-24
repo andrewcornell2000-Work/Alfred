@@ -237,15 +237,26 @@ if (Find-Command "node") {
 Write-Step "Step 5: Claude login (Anthropic account — browser, no API key)"
 Write-Host ""
 
-if (Find-Command "claude") {
+# Find claude.cmd by PATH or directly in npm global bin
+$npmPrefix = & npm prefix -g 2>$null | Select-Object -First 1
+$claudeExe = $null
+if ($npmPrefix) {
+    $candidate = Join-Path $npmPrefix.Trim() "claude.cmd"
+    if (Test-Path $candidate) { $claudeExe = $candidate }
+}
+if (-not $claudeExe) {
+    $claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue
+    if (-not $claudeCmd) { $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue }
+    if ($claudeCmd) { $claudeExe = $claudeCmd.Source }
+}
+
+if ($claudeExe) {
     $doLogin = Read-Host "  Run claude login now? (Y/n)"
     if ($doLogin -notmatch "^[Nn]") {
-        $claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue
-        $claudeExe = if ($claudeCmd) { $claudeCmd.Source } else { "claude" }
         & $claudeExe login
     }
 } else {
-    Write-Warn "Claude Code CLI not found. Run 'claude login' after opening a new terminal."
+    Write-Warn "Claude Code CLI not found on PATH. Run 'claude login' after opening a new terminal."
 }
 
 # ── Step 6: Codex login ───────────────────────────────────────────────────────
@@ -253,15 +264,24 @@ if (Find-Command "claude") {
 Write-Step "Step 6: Codex login (ChatGPT account — browser, no API key)"
 Write-Host ""
 
-if (Find-Command "codex") {
+$codexExe = $null
+if ($npmPrefix) {
+    $candidate = Join-Path $npmPrefix.Trim() "codex.cmd"
+    if (Test-Path $candidate) { $codexExe = $candidate }
+}
+if (-not $codexExe) {
+    $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    if (-not $codexCmd) { $codexCmd = Get-Command codex -ErrorAction SilentlyContinue }
+    if ($codexCmd) { $codexExe = $codexCmd.Source }
+}
+
+if ($codexExe) {
     $doCodex = Read-Host "  Run codex login now? (Y/n)"
     if ($doCodex -notmatch "^[Nn]") {
-        $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
-        $codexExe = if ($codexCmd) { $codexCmd.Source } else { "codex" }
         & $codexExe login
     }
 } else {
-    Write-Warn "Codex CLI not found. Run 'codex login' after opening a new terminal."
+    Write-Warn "Codex CLI not found on PATH. Run 'codex login' after opening a new terminal."
 }
 
 # ── Step 7: OpenAI API key ────────────────────────────────────────────────────
