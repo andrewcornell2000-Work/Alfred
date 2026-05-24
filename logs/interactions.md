@@ -57,3 +57,33 @@ The measure uses `SELECTEDVALUE(Regions[RegionName])` inside a `FILTER` on the `
 
 2. **First ins
 
+
+## 2026-05-24 12:20:22
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** 2. missing/incomplete areas,
+**Scope:** 
+
+## 2026-05-24 12:20:23
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** 3. exact files/functions inspected,
+**Scope:** 
+
+## 2026-05-24 12:20:25
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** 4. recommended next steps.
+**Scope:** 
+
+## 2026-05-24 12:21:22
+**Category:** CLAUDE_EXECUTION
+**Provider:** codex
+**Input:** Review the project workspace memory implementation. Verify whether the following are fully implemented and functioning correctly: projects/ directory structure, project creation/select/resume flow, autosave behavior, session summarization/compression, GitHub update checks and sync flow, project memory loading on startup, safe archive/delete behavior, and cross-machine persistence assumptions. Inspect only the minimal required files and avoid broad repository scans. If any area is incomplete or partially implemented, route implementation work to Codex, make only surgical changes, preserve existing Alfred architecture, avoid over-engineering, and keep terminal UX lightweight and deterministic. After inspection, provide: 1. feature completeness status, 2. missing/incomplete areas, 3. exact files/functions inspected, and 4. recommended next steps. Do not modify unrelated functionality.
+**Scope:** Likely issue:
+- Potential partial or incomplete implementation of project workspace memory features such as project lifecycle management, autosave, session summarization, and cross-machine sync due to the complexity and multiple concerns involved.
+
+First inspection target:
+- `backend/main.py` (primary orchestrator that likely manages projects, autosave, and memory)
+- `memory/` folder files related to project memory management (e.g., `autosave.md`, `current-focus.md`, `session-summary.md`)
+- `bac

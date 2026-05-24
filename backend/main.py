@@ -643,7 +643,7 @@ def run_claude(prompt: str) -> subprocess.CompletedProcess:
 def run_codex(prompt: str) -> subprocess.CompletedProcess:
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
     return subprocess.run(
-        ["codex", "-q", full_prompt],
+        [os.getenv("CODEX_BIN", "codex.cmd"), "-q", full_prompt],
         capture_output=True,
         text=True,
     )
