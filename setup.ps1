@@ -3,9 +3,10 @@
 .SYNOPSIS
     One-click setup for Alfred on a fresh Windows machine.
 .DESCRIPTION
-    Checks and installs prerequisites, creates the Python venv, installs
-    Python packages, auto-installs Claude Code and Codex CLIs via npm,
-    writes .env.template, and prints login instructions.
+    Checks and installs prerequisites (using winget when available), creates the
+    Python venv, installs Python packages from requirements/python-requirements.txt,
+    installs npm CLI tools from requirements/npm-tools.txt, writes .env.template,
+    and prints login instructions.
     Safe to re-run at any time — all steps are idempotent.
 .OUTPUTS
     Exit 0 — all required components ready; Alfred can start.
@@ -24,6 +25,28 @@ function Find-Command([string]$Name) {
     return $cmd.Source
 }
 
+function Refresh-Path {
+    # Reload Machine + User PATH into the current process after a winget install.
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("PATH","User")
+}
+
+function Invoke-WingetInstall([string]$PackageId, [string]$Name) {
+    if (-not (Find-Command "winget")) {
+        Write-Info "winget not available -- install $Name manually."
+        return $false
+    }
+    Write-Host "  Installing $Name via winget (this may take a moment)..." -ForegroundColor Cyan
+    winget install --id $PackageId --silent --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -eq 0) {
+        Refresh-Path
+        Write-Done "$Name installed."
+        return $true
+    }
+    Write-Fail "$Name install via winget failed -- install manually."
+    return $false
+}
+
 function Write-Step([string]$Msg) {
     Write-Host ""
     Write-Host $Msg -ForegroundColor Cyan
@@ -40,8 +63,28 @@ function Write-Fail([string]$Msg) { Write-Host "  [FAILED]   $Msg" -ForegroundCo
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Alfred -- First-time Setup" -ForegroundColor Cyan
+Write-Host "  Alfred -- Setup" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
+
+# ── load tool manifests ───────────────────────────────────────────────────────
+
+$NpmToolsFile  = Join-Path $Root "requirements\npm-tools.txt"
+$PythonReqFile = Join-Path $Root "requirements\python-requirements.txt"
+
+# Parse npm-tools.txt: "package:command:description" — lines starting with # are comments
+$npmToolList = @()
+if (Test-Path $NpmToolsFile) {
+    Get-Content $NpmToolsFile | Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\S' } | ForEach-Object {
+        $parts = $_ -split ':', 3
+        if ($parts.Count -ge 2) {
+            $npmToolList += [PSCustomObject]@{
+                Package     = $parts[0].Trim()
+                Command     = $parts[1].Trim()
+                Description = if ($parts.Count -ge 3) { $parts[2].Trim() } else { $parts[0].Trim() }
+            }
+        }
+    }
+}
 
 # ── prerequisites ─────────────────────────────────────────────────────────────
 
@@ -55,8 +98,15 @@ if (Find-Command "python") {
     $hasPython = $true
 } else {
     Write-Warn "Python not found."
-    Write-Info "Install Python 3.10+ from https://www.python.org/downloads/"
-    Write-Info "IMPORTANT: tick 'Add Python to PATH' during install."
+    $null = Invoke-WingetInstall "Python.Python.3.12" "Python 3.12"
+    if (Find-Command "python") {
+        $pyVer = & python --version 2>&1 | Select-Object -First 1
+        Write-OK "Python -- $pyVer"
+        $hasPython = $true
+    } else {
+        Write-Info "Install Python 3.10+ from https://www.python.org/downloads/"
+        Write-Info "IMPORTANT: tick 'Add Python to PATH' during install, then re-run."
+    }
 }
 
 # Git
@@ -67,7 +117,14 @@ if (Find-Command "git") {
     $hasGit = $true
 } else {
     Write-Warn "Git not found."
-    Write-Info "Install Git from https://git-scm.com/download/win"
+    $null = Invoke-WingetInstall "Git.Git" "Git"
+    if (Find-Command "git") {
+        $gitVer = & git --version 2>&1 | Select-Object -First 1
+        Write-OK "Git -- $gitVer"
+        $hasGit = $true
+    } else {
+        Write-Info "Install Git from https://git-scm.com/download/win"
+    }
 }
 
 # Node.js + version tracking for MCP check
@@ -80,11 +137,19 @@ if (Find-Command "node") {
     $nodeVersionMajor = ($nodeVerStr -replace 'v', '').Split('.')[0] -as [int]
     if ($nodeVersionMajor -lt 18) {
         Write-Warn "Node.js $nodeVerStr is below 18. Claude Code MCP requires Node 18+."
-        Write-Info "Upgrade at https://nodejs.org/"
+        Write-Info "Upgrade: winget install OpenJS.NodeJS.LTS  or  https://nodejs.org/"
     }
 } else {
     Write-Warn "Node.js not found."
-    Write-Info "Install Node.js 18+ from https://nodejs.org/"
+    $null = Invoke-WingetInstall "OpenJS.NodeJS.LTS" "Node.js LTS"
+    if (Find-Command "node") {
+        $nodeVerStr = & node --version 2>&1 | Select-Object -First 1
+        Write-OK "Node.js -- $nodeVerStr"
+        $hasNode = $true
+        $nodeVersionMajor = ($nodeVerStr -replace 'v', '').Split('.')[0] -as [int]
+    } else {
+        Write-Info "Install Node.js 18+ from https://nodejs.org/"
+    }
 }
 
 # npm
@@ -97,55 +162,41 @@ if (Find-Command "npm") {
     Write-Warn "npm not found (should come bundled with Node.js)."
 }
 
-# ── Claude Code CLI ───────────────────────────────────────────────────────────
+# ── npm CLI tools (from requirements/npm-tools.txt) ───────────────────────────
 
-Write-Step "Claude Code CLI..."
+Write-Step "npm CLI tools (requirements/npm-tools.txt)..."
 
-$hasClaude = $false
-if ($hasNpm) {
-    if (Find-Command "claude") {
-        $claudeVer = & claude --version 2>&1 | Select-Object -First 1
-        Write-OK "Claude Code CLI -- $claudeVer"
-        $hasClaude = $true
-    } else {
-        Write-Host "  Installing Claude Code CLI (npm install -g @anthropic-ai/claude-code)..." -ForegroundColor Cyan
-        npm install -g @anthropic-ai/claude-code
-        if ($LASTEXITCODE -eq 0) {
-            Write-Done "Claude Code CLI installed."
-            $hasClaude = $true
+$toolStatus = @{}
+
+if (-not $hasNpm) {
+    Write-Skip "npm not available -- skipping all npm tool installs."
+    foreach ($tool in $npmToolList) { $toolStatus[$tool.Command] = $false }
+} elseif ($npmToolList.Count -eq 0) {
+    Write-Skip "requirements/npm-tools.txt is empty or missing -- nothing to install."
+} else {
+    foreach ($tool in $npmToolList) {
+        if (Find-Command $tool.Command) {
+            $ver = & $tool.Command --version 2>&1 | Select-Object -First 1
+            Write-OK "$($tool.Description) -- $ver"
+            $toolStatus[$tool.Command] = $true
         } else {
-            Write-Fail "Claude Code CLI install failed."
-            Write-Info "Run manually: npm install -g @anthropic-ai/claude-code"
+            Write-Host "  Installing $($tool.Description) (npm install -g $($tool.Package))..." -ForegroundColor Cyan
+            npm install -g $tool.Package
+            if ($LASTEXITCODE -eq 0) {
+                Write-Done "$($tool.Description) installed."
+                $toolStatus[$tool.Command] = $true
+            } else {
+                Write-Fail "$($tool.Description) install failed."
+                Write-Info "Run manually: npm install -g $($tool.Package)"
+                $toolStatus[$tool.Command] = $false
+            }
         }
     }
-} else {
-    Write-Skip "npm not available -- skipping Claude Code CLI install."
 }
 
-# ── Codex CLI ─────────────────────────────────────────────────────────────────
-
-Write-Step "Codex CLI..."
-
-$hasCodex = $false
-if ($hasNpm) {
-    if (Find-Command "codex") {
-        $codexVer = & codex --version 2>&1 | Select-Object -First 1
-        Write-OK "Codex CLI -- $codexVer"
-        $hasCodex = $true
-    } else {
-        Write-Host "  Installing Codex CLI (npm install -g @openai/codex)..." -ForegroundColor Cyan
-        npm install -g @openai/codex
-        if ($LASTEXITCODE -eq 0) {
-            Write-Done "Codex CLI installed."
-            $hasCodex = $true
-        } else {
-            Write-Fail "Codex CLI install failed."
-            Write-Info "Run manually: npm install -g @openai/codex"
-        }
-    }
-} else {
-    Write-Skip "npm not available -- skipping Codex CLI install."
-}
+# Convenience flags used by login instructions below
+$hasClaude = $toolStatus["claude"] -eq $true
+$hasCodex  = $toolStatus["codex"]  -eq $true
 
 # ── MCP prerequisites ─────────────────────────────────────────────────────────
 
@@ -169,8 +220,8 @@ if ($hasClaude) {
 
 Write-Step "Python virtual environment..."
 
-$VenvPath  = Join-Path $Root ".venv"
-$PipExe    = Join-Path $VenvPath "Scripts\pip.exe"
+$VenvPath = Join-Path $Root ".venv"
+$PipExe   = Join-Path $VenvPath "Scripts\pip.exe"
 
 if (-not $hasPython) {
     Write-Skip "Python not found -- skipping venv and package install."
@@ -188,9 +239,15 @@ if (-not $hasPython) {
     }
 
     if (Test-Path $PipExe) {
-        Write-Host "  Installing Python packages..." -ForegroundColor Cyan
-        & $PipExe install --quiet anthropic openai rich python-dotenv typer
-        Write-Done "Packages installed: anthropic, openai, rich, python-dotenv, typer"
+        if (Test-Path $PythonReqFile) {
+            Write-Host "  Installing Python packages from requirements/python-requirements.txt..." -ForegroundColor Cyan
+            & $PipExe install --quiet -r $PythonReqFile
+            Write-Done "Packages installed from requirements/python-requirements.txt"
+        } else {
+            Write-Host "  Installing Python packages (fallback)..." -ForegroundColor Cyan
+            & $PipExe install --quiet anthropic openai rich python-dotenv typer
+            Write-Done "Packages installed: anthropic, openai, rich, python-dotenv, typer"
+        }
     } else {
         Write-Fail "pip not found in .venv -- package install skipped."
     }
@@ -273,12 +330,20 @@ Write-Host ""
 
 $readyToRun = $hasPython -and $hasEnv
 
-if ($hasPython)  { Write-Host "  [x] Python" -ForegroundColor Green }   else { Write-Host "  [ ] Python 3.10+  --  https://www.python.org/downloads/" -ForegroundColor Yellow }
-if ($hasGit)     { Write-Host "  [x] Git" -ForegroundColor Green }      else { Write-Host "  [ ] Git           --  https://git-scm.com/download/win" -ForegroundColor Yellow }
-if ($hasNode)    { Write-Host "  [x] Node.js" -ForegroundColor Green }  else { Write-Host "  [ ] Node.js 18+   --  https://nodejs.org/" -ForegroundColor Yellow }
-if ($hasClaude)  { Write-Host "  [x] Claude Code CLI" -ForegroundColor Green } else { Write-Host "  [ ] Claude Code CLI  --  npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow }
-if ($hasCodex)   { Write-Host "  [x] Codex CLI" -ForegroundColor Green }       else { Write-Host "  [ ] Codex CLI        --  npm install -g @openai/codex" -ForegroundColor Yellow }
-if ($hasEnv)     { Write-Host "  [x] .env (API keys)" -ForegroundColor Green } else { Write-Host "  [ ] .env             --  copy .env.template to .env and add your keys" -ForegroundColor Yellow }
+if ($hasPython) { Write-Host "  [x] Python"   -ForegroundColor Green  } else { Write-Host "  [ ] Python 3.10+  --  https://www.python.org/downloads/"  -ForegroundColor Yellow }
+if ($hasGit)    { Write-Host "  [x] Git"      -ForegroundColor Green  } else { Write-Host "  [ ] Git           --  https://git-scm.com/download/win"    -ForegroundColor Yellow }
+if ($hasNode)   { Write-Host "  [x] Node.js"  -ForegroundColor Green  } else { Write-Host "  [ ] Node.js 18+   --  https://nodejs.org/"                 -ForegroundColor Yellow }
+
+foreach ($tool in $npmToolList) {
+    $ok = $toolStatus[$tool.Command] -eq $true
+    if ($ok) {
+        Write-Host "  [x] $($tool.Description)" -ForegroundColor Green
+    } else {
+        Write-Host "  [ ] $($tool.Description)  --  npm install -g $($tool.Package)" -ForegroundColor Yellow
+    }
+}
+
+if ($hasEnv) { Write-Host "  [x] .env (API keys)" -ForegroundColor Green } else { Write-Host "  [ ] .env  --  copy .env.template to .env and add your keys" -ForegroundColor Yellow }
 
 Write-Host ""
 
@@ -290,7 +355,7 @@ if ($readyToRun) {
 
 Write-Host ""
 
-# Exit codes (read by Install-Alfred.bat)
+# Exit codes (read by Install-Alfred.bat and run-alfred.bat)
 if (-not $hasPython) { exit 2 }
 if (-not $hasEnv)    { exit 1 }
 exit 0

@@ -1,0 +1,7 @@
+# Alfred npm tool manifest
+# Format: package-name:cli-command:description
+# Lines starting with # are ignored.
+# To add a tool: append a line here, update alfred-tools.json, update README.md if
+# the user-facing setup flow changes, then commit all manifest changes.
+@anthropic-ai/claude-code:claude:Claude Code CLI
+@openai/codex:codex:OpenAI Codex CLI

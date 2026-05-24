@@ -1,0 +1,32 @@
+{
+  "version": "1",
+  "updated": "2026-05-24",
+  "note": "Master tool manifest for Alfred. setup.ps1 reads python and npm sections. Update this file (and the matching .txt files) when adding tools via learning mode.",
+  "python": {
+    "source": "requirements/python-requirements.txt",
+    "packages": ["anthropic", "openai", "rich", "python-dotenv", "typer"]
+  },
+  "npm": {
+    "source": "requirements/npm-tools.txt",
+    "tools": [
+      {
+        "package": "@anthropic-ai/claude-code",
+        "command": "claude",
+        "description": "Claude Code CLI",
+        "purpose": "CLAUDE_EXECUTION routing provider and MCP runtime",
+        "loginRequired": true
+      },
+      {
+        "package": "@openai/codex",
+        "command": "codex",
+        "description": "OpenAI Codex CLI",
+        "purpose": "codex routing provider",
+        "loginRequired": true
+      }
+    ]
+  },
+  "mcp": {
+    "source": "requirements/mcp-tools.md",
+    "tools": []
+  }
+}

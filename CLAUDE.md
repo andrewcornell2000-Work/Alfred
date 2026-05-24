@@ -26,7 +26,7 @@ OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 ```
 
-No `requirements.txt` or `pyproject.toml` exists — dependencies are managed directly in `.venv`. Key packages: `anthropic`, `openai`, `python-dotenv`, `rich`, `typer`.
+Python packages are declared in `requirements/python-requirements.txt` and installed into `.venv` by `setup.ps1` via `pip install -r`. Key packages: `anthropic`, `openai`, `python-dotenv`, `rich`, `typer`.
 
 ## Architecture
 
@@ -49,9 +49,44 @@ Two API clients are initialized at module load: `openai_client` (OpenAI) and `an
 
 When modifying or extending this prompt, preserve these scoping principles.
 
+## Tool Manifests
+
+Tool dependencies are tracked in `requirements/`:
+
+| File | Purpose |
+|---|---|
+| `python-requirements.txt` | pip packages; used by `setup.ps1` via `pip install -r` |
+| `npm-tools.txt` | npm global CLI tools; format `package:command:description` |
+| `alfred-tools.json` | Master manifest summarising all tool types with metadata |
+| `mcp-tools.md` | MCP server documentation and candidate tool registry |
+
+`setup.ps1` reads these files at runtime — adding a line to `npm-tools.txt` is enough to make setup auto-install a new tool on the next run.
+
+## Learning Mode: Adding External Tools
+
+When Alfred encounters or learns about a new external tool in a session:
+
+1. Add the tool to the appropriate manifest file (`npm-tools.txt` or `python-requirements.txt`).
+2. Update `alfred-tools.json` with the full tool entry.
+3. Update `requirements/mcp-tools.md` if it is an MCP server.
+4. Update `README.md` if the tool changes the user-facing setup steps (new login, new key).
+5. Commit all manifest changes before the session ends.
+
+**Rules that must not be broken:**
+- Never add API keys, tokens, or credentials to any manifest or committed file.
+- Never auto-pull from GitHub or auto-install tools without explicit user approval (`check-updates.ps1` always prompts).
+- New tools with file-write or destructive capabilities must be added to `BLOCKED_KEYWORDS` in `backend/main.py` before they are allowed to dispatch.
+
+## Update Flow
+
+`run-alfred.bat` calls `check-updates.ps1` on each startup:
+1. Runs `git fetch origin main` silently (no-op if offline).
+2. Compares local HEAD with `origin/main`.
+3. If behind, shows the commit list and asks **Y/N** — never pulls without approval.
+4. On pull: re-runs `setup.ps1` to apply any new packages or tool entries.
+
 ## Planned Expansion
 
-The following directories are empty placeholders for future features:
 - `skills/` — custom skill modules
 - `templates/` — prompt templates
 - `memory/` — conversation memory/history
