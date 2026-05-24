@@ -1018,6 +1018,24 @@ def should_send_to_claude(user_input: str, category: str, provider: str = "") ->
     return False
 
 
+def detect_provider_override(user_input: str) -> "str | None":
+    """If the user explicitly says 'use claude' or 'use codex', return that provider.
+    Returns None if no override — let the classifier decide."""
+    lowered = user_input.lower()
+    if any(p in lowered for p in ("use claude", "with claude", "via claude", "ask claude")):
+        return "claude_code"
+    if any(p in lowered for p in ("use codex", "with codex", "via codex", "ask codex")):
+        return "codex"
+    return None
+
+
+def strip_provider_prefix(user_input: str) -> str:
+    """Remove the provider directive from the input before passing to the AI."""
+    return re.sub(
+        r"(?i)^(use|with|via|ask)\s+(claude|codex)[,:\s]+", "", user_input
+    ).strip()
+
+
 def choose_provider(user_input: str, category: str) -> str:
     """Deterministic provider routing — returns 'openai_mini', 'codex', or 'claude_code'."""
     if category == "GENERAL":
@@ -1309,8 +1327,17 @@ def _action_ask_alfred() -> None:
         scope = ""
         outcome = ""
 
+        # Check for explicit provider override ("use claude ...", "use codex ...")
+        provider_override = detect_provider_override(stripped)
+        if provider_override:
+            task = strip_provider_prefix(stripped)
+            console.print(f"[dim]Provider override: {provider_override}[/dim]")
+            category = "CLAUDE_EXECUTION"
+            provider = provider_override
+            stripped = task
+
         # Learning / Creator Mode: discuss first, then confirm before routing to Codex/Claude
-        if is_learning_mode_task(stripped):
+        elif is_learning_mode_task(stripped):
             console.print("\n[dim]Learning / Creator Mode — discussing before routing.[/dim]")
             discussion = generate_learning_discussion(stripped)
             _render_general_response(discussion)
