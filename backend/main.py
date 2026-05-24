@@ -602,7 +602,7 @@ def check_and_offer_git_commit() -> None:
     """If memory, skills, routing manifests, or setup files changed this session,
     offer to commit and optionally push them."""
     watched_prefixes = (
-        "memory/", "skills/", "requirements/",
+        "memory/", "skills/", "requirements/", "plugins/",
         "setup.ps1", "run-alfred.bat", "backend/main.py",
     )
     result = subprocess.run(
