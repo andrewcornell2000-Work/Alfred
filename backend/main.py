@@ -137,7 +137,7 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
 
 QUANT_PATH = os.getenv("QUANT_PATH", os.path.join(_ROOT, "plugins", "quant"))
 QUANT_PORT = int(os.getenv("QUANT_PORT", "5000"))
-QUANT_BASE = os.getenv("QUANT_BASE_URL", f"http://127.0.0.1:{QUANT_PORT}")
+QUANT_BASE = os.getenv("QUANT_BASE_URL", "https://alfred-production-8fe8.up.railway.app")
 
 _quant_proc: "subprocess.Popen | None" = None
 

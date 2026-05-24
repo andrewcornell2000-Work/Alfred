@@ -4,10 +4,11 @@
     One-file Alfred bootstrapper. Download this file alone and run it.
 .DESCRIPTION
     - Installs Git, Python 3.12, Node.js if missing (via winget)
-    - Clones https://github.com/andrewcornell2000-Work/Alfred  (or pulls updates)
+    - Clones https://github.com/andrewcornell2000-Work/Alfred (or pulls updates)
     - Creates .venv and installs all Python packages
     - Installs Claude Code and Codex CLIs
-    - Prompts for API keys and writes .env
+    - Runs claude login and codex login (browser OAuth - no API keys)
+    - Prompts for OpenAI API key and writes .env
     - Creates a desktop shortcut
     - Idempotent: safe to re-run to update or repair
 .PARAMETER InstallPath
@@ -20,12 +21,11 @@
 param(
     [string]$InstallPath = "$env:USERPROFILE\Alfred",
     [string]$RepoUrl    = "https://github.com/andrewcornell2000-Work/Alfred.git",
-    [string]$Branch     = "main"
+    [string]$Branch     = "main",
+    [string]$QuantUrl   = "https://alfred-production-8fe8.up.railway.app"
 )
 
 $ErrorActionPreference = "Continue"
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 function Write-Banner([string]$Text) {
     Write-Host ""
@@ -41,7 +41,12 @@ function Write-Fail([string]$Msg)  { Write-Host "  [FAIL]   $Msg" -ForegroundCol
 function Write-Info([string]$Msg)  { Write-Host "           $Msg" -ForegroundColor DarkGray }
 
 function Find-Command([string]$Name) {
-    return (Get-Command $Name -ErrorAction SilentlyContinue)?.Source
+    # Check both plain name and .cmd variant (Windows npm installs)
+    $found = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($found) { return $found.Source }
+    $found = Get-Command "$Name.cmd" -ErrorAction SilentlyContinue
+    if ($found) { return $found.Source }
+    return $null
 }
 
 function Refresh-Path {
@@ -67,6 +72,20 @@ function Install-Winget([string]$Id, [string]$Name) {
     winget install --id $Id --silent --accept-package-agreements --accept-source-agreements
     Refresh-Path
     return ($LASTEXITCODE -eq 0)
+}
+
+function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
+    if (Test-Path $EnvPath) {
+        $content = Get-Content $EnvPath -Raw
+        if ($content -match "(?m)^$Key=") {
+            $content = $content -replace "(?m)^$Key=.*", "$Key=$Value"
+        } else {
+            $content = $content.TrimEnd() + "`n$Key=$Value`n"
+        }
+        Set-Content $EnvPath $content -NoNewline
+    } else {
+        Set-Content $EnvPath "$Key=$Value`n"
+    }
 }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
@@ -135,7 +154,7 @@ if (-not (Find-Command "python")) {
     Write-Warn "Python not found — installing Python 3.12..."
     $ok = Install-Winget "Python.Python.3.12" "Python 3.12"
     if (-not $ok) {
-        Write-Fail "Python install failed. Install from https://www.python.org/downloads/ (tick 'Add to PATH'), then re-run."
+        Write-Fail "Python install failed. Install from https://www.python.org/downloads/ (tick Add to PATH), then re-run."
         exit 2
     }
 }
@@ -143,7 +162,6 @@ if (-not (Find-Command "python")) {
 $pyVer = & python --version 2>&1 | Select-Object -First 1
 Write-OK "Python — $pyVer"
 
-# venv
 $VenvPath = Join-Path $InstallPath ".venv"
 $PipExe   = Join-Path $VenvPath "Scripts\pip.exe"
 
@@ -155,21 +173,20 @@ if (-not (Test-Path $VenvPath)) {
     Write-OK ".venv exists."
 }
 
-# Install Python packages
 $ReqFile = Join-Path $InstallPath "requirements\python-requirements.txt"
 if (Test-Path $PipExe) {
     Write-Host "  Installing Python packages..." -ForegroundColor Cyan
     if (Test-Path $ReqFile) {
         & $PipExe install --quiet -r $ReqFile
     } else {
-        & $PipExe install --quiet anthropic openai rich python-dotenv typer
+        & $PipExe install --quiet openai rich python-dotenv typer
     }
     Write-Done "Python packages installed."
 } else {
     Write-Fail "pip not found in .venv — package install skipped."
 }
 
-# ── Step 4: Node.js ───────────────────────────────────────────────────────────
+# ── Step 4: Node.js + CLIs ────────────────────────────────────────────────────
 
 Write-Step "Step 4: Node.js"
 
@@ -185,24 +202,23 @@ if (Find-Command "node") {
     $nodeVer = & node --version 2>&1 | Select-Object -First 1
     Write-OK "Node.js — $nodeVer"
 
-    # npm global bin on PATH
     $npmGlobal = & npm prefix -g 2>$null | Select-Object -First 1
     if ($npmGlobal) { Add-PathEntry $npmGlobal.Trim() }
 
-    # Claude Code CLI
     if (-not (Find-Command "claude")) {
         Write-Host "  Installing Claude Code CLI..." -ForegroundColor Cyan
         npm install -g @anthropic-ai/claude-code
+        Refresh-Path
         if (Find-Command "claude") { Write-Done "Claude Code CLI installed." }
-        else { Write-Warn "Claude Code installed but not on PATH yet — open a new terminal." }
+        else { Write-Warn "Claude Code installed but not on PATH yet — open a new terminal after install." }
     } else {
-        Write-OK "Claude Code CLI — $(& claude --version 2>&1 | Select-Object -First 1)"
+        Write-OK "Claude Code CLI already present."
     }
 
-    # Codex CLI
-    if (-not (Find-Command "codex") -and -not (Find-Command "codex.cmd")) {
+    if (-not (Find-Command "codex")) {
         Write-Host "  Installing Codex CLI..." -ForegroundColor Cyan
         npm install -g @openai/codex
+        Refresh-Path
         Write-Done "Codex CLI installed."
     } else {
         Write-OK "Codex CLI already present."
@@ -213,29 +229,76 @@ if (Find-Command "node") {
 
 # ── Step 5: Claude login ──────────────────────────────────────────────────────
 
-Write-Step "Step 5: Claude login (no API keys needed)"
+Write-Step "Step 5: Claude login (Anthropic account)"
 Write-Host ""
-Write-Host "  Alfred uses your existing Claude account — no API keys required." -ForegroundColor White
-Write-Host "  Auth is handled by the Claude Code CLI." -ForegroundColor DarkGray
+Write-Host "  Sign in with your Claude / Anthropic account — no API key needed." -ForegroundColor White
 Write-Host ""
 
 if (Find-Command "claude") {
-    Write-Host "  Run this now to log in:" -ForegroundColor White
-    Write-Host "    claude login" -ForegroundColor Yellow
-    Write-Host ""
-    $doLogin = Read-Host "  Open claude login now? (Y/n)"
+    $doLogin = Read-Host "  Run claude login now? (Y/n)"
     if ($doLogin -notmatch "^[Nn]") {
         Write-Host "  Launching claude login..." -ForegroundColor Cyan
-        & claude login
+        & (Get-Command claude.cmd -ErrorAction SilentlyContinue)?.Source ?? "claude" login
     }
 } else {
-    Write-Warn "Claude Code CLI not found — it will be installed in the next step."
-    Write-Host "  After install, run: claude login" -ForegroundColor Yellow
+    Write-Warn "Claude Code CLI not found. Run 'claude login' after opening a new terminal."
 }
 
-# ── Step 6: Desktop shortcut ──────────────────────────────────────────────────
+# ── Step 6: Codex login ───────────────────────────────────────────────────────
 
-Write-Step "Step 6: Desktop shortcut"
+Write-Step "Step 6: Codex login (ChatGPT / OpenAI account)"
+Write-Host ""
+Write-Host "  Sign in with your ChatGPT account — no API key needed." -ForegroundColor White
+Write-Host ""
+
+if (Find-Command "codex") {
+    $doCodex = Read-Host "  Run codex login now? (Y/n)"
+    if ($doCodex -notmatch "^[Nn]") {
+        Write-Host "  Launching codex login..." -ForegroundColor Cyan
+        & (Get-Command codex.cmd -ErrorAction SilentlyContinue)?.Source ?? "codex" login
+    }
+} else {
+    Write-Warn "Codex CLI not found. Run 'codex login' after opening a new terminal."
+}
+
+# ── Step 7: OpenAI API key ────────────────────────────────────────────────────
+
+Write-Step "Step 7: OpenAI API key (for fast chat and classification)"
+Write-Host ""
+Write-Host "  Alfred uses GPT-4o-mini for quick responses." -ForegroundColor White
+Write-Host "  Get a key at: https://platform.openai.com/api-keys" -ForegroundColor DarkGray
+Write-Host "  Add a few dollars of credit at: https://platform.openai.com/settings/organization/billing" -ForegroundColor DarkGray
+Write-Host ""
+
+$EnvFile = Join-Path $InstallPath ".env"
+$existingKey = ""
+if (Test-Path $EnvFile) {
+    $existingKey = (Get-Content $EnvFile | Where-Object { $_ -match "^OPENAI_API_KEY=" }) -replace "^OPENAI_API_KEY=",""
+}
+
+if ($existingKey) {
+    Write-OK "OpenAI API key already set in .env."
+} else {
+    $openBrowser = Read-Host "  Open platform.openai.com/api-keys in browser? (Y/n)"
+    if ($openBrowser -notmatch "^[Nn]") {
+        Start-Process "https://platform.openai.com/api-keys"
+    }
+    $apiKey = Read-Host "  Paste your OpenAI API key (sk-...)"
+    if ($apiKey -match "^sk-") {
+        Write-EnvVar $EnvFile "OPENAI_API_KEY" $apiKey
+        Write-Done "API key saved to .env"
+    } else {
+        Write-Warn "Key not saved — you can add it later by re-running this installer."
+    }
+}
+
+# Write Quant cloud URL to .env
+Write-EnvVar $EnvFile "QUANT_BASE_URL" $QuantUrl
+Write-OK "Quant plugin URL set to $QuantUrl"
+
+# ── Step 8: Desktop shortcut ──────────────────────────────────────────────────
+
+Write-Step "Step 8: Desktop shortcut"
 
 $Desktop    = [System.Environment]::GetFolderPath("Desktop")
 $Shortcut   = Join-Path $Desktop "Alfred.lnk"
@@ -259,14 +322,6 @@ if (-not (Test-Path $Shortcut)) {
     Write-OK "Desktop shortcut already exists."
 }
 
-# ── Step 7: Auth reminders ────────────────────────────────────────────────────
-
-Write-Step "Step 7: One-time logins (if not done yet)"
-Write-Host ""
-Write-Host "  Run these once in a terminal:" -ForegroundColor White
-Write-Host "    claude login    # Authenticate Claude Code with your Anthropic account" -ForegroundColor Yellow
-Write-Host "    codex login     # Authenticate Codex with your OpenAI account" -ForegroundColor Yellow
-
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 Write-Banner "Alfred is ready"
@@ -274,6 +329,7 @@ Write-Host ""
 Write-Host "  Launch: double-click the Alfred shortcut on your desktop" -ForegroundColor Green
 Write-Host "  Or run: $LauncherPs" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  To update Alfred in future: re-run this installer — it will pull" -ForegroundColor DarkGray
-Write-Host "  the latest from GitHub and install any new dependencies." -ForegroundColor DarkGray
+Write-Host "  Quant plugin: $QuantUrl" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  To update Alfred in future: re-run this installer." -ForegroundColor DarkGray
 Write-Host ""
