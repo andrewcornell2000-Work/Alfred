@@ -1595,23 +1595,38 @@ _ACTIONS = {
 
 
 def _check_setup() -> None:
-    missing = []
-    if not shutil.which("claude.cmd") and not shutil.which("claude"):
-        missing.append(
-            "Claude Code CLI:\n"
-            "  npm install -g @anthropic-ai/claude-code\n"
-            "  claude login"
-        )
-    if not shutil.which("codex.cmd") and not shutil.which("codex"):
-        missing.append(
-            "Codex CLI:\n"
-            "  npm install -g @openai/codex\n"
-            "  codex login"
-        )
-    if missing:
-        body = "[bold red]Missing tools — Alfred will not work until these are set up:[/bold red]\n\n"
-        body += "\n\n".join(f"[yellow]{m}[/yellow]" for m in missing)
+    issues = []
+
+    # Claude — installed?
+    claude_installed = bool(shutil.which("claude.cmd") or shutil.which("claude"))
+    if not claude_installed:
+        issues.append("Claude Code CLI not installed.\n  Fix: npm install -g @anthropic-ai/claude-code")
+    else:
+        # Logged in?
+        creds = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
+        if not os.path.isfile(creds) or os.path.getsize(creds) < 10:
+            issues.append("Claude not logged in.\n  Fix: run [bold yellow]claude login[/bold yellow] in a terminal")
+
+    # Codex — installed?
+    codex_installed = bool(shutil.which("codex.cmd") or shutil.which("codex"))
+    if not codex_installed:
+        issues.append("Codex CLI not installed.\n  Fix: npm install -g @openai/codex")
+    else:
+        # Logged in?
+        auth = os.path.join(os.path.expanduser("~"), ".codex", "auth.json")
+        if not os.path.isfile(auth) or os.path.getsize(auth) < 10:
+            issues.append("Codex not logged in.\n  Fix: run [bold yellow]codex login[/bold yellow] in a terminal")
+
+    # OpenAI key
+    if not os.getenv("OPENAI_API_KEY"):
+        issues.append("OpenAI API key missing.\n  Fix: re-run Alfred-Install.exe or add OPENAI_API_KEY to .env")
+
+    if issues:
+        body = "[bold red]Pre-flight check failed:[/bold red]\n\n"
+        body += "\n\n".join(f"[yellow]{i}[/yellow]" for i in issues)
         console.print(Panel(body, title="[bold red]Setup Required[/bold red]", border_style="red", padding=(1, 2)))
+    else:
+        console.print("[dim green]Pre-flight check passed.[/dim green]")
 
     if not os.getenv("OPENAI_API_KEY"):
         _setup_openai_key()
