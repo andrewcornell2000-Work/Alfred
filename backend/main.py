@@ -1018,22 +1018,29 @@ def should_send_to_claude(user_input: str, category: str, provider: str = "") ->
     return False
 
 
+PROVIDER_OVERRIDE_RE = re.compile(
+    r"(?i)^\s*(?:please\s+)?(?:use|with|via|ask)\s+"
+    r"(claude(?:[\s_-]+code)?|codex)\b"
+    r"\s*(?:(?:to|for)\s+)?[:,\-]?\s*"
+)
+
+
 def detect_provider_override(user_input: str) -> "str | None":
-    """If the user explicitly says 'use claude' or 'use codex', return that provider.
-    Returns None if no override — let the classifier decide."""
-    lowered = user_input.lower()
-    if any(p in lowered for p in ("use claude", "with claude", "via claude", "ask claude")):
+    """Return an explicit provider override from a leading routing directive."""
+    match = PROVIDER_OVERRIDE_RE.match(user_input)
+    if not match:
+        return None
+    provider = match.group(1).lower().replace("-", " ").replace("_", " ")
+    if provider.startswith("claude"):
         return "claude_code"
-    if any(p in lowered for p in ("use codex", "with codex", "via codex", "ask codex")):
+    if provider == "codex":
         return "codex"
     return None
 
 
 def strip_provider_prefix(user_input: str) -> str:
     """Remove the provider directive from the input before passing to the AI."""
-    return re.sub(
-        r"(?i)^(use|with|via|ask)\s+(claude|codex)[,:\s]+", "", user_input
-    ).strip()
+    return PROVIDER_OVERRIDE_RE.sub("", user_input, count=1).strip()
 
 
 def choose_provider(user_input: str, category: str) -> str:

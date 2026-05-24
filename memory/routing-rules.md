@@ -25,7 +25,7 @@ Alfred routes each user request to the cheapest capable path. Heavy providers ar
 
 ## Routing Priority
 
-1. Explicit provider override wins when the user starts with or includes phrases such as `use claude`, `with claude`, `via claude`, `ask claude`, `use codex`, `with codex`, `via codex`, or `ask codex`.
+1. Explicit provider override wins when the user starts with phrases such as `use claude`, `use claude code`, `with claude`, `with claude code`, `via claude`, `via claude code`, `ask claude`, `ask claude code`, `use codex`, `with codex`, `via codex`, or `ask codex`.
 2. `GENERAL` always routes to `openai_mini`.
 3. `QUANT` routes directly to the Quant plugin API; it does not generate a Claude/Codex scope.
 4. `POWERBI` routes to `claude_code`.
