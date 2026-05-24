@@ -240,8 +240,8 @@ Write-Host ""
 if (Find-Command "claude") {
     $doLogin = Read-Host "  Run claude login now? (Y/n)"
     if ($doLogin -notmatch "^[Nn]") {
-        $claudeExe = (Get-Command claude.cmd -ErrorAction SilentlyContinue)?.Source
-        if (-not $claudeExe) { $claudeExe = "claude" }
+        $claudeCmd = Get-Command claude.cmd -ErrorAction SilentlyContinue
+        $claudeExe = if ($claudeCmd) { $claudeCmd.Source } else { "claude" }
         & $claudeExe login
     }
 } else {
@@ -256,8 +256,8 @@ Write-Host ""
 if (Find-Command "codex") {
     $doCodex = Read-Host "  Run codex login now? (Y/n)"
     if ($doCodex -notmatch "^[Nn]") {
-        $codexExe = (Get-Command codex.cmd -ErrorAction SilentlyContinue)?.Source
-        if (-not $codexExe) { $codexExe = "codex" }
+        $codexCmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
+        $codexExe = if ($codexCmd) { $codexCmd.Source } else { "codex" }
         & $codexExe login
     }
 } else {
