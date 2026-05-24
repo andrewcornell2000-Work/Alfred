@@ -102,6 +102,79 @@ Return:
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# ── Memory system ──────────────────────────────────────────────────────────────
+
+AUTOSAVE_THRESHOLD = 10
+AUTOSAVE_KEEP = 5
+
+AUTOSAVE_COMPRESS_PROMPT = """You are a memory consolidation assistant for Alfred, an AI orchestrator.
+
+Given the existing summaries and recent autosave entries, produce updated content for two files.
+
+Return exactly this format (no code fences, no extra text outside the delimiters):
+---SESSION-SUMMARY---
+<updated session-summary.md: bullet-pointed sections for Current Architecture, Current Features, Current Skills, Important Design Rules, Next Planned Features. Preserve all existing history; incorporate new changes.>
+---RECENT-CONTEXT---
+<updated recent-context.md: 3-8 bullet points covering the most recent activity — what was worked on, decisions made, outcomes, and what to continue next.>
+"""
+
+SESSION_EXIT_PROMPT = """You are a memory consolidation assistant for Alfred, an AI orchestrator.
+
+Given autosave entries from this session, produce two concise memory sections.
+
+Return exactly this format (no code fences, no extra text outside the delimiters):
+---CURRENT-FOCUS---
+<2-5 bullet points: what the user worked on this session, key problems solved or in progress>
+---RECENT-CONTEXT---
+<3-8 bullet points: what was done, decisions made, current state, what is ready to continue>
+"""
+
+_memory_context: str = ""
+
+
+def _ensure_memory_files() -> None:
+    """Create placeholder memory files if they do not already exist."""
+    memory_dir = os.path.join(_ROOT, "memory")
+    os.makedirs(memory_dir, exist_ok=True)
+    today = datetime.date.today().isoformat()
+    defaults = {
+        "current-focus.md": f"# Current Focus\n*Last updated: {today}*\n\nNo session data yet.\n",
+        "active-projects.md": f"# Active Projects\n*Last updated: {today}*\n\nNo active projects recorded yet.\n",
+        "recent-context.md": f"# Recent Context\n*Last updated: {today}*\n\nNo recent context yet.\n",
+        "tool-history.md": f"# Tool History\n*Last updated: {today}*\n\nNo tool history recorded yet.\n",
+        "autosave.md": "",
+    }
+    for fname, content in defaults.items():
+        path = os.path.join(memory_dir, fname)
+        if not os.path.isfile(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+
+def load_all_memory() -> str:
+    """Read all memory/*.md files and return a combined context string."""
+    memory_dir = os.path.join(_ROOT, "memory")
+    if not os.path.isdir(memory_dir):
+        return ""
+    parts = []
+    for fname in sorted(os.listdir(memory_dir)):
+        if not fname.endswith(".md"):
+            continue
+        path = os.path.join(memory_dir, fname)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+            if content:
+                parts.append(f"### {fname}\n{content}")
+        except OSError:
+            pass
+    return "\n\n".join(parts)
+
+
+def reload_memory() -> None:
+    global _memory_context
+    _memory_context = load_all_memory()
+
 
 def read_memory_summary() -> str:
     path = os.path.join(_ROOT, "memory", "session-summary.md")
@@ -129,64 +202,268 @@ def append_interaction_log(
         f.write(entry)
 
 
-CONSOLIDATION_PROMPT = """You are a memory consolidation assistant for Alfred, an AI orchestrator.
+def append_autosave_entry(
+    user_input: str, category: str, provider: str, outcome: str
+) -> None:
+    """Append a lightweight autosave entry to memory/autosave.md."""
+    memory_dir = os.path.join(_ROOT, "memory")
+    os.makedirs(memory_dir, exist_ok=True)
+    path = os.path.join(memory_dir, "autosave.md")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    summary = user_input[:200].replace("\n", " ")
+    outcome_short = (outcome or "")[:300].replace("\n", " ")
+    entry = (
+        f"\n## {timestamp}\n"
+        f"**Request:** {summary}\n"
+        f"**Category:** {category}\n"
+        f"**Provider:** {provider}\n"
+        f"**Outcome:** {outcome_short}\n"
+    )
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(entry)
 
-Given the existing session summary and recent interaction logs, produce an updated cumulative summary.
 
-Preserve all useful history from the existing summary. Incorporate any new architectural changes, implemented features, design decisions, or planned work found in the interactions. Keep the summary concise — use bullet points, not prose.
-
-Maintain these sections (omit empty ones):
-- Current Architecture
-- Current Features
-- Current Skills
-- Important Design Rules
-- Next Planned Features
-
-Return only the updated markdown. Do not wrap in code blocks.
-"""
-
-CONSOLIDATION_THRESHOLD = 10
-INTERACTIONS_TO_KEEP = 5
-
-
-def consolidate_memory_if_needed() -> None:
-    logs_path = os.path.join(_ROOT, "logs", "interactions.md")
-    if not os.path.isfile(logs_path):
+def compress_autosave_if_needed() -> None:
+    """Every AUTOSAVE_THRESHOLD entries, compress autosave.md into session-summary.md
+    and recent-context.md, then trim autosave.md to AUTOSAVE_KEEP entries."""
+    autosave_path = os.path.join(_ROOT, "memory", "autosave.md")
+    if not os.path.isfile(autosave_path):
         return
 
-    with open(logs_path, "r", encoding="utf-8") as f:
+    with open(autosave_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    count = len(re.findall(r"^## \d{4}-\d{2}-\d{2}", content, re.MULTILINE))
-    if count < CONSOLIDATION_THRESHOLD:
+    count = len(re.findall(r"^## \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", content, re.MULTILINE))
+    if count < AUTOSAVE_THRESHOLD:
         return
 
     existing_summary = read_memory_summary()
-    user_content = (
-        f"Existing summary:\n{existing_summary}\n\nRecent interactions:\n{content}"
-    )
+    existing_recent = ""
+    recent_path = os.path.join(_ROOT, "memory", "recent-context.md")
+    if os.path.isfile(recent_path):
+        with open(recent_path, "r", encoding="utf-8") as f:
+            existing_recent = f.read().strip()
 
+    user_content = (
+        f"Existing session-summary.md:\n{existing_summary}\n\n"
+        f"Existing recent-context.md:\n{existing_recent}\n\n"
+        f"Recent autosave entries:\n{content}"
+    )
     response = openai_client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": CONSOLIDATION_PROMPT},
+            {"role": "system", "content": AUTOSAVE_COMPRESS_PROMPT},
             {"role": "user", "content": user_content},
         ],
     )
-    new_summary = response.choices[0].message.content.strip()
+    raw = response.choices[0].message.content.strip()
 
-    summary_path = os.path.join(_ROOT, "memory", "session-summary.md")
-    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
-    with open(summary_path, "w", encoding="utf-8") as f:
-        f.write(new_summary)
+    session_match = re.search(
+        r"---SESSION-SUMMARY---\s*(.*?)(?=---RECENT-CONTEXT---|$)", raw, re.DOTALL
+    )
+    recent_match = re.search(r"---RECENT-CONTEXT---\s*(.*)", raw, re.DOTALL)
 
-    entries = re.split(r"(?=^## \d{4}-\d{2}-\d{2})", content, flags=re.MULTILINE)
+    if session_match:
+        summary_path = os.path.join(_ROOT, "memory", "session-summary.md")
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write(session_match.group(1).strip())
+
+    if recent_match:
+        with open(recent_path, "w", encoding="utf-8") as f:
+            f.write(recent_match.group(1).strip())
+
+    entries = re.split(
+        r"(?=^## \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", content, flags=re.MULTILINE
+    )
     entries = [e for e in entries if e.strip()]
-    recent = entries[-INTERACTIONS_TO_KEEP:]
-    with open(logs_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(recent).lstrip("\n") + "\n")
+    with open(autosave_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(entries[-AUTOSAVE_KEEP:]).lstrip("\n") + "\n")
 
-    console.print("[dim]Memory consolidated.[/dim]")
+    reload_memory()
+    console.print("[dim]Memory compressed.[/dim]")
+
+
+def save_session_exit_summary() -> None:
+    """On exit, summarize this session's autosave entries into current-focus.md
+    and recent-context.md."""
+    autosave_path = os.path.join(_ROOT, "memory", "autosave.md")
+    if not os.path.isfile(autosave_path):
+        return
+
+    with open(autosave_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    if not re.search(r"^## \d{4}-\d{2}-\d{2}", content, re.MULTILINE):
+        return
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": SESSION_EXIT_PROMPT},
+                {"role": "user", "content": content},
+            ],
+        )
+        raw = response.choices[0].message.content.strip()
+    except Exception:
+        return
+
+    today = datetime.date.today().isoformat()
+    focus_match = re.search(
+        r"---CURRENT-FOCUS---\s*(.*?)(?=---RECENT-CONTEXT---|$)", raw, re.DOTALL
+    )
+    recent_match = re.search(r"---RECENT-CONTEXT---\s*(.*)", raw, re.DOTALL)
+
+    if focus_match:
+        focus_path = os.path.join(_ROOT, "memory", "current-focus.md")
+        with open(focus_path, "w", encoding="utf-8") as f:
+            f.write(
+                f"# Current Focus\n*Last updated: {today}*\n\n"
+                + focus_match.group(1).strip()
+                + "\n"
+            )
+
+    if recent_match:
+        recent_path = os.path.join(_ROOT, "memory", "recent-context.md")
+        with open(recent_path, "w", encoding="utf-8") as f:
+            f.write(
+                f"# Recent Context\n*Last updated: {today}*\n\n"
+                + recent_match.group(1).strip()
+                + "\n"
+            )
+
+    console.print("[dim]Session summary saved.[/dim]")
+
+
+def check_github_updates() -> bool:
+    """Fetch origin/main, show any new commits, and ask before pulling.
+    Re-runs setup.ps1 and reloads memory after a successful pull.
+    Returns True if the repo was updated."""
+    try:
+        subprocess.run(
+            ["git", "-C", _ROOT, "fetch", "origin", "main", "--quiet"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except Exception:
+        return False
+
+    result = subprocess.run(
+        ["git", "-C", _ROOT, "rev-list", "HEAD..origin/main", "--count"],
+        capture_output=True, text=True,
+    )
+    try:
+        behind_count = int(result.stdout.strip())
+    except ValueError:
+        return False
+
+    if behind_count == 0:
+        return False
+
+    console.print(
+        f"\n[bold yellow]Update available:[/bold yellow] "
+        f"{behind_count} new commit(s) on origin/main."
+    )
+    log_result = subprocess.run(
+        ["git", "-C", _ROOT, "log", "HEAD..origin/main", "--oneline"],
+        capture_output=True, text=True,
+    )
+    if log_result.stdout.strip():
+        console.print(f"[dim]{log_result.stdout.strip()}[/dim]")
+
+    try:
+        answer = console.input("[bold yellow]Pull and update? (y/n) > [/bold yellow]")
+    except EOFError:
+        return False
+
+    if answer.strip().lower() not in {"y", "yes"}:
+        console.print("[dim]Skipping update.[/dim]")
+        return False
+
+    pull_result = subprocess.run(
+        ["git", "-C", _ROOT, "pull", "origin", "main"],
+        capture_output=True, text=True,
+    )
+    if pull_result.returncode != 0:
+        console.print(f"[bold red]Pull failed:[/bold red] {pull_result.stderr.strip()}")
+        return False
+
+    console.print("[bold green]Updated.[/bold green]")
+    setup_path = os.path.join(_ROOT, "setup.ps1")
+    if os.path.isfile(setup_path):
+        console.print("[dim]Re-running setup.ps1 to apply new packages...[/dim]")
+        subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", setup_path]
+        )
+    reload_memory()
+    return True
+
+
+def check_and_offer_git_commit() -> None:
+    """If memory, skills, routing manifests, or setup files changed this session,
+    offer to commit and optionally push them."""
+    watched_prefixes = (
+        "memory/", "skills/", "requirements/",
+        "setup.ps1", "run-alfred.bat", "backend/main.py",
+    )
+    result = subprocess.run(
+        ["git", "-C", _ROOT, "status", "--porcelain"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return
+
+    changed = []
+    for line in result.stdout.splitlines():
+        if len(line) > 3:
+            filepath = line[3:].strip().replace("\\", "/")
+            if any(filepath.startswith(p) or filepath == p for p in watched_prefixes):
+                changed.append(filepath)
+
+    if not changed:
+        return
+
+    console.print("\n[bold yellow]Files changed this session:[/bold yellow]")
+    for f in changed:
+        console.print(f"  [cyan]{f}[/cyan]")
+
+    try:
+        answer = console.input("[bold yellow]Commit these changes? (y/n) > [/bold yellow]")
+    except EOFError:
+        return
+
+    if answer.strip().lower() not in {"y", "yes"}:
+        console.print("[dim]Changes not committed.[/dim]")
+        return
+
+    for f in changed:
+        subprocess.run(["git", "-C", _ROOT, "add", f], capture_output=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    msg = f"Alfred autosave: memory/config update {timestamp}"
+    commit_result = subprocess.run(
+        ["git", "-C", _ROOT, "commit", "-m", msg],
+        capture_output=True, text=True,
+    )
+    if commit_result.returncode != 0:
+        console.print(f"[bold red]Commit failed:[/bold red] {commit_result.stderr.strip()}")
+        return
+
+    console.print(f"[bold green]Committed:[/bold green] {msg}")
+
+    try:
+        push_answer = console.input("[bold yellow]Push to origin/main? (y/n) > [/bold yellow]")
+    except EOFError:
+        return
+
+    if push_answer.strip().lower() in {"y", "yes"}:
+        push_result = subprocess.run(
+            ["git", "-C", _ROOT, "push", "origin", "main"],
+            capture_output=True, text=True,
+        )
+        if push_result.returncode == 0:
+            console.print("[bold green]Pushed to origin/main.[/bold green]")
+        else:
+            console.print(f"[bold red]Push failed:[/bold red] {push_result.stderr.strip()}")
 
 
 STOPWORDS = {
@@ -275,10 +552,9 @@ def classify_task(user_input: str):
 
 
 def generate_general_response(user_input: str) -> str:
-    memory = read_memory_summary()
     system = GENERAL_RESPONSE_PROMPT
-    if memory:
-        system += f"\n\n## Project context\n{memory}"
+    if _memory_context:
+        system += f"\n\n## Project context\n{_memory_context}"
     response = openai_client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
@@ -291,9 +567,8 @@ def generate_general_response(user_input: str) -> str:
 
 def generate_claude_scope(user_input: str, skills_context: str = ""):
     system_prompt = CLAUDE_SCOPE_PROMPT
-    memory = read_memory_summary()
-    if memory:
-        system_prompt += f"\n\n## Current project memory\n{memory}"
+    if _memory_context:
+        system_prompt += f"\n\n## Current project memory\n{_memory_context}"
     if skills_context:
         system_prompt += f"\n\nRelevant skills loaded for this task:\n{skills_context}"
 
@@ -451,10 +726,9 @@ def is_learning_mode_task(user_input: str) -> bool:
 
 
 def generate_learning_discussion(user_input: str) -> str:
-    memory = read_memory_summary()
     system = LEARNING_DISCUSSION_PROMPT
-    if memory:
-        system += f"\n\n## Current project context\n{memory}"
+    if _memory_context:
+        system += f"\n\n## Current project context\n{_memory_context}"
     response = openai_client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
@@ -553,7 +827,7 @@ def _show_menu() -> None:
     t.add_column("Opt", style="bold yellow", no_wrap=True)
     t.add_column("Action", style="white")
     t.add_row("1", "Ask Alfred")
-    t.add_row("2", "View Memory Summary")
+    t.add_row("2", "View Memory")
     t.add_row("3", "View Skills")
     t.add_row("4", "View Recent Logs")
     t.add_row("5", "Show Dispatch Rules")
@@ -624,6 +898,9 @@ def _action_ask_alfred() -> None:
                 continue
             console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
 
+        scope = ""
+        outcome = ""
+
         # Learning / Creator Mode: discuss first, then confirm before routing to Codex/Claude
         if is_learning_mode_task(stripped):
             console.print("\n[dim]Learning / Creator Mode — discussing before routing.[/dim]")
@@ -638,7 +915,10 @@ def _action_ask_alfred() -> None:
             if confirm.strip().lower() not in {"y", "yes"}:
                 console.print("[dim]Change discarded — nothing written or dispatched.[/dim]")
                 append_interaction_log(stripped, "LEARNING_DECLINED", "", "openai_mini")
-                consolidate_memory_if_needed()
+                append_autosave_entry(
+                    stripped, "LEARNING_DECLINED", "openai_mini", "Request declined by user"
+                )
+                compress_autosave_if_needed()
                 continue
             console.print("[dim]Confirmed. Proceeding with routing...[/dim]")
             category = "CLAUDE_EXECUTION"
@@ -654,41 +934,74 @@ def _action_ask_alfred() -> None:
             f"[{provider_color}]Provider: {provider_label}[/{provider_color}]"
         )
 
-        scope = ""
-
         if category == "GENERAL":
             response = generate_general_response(stripped)
             _render_general_response(response)
+            outcome = response[:200]
 
         elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
             console.print("\n[bold cyan]Generating scope...[/bold cyan]")
             skills_context = load_relevant_skills(stripped)
             scope = generate_claude_scope(stripped, skills_context)
             console.print(f"\n[bold magenta]Plan:[/bold magenta]\n{scope}")
+            outcome = scope[:200]
 
             if should_send_to_claude(stripped, category, provider):
                 if provider == "codex":
                     console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
-                    _render_provider_result(provider, category, run_codex(scope))
+                    result = run_codex(scope)
+                    _render_provider_result(provider, category, result)
+                    outcome = (
+                        result.stdout[:200]
+                        if result.returncode == 0
+                        else f"Error: {result.stderr[:100]}"
+                    )
                 else:
                     console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
-                    _render_provider_result(provider, category, run_claude(scope))
+                    result = run_claude(scope)
+                    _render_provider_result(provider, category, result)
+                    outcome = (
+                        result.stdout[:200]
+                        if result.returncode == 0
+                        else f"Error: {result.stderr[:100]}"
+                    )
             else:
                 console.print(
                     "\n[bold yellow]Plan ready. Send to provider manually if needed.[/bold yellow]"
                 )
 
         append_interaction_log(stripped, category, scope, provider)
-        consolidate_memory_if_needed()
+        append_autosave_entry(stripped, category, provider, outcome)
+        compress_autosave_if_needed()
 
 
 def _action_view_memory() -> None:
-    console.print(Rule("[bold cyan]Memory Summary[/bold cyan]"))
-    content = read_memory_summary()
-    if not content:
-        console.print("[dim]No memory summary found.[/dim]")
-    else:
-        console.print(Markdown(content))
+    console.print(Rule("[bold cyan]Memory[/bold cyan]"))
+    memory_dir = os.path.join(_ROOT, "memory")
+    if not os.path.isdir(memory_dir):
+        console.print("[dim]No memory directory found.[/dim]")
+        return
+    files = [f for f in sorted(os.listdir(memory_dir)) if f.endswith(".md")]
+    if not files:
+        console.print("[dim]No memory files found.[/dim]")
+        return
+    shown = 0
+    for fname in files:
+        path = os.path.join(memory_dir, fname)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        if content:
+            console.print(
+                Panel(
+                    Markdown(content),
+                    title=f"[bold yellow]{fname}[/bold yellow]",
+                    border_style="dim",
+                    padding=(0, 1),
+                )
+            )
+            shown += 1
+    if shown == 0:
+        console.print("[dim]All memory files are empty.[/dim]")
 
 
 def _action_view_skills() -> None:
@@ -824,6 +1137,9 @@ _ACTIONS = {
 
 def main():
     _show_header()
+    _ensure_memory_files()
+    reload_memory()
+    check_github_updates()
 
     while True:
         console.print()
@@ -844,6 +1160,9 @@ def main():
             action()
         else:
             console.print("[dim]Invalid option. Enter 1-7.[/dim]")
+
+    save_session_exit_summary()
+    check_and_offer_git_commit()
 
 
 if __name__ == "__main__":
