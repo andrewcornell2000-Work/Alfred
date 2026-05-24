@@ -6,63 +6,65 @@ Alfred accepts natural language task descriptions, classifies them with GPT-4.1-
 
 ## Fresh-machine setup
 
-### 1. Prerequisites
+1. **Clone the repo**
+   ```powershell
+   git clone <repo-url> alfred
+   cd alfred
+   ```
 
-Install these before running setup:
+2. **Double-click `Install-Alfred.bat`**
 
-| Tool | Download |
+   That's it. The installer will:
+   - Check Python, Git, Node.js, and npm (and tell you what to install if missing)
+   - Install Claude Code CLI and Codex CLI via npm (if npm is available)
+   - Create a `.venv` and install Python packages
+   - Write `.env.template` if `.env` is missing
+   - Print login instructions for Claude and Codex
+   - Launch Alfred when everything is ready
+
+   Re-run `Install-Alfred.bat` any time — all steps are idempotent.
+
+---
+
+## First run checklist
+
+Before Alfred starts you need:
+
+| Requirement | Where to get it |
 |---|---|
 | Python 3.10+ | https://www.python.org/downloads/ — tick **Add to PATH** |
 | Git | https://git-scm.com/download/win |
 | Node.js 18+ | https://nodejs.org/ |
+| `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
+| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys |
 
-### 2. Clone the repo
+The installer guides you through each one. After Python and Node are installed, re-run `Install-Alfred.bat` — it picks up where it left off.
 
-```powershell
-git clone <repo-url> alfred
-cd alfred
-```
+### Add API keys
 
-### 3. Run setup
-
-```powershell
-.\setup.ps1
-```
-
-This will:
-- Confirm Python, Git, Node, npm, Claude Code CLI, and Codex CLI are available
-- Create `.venv` and install `anthropic openai rich python-dotenv`
-- Create `.env.template` if `.env` is missing
-
-### 4. Add API keys
-
-Copy the template and fill in your keys:
+If the installer reports `.env is missing`:
 
 ```powershell
 Copy-Item .env.template .env
 notepad .env
 ```
 
-Keys needed:
+Fill in your keys, save, then double-click `Install-Alfred.bat` again.
 
-| Key | Where to get it |
-|---|---|
-| `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys |
+### Log in to CLIs
 
-### 5. Install and log in to CLIs
+Run once per machine after the CLIs are installed:
 
 ```powershell
-npm install -g @anthropic-ai/claude-code
-claude login
-
-npm install -g @openai/codex
-codex login
+claude login   # opens browser — authenticate with your Anthropic account
+codex login    # opens browser — authenticate with your OpenAI account
 ```
 
-### 6. Run Alfred
+---
 
-Double-click **run-alfred.bat**, or from a terminal:
+## Day-to-day use
+
+Double-click **`run-alfred.bat`**, or from a terminal:
 
 ```powershell
 .\run-alfred.bat
@@ -84,22 +86,25 @@ python backend\main.py
 ## Project layout
 
 ```
-backend/        Core logic (main.py)
-skills/         Custom skill modules (future)
-templates/      Prompt templates (future)
-memory/         Conversation memory (future)
-logs/           Operation logs (future)
-setup.ps1       First-time setup script
-run-alfred.bat  Portable launch script
-CLAUDE.md       Claude Code instructions
+backend/            Core logic (main.py)
+skills/             Custom skill modules (future)
+templates/          Prompt templates (future)
+memory/             Conversation memory (future)
+logs/               Operation logs (future)
+Install-Alfred.bat  One-click installer and launcher (start here)
+run-alfred.bat      Portable day-to-day launcher
+setup.ps1           Setup script (called by Install-Alfred.bat)
+CLAUDE.md           Claude Code instructions
 ```
 
 ---
 
 ## Troubleshooting
 
-**`.venv` missing** — Run `.\setup.ps1` again.
+**`.venv` missing** — Run `Install-Alfred.bat` (or `.\setup.ps1`) again.
 
-**API key errors** — Check `.env` exists and contains valid keys (no extra spaces or quotes).
+**API key errors** — Check `.env` exists and contains valid keys (no extra spaces or quotes around values).
 
-**`claude` / `codex` not found** — Install globally with npm and ensure `npm` global bin is on your PATH.
+**`claude` / `codex` not found after install** — Open a new terminal so PATH changes from the npm install take effect, then run `claude login` / `codex login`.
+
+**npm global install fails with permission errors** — Run `Install-Alfred.bat` as Administrator (right-click → Run as administrator).
