@@ -91,3 +91,10 @@ When Alfred encounters or learns about a new external tool in a session:
 - `templates/` — prompt templates
 - `memory/` — conversation memory/history
 - `logs/` — operation logging
+
+## Coding Guidelines
+
+For all coding, refactoring, debugging, architecture, UI/app design, and Alfred self-improvement tasks, apply the guidelines in:
+
+- [`skills/karpathy-coding-guidelines.md`](skills/karpathy-coding-guidelines.md) — full Karpathy coding principles (source: [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md))
+- [`AGENTS.md`](AGENTS.md) — concise version for Codex and other coding agents

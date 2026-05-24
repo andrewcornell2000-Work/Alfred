@@ -86,15 +86,17 @@ python backend\main.py
 ## Project layout
 
 ```
-backend/            Core logic (main.py)
-skills/             Custom skill modules (future)
-templates/          Prompt templates (future)
-memory/             Conversation memory (future)
-logs/               Operation logs (future)
-Install-Alfred.bat  One-click installer and launcher (start here)
-run-alfred.bat      Portable day-to-day launcher
-setup.ps1           Setup script (called by Install-Alfred.bat)
-CLAUDE.md           Claude Code instructions
+backend/                        Core logic (main.py)
+skills/                         Custom skill modules
+  karpathy-coding-guidelines.md  Karpathy coding principles for all code tasks
+templates/                      Prompt templates (future)
+memory/                         Conversation memory and routing rules
+logs/                           Operation logs
+Install-Alfred.bat              One-click installer and launcher (start here)
+run-alfred.bat                  Portable day-to-day launcher
+setup.ps1                       Setup script (called by Install-Alfred.bat)
+CLAUDE.md                       Claude Code instructions
+AGENTS.md                       Coding agent guidelines (Codex, Claude Code)
 ```
 
 ---

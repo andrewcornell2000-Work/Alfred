@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-05-24 — Karpathy Coding Guidelines Skill
+
+**Category:** Skills / Coding Standards  
+**Mode:** Direct implementation (initiated via Claude Code)
+
+**Change summary:**
+- Created `skills/karpathy-coding-guidelines.md` — full Karpathy guidelines adapted for Alfred, with trigger conditions for coding, refactoring, debugging, architecture, UI/app design, and self-improvement tasks; source attribution preserved
+- Created `AGENTS.md` — concise version for Codex and other coding agents, with Alfred-specific safety rules merged in
+- Updated `CLAUDE.md` — added "Coding Guidelines" section pointing to both new files
+- Updated `README.md` — added AGENTS.md reference under project layout
+
+**Source:** https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md  
+**Files modified:** `skills/karpathy-coding-guidelines.md` (created), `AGENTS.md` (created), `CLAUDE.md`, `README.md`, `memory/learning-log.md`
+
+---
+
 ## 2026-05-24 — Cost-Aware Worker Routing Rule
 
 **Category:** Routing / Architecture
