@@ -48,7 +48,19 @@ You are Alfred, an AI orchestration assistant — precise, calm, and quietly ind
 
 Speak like a senior operator who has seen everything and remains unflappable: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
 
-Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION), optimized Claude Code prompt generation, skill-based context injection, memory consolidation, and auto-dispatch to Claude.
+Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION), provider routing (openai_mini / codex / claude_code), optimized prompt generation, skill-based context injection, memory consolidation, and auto-dispatch.
+"""
+
+LEARNING_DISCUSSION_PROMPT = """
+You are Alfred, an AI orchestration assistant — precise, calm, operator-mode.
+
+A user wants to add, modify, or teach Alfred a new rule, feature, or behavior. Before any code is written or dispatched, discuss briefly:
+
+1. Identify what is being proposed (1 sentence)
+2. Note any design implication or trade-off worth flagging (1 sentence — skip if obvious)
+3. End with exactly: **Proposed change:** <one-line summary of the specific change>
+
+Max 4 sentences total. No filler. No "Great!" or "Certainly!".
 """
 
 CLAUDE_SCOPE_PROMPT = """
@@ -99,7 +111,9 @@ def read_memory_summary() -> str:
         return f.read()
 
 
-def append_interaction_log(user_input: str, category: str, scope: str = "") -> None:
+def append_interaction_log(
+    user_input: str, category: str, scope: str = "", provider: str = ""
+) -> None:
     logs_dir = os.path.join(_ROOT, "logs")
     os.makedirs(logs_dir, exist_ok=True)
     path = os.path.join(logs_dir, "interactions.md")
@@ -107,6 +121,7 @@ def append_interaction_log(user_input: str, category: str, scope: str = "") -> N
     entry = (
         f"\n## {timestamp}\n"
         f"**Category:** {category}\n"
+        f"**Provider:** {provider}\n"
         f"**Input:** {user_input}\n"
         f"**Scope:** {scope[:500]}\n"
     )
@@ -344,6 +359,15 @@ def run_claude(prompt: str) -> subprocess.CompletedProcess:
     )
 
 
+def run_codex(prompt: str) -> subprocess.CompletedProcess:
+    full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
+    return subprocess.run(
+        ["codex", "-q", full_prompt],
+        capture_output=True,
+        text=True,
+    )
+
+
 DANGEROUS_KEYWORDS = [
     "delete", "remove", "overwrite", "credentials", "password",
     "entire onedrive", "all folders", "whole workspace",
@@ -351,10 +375,50 @@ DANGEROUS_KEYWORDS = [
 
 ACTION_KEYWORDS = ["inspect", "run", "edit", "use mcp", "use claude"]
 
+# Keywords that suggest the user wants to teach Alfred a new rule, feature, or behavior
+LEARNING_MODE_KEYWORDS = {
+    "add a rule", "new rule", "add rule", "routing rule",
+    "update alfred", "modify alfred", "change alfred", "teach alfred",
+    "add to alfred", "add feature", "new feature",
+    "add behavior", "update routing", "add routing",
+    "update dispatch", "add dispatch",
+    "save this rule", "remember this rule", "add this rule",
+    "creator mode", "learning mode",
+}
 
-def should_send_to_claude(user_input: str, category: str) -> bool:
+# Keywords that strongly suggest a repository coding task → route to Codex
+CODEX_ROUTING_KEYWORDS = {
+    "refactor", "refactoring", "unit test", "unit tests", "test suite",
+    "code review", "review code", "repository", "repo", "function", "class",
+    "method", "implement", "implementation", "write code", "fix bug",
+    "bug fix", "debug code", "rename", "extract method", "lint", "linting",
+    "pytest", "coverage", "docstring", "type hint", "typing", "import",
+    "module", "package", "dependency", "tests pass",
+    # Alfred self-modification and code-change tasks
+    "alfred code", "alfred update", "update alfred",
+    # App / UI / website / dashboard design
+    "app design", "ui design", "web app", "web application",
+    "website design", "dashboard design", "frontend",
+    # Code cleanup and implementation tasks
+    "code cleanup", "clean up", "dead code",
+}
+
+# Keywords that suggest MCP / file-system / execution tasks → route to Claude Code
+CLAUDE_CODE_ROUTING_KEYWORDS = {
+    "mcp", "inspect file", "read file", "execute", "run script",
+    "power bi", "powerbi", "power query", "folder", "database", "scan",
+    "filesystem", "file system", "workspace", "onedrive", "sharepoint",
+    # Repository/file exploration and deep tool use
+    "explore", "file exploration", "repository exploration", "deep tool",
+}
+
+
+def should_send_to_claude(user_input: str, category: str, provider: str = "") -> bool:
     lowered = user_input.lower()
     if any(kw in lowered for kw in DANGEROUS_KEYWORDS):
+        return False
+    # Cost-aware: no auto-dispatch when openai_mini was selected (weak keyword signal)
+    if provider == "openai_mini":
         return False
     if category == "CLAUDE_EXECUTION":
         return True
@@ -363,7 +427,86 @@ def should_send_to_claude(user_input: str, category: str) -> bool:
     return False
 
 
+def choose_provider(user_input: str, category: str) -> str:
+    """Deterministic provider routing — returns 'openai_mini', 'codex', or 'claude_code'."""
+    if category == "GENERAL":
+        return "openai_mini"
+    if category == "POWERBI":
+        return "claude_code"
+    # CLAUDE_EXECUTION: score keyword matches and pick the stronger signal
+    lowered = user_input.lower()
+    codex_score = sum(1 for kw in CODEX_ROUTING_KEYWORDS if kw in lowered)
+    claude_score = sum(1 for kw in CLAUDE_CODE_ROUTING_KEYWORDS if kw in lowered)
+    # No keyword signal — stay cheap rather than firing a heavy CLI
+    if codex_score == 0 and claude_score == 0:
+        return "openai_mini"
+    if codex_score > claude_score:
+        return "codex"
+    return "claude_code"
+
+
+def is_learning_mode_task(user_input: str) -> bool:
+    lowered = user_input.lower()
+    return any(kw in lowered for kw in LEARNING_MODE_KEYWORDS)
+
+
+def generate_learning_discussion(user_input: str) -> str:
+    memory = read_memory_summary()
+    system = LEARNING_DISCUSSION_PROMPT
+    if memory:
+        system += f"\n\n## Current project context\n{memory}"
+    response = openai_client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_input},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
 # ── Display helpers ────────────────────────────────────────────────────────────
+
+PROVIDER_COLORS = {
+    "claude_code": "bold green",
+    "codex": "bold blue",
+    "openai_mini": "bold yellow",
+}
+
+PROVIDER_LABELS = {
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "openai_mini": "OpenAI Mini",
+}
+
+
+def _render_provider_result(
+    provider: str, category: str, result: subprocess.CompletedProcess
+) -> None:
+    color = PROVIDER_COLORS.get(provider, "bold white")
+    label = PROVIDER_LABELS.get(provider, provider)
+    if result.returncode == 0:
+        structured = extract_structured_response(result.stdout)
+        t = Table(show_header=False, box=None, padding=(0, 1))
+        t.add_column("Field", style="bold cyan", no_wrap=True)
+        t.add_column("Value", style="white")
+        t.add_row("Provider", f"[{color}]{label}[/{color}]")
+        t.add_row("Category", category)
+        t.add_row("Summary", structured.get("summary", ""))
+        t.add_row("Root Cause", structured.get("root_cause", ""))
+        t.add_row("Next Step", structured.get("recommended_next_step", ""))
+        approval = structured.get("needs_user_approval", False)
+        approval_str = (
+            "[bold yellow]Yes — awaiting approval[/bold yellow]"
+            if approval
+            else "[bold green]No[/bold green]"
+        )
+        t.add_row("Needs Approval", approval_str)
+        console.print(f"\n[{color}]{label} Response[/{color}]")
+        console.print(t)
+    else:
+        console.print(f"\n[bold red]{label} Error:[/bold red]\n{result.stderr}")
+
 
 def _render_claude_result(result: subprocess.CompletedProcess) -> None:
     if result.returncode == 0:
@@ -397,8 +540,8 @@ def _render_general_response(response: str) -> None:
 def _show_header() -> None:
     console.print(
         Panel.fit(
-            "[bold cyan]Alfred Console[/bold cyan]  [dim]v1[/dim]\n"
-            "[dim]AI Task Routing & Prompt Optimization Orchestrator[/dim]",
+            "[bold cyan]Alfred Console[/bold cyan]  [dim]v2[/dim]\n"
+            "[dim]Multi-Provider AI Router — openai_mini / codex / claude_code[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
@@ -421,8 +564,22 @@ def _show_menu() -> None:
 
 # ── Menu actions ───────────────────────────────────────────────────────────────
 
+def get_clipboard_text() -> str:
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "Get-Clipboard failed")
+    return result.stdout.strip()
+
+
 def _action_ask_alfred() -> None:
-    console.print("\n[dim]You're now in Alfred mode. Type 'back', 'menu', or 'exit' to return to the main menu.[/dim]")
+    console.print(
+        "\n[dim][bold]clip[/bold] = analyze clipboard  |  [bold]back[/bold] = menu[/dim]"
+    )
 
     while True:
         try:
@@ -438,8 +595,64 @@ def _action_ask_alfred() -> None:
             console.print("[dim]Returning to main menu.[/dim]")
             return
 
-        category = classify_task(stripped)
-        console.print(f"\n[bold green]Task Type:[/bold green] {category}")
+        if stripped.lower() in {"clip", "clipboard"}:
+            try:
+                clipboard_text = get_clipboard_text()
+            except Exception as e:
+                console.print(f"[bold red]Clipboard error:[/bold red] {e}")
+                continue
+            if not clipboard_text:
+                console.print("[dim]Clipboard is empty — nothing to process.[/dim]")
+                continue
+            console.print(f"[dim]Read {len(clipboard_text)} character(s) from clipboard.[/dim]")
+            stripped = clipboard_text
+
+        if stripped.lower() in {"paste", "multiline"}:
+            console.print("[dim]Paste your input. Type 'done' on its own line when finished.[/dim]")
+            lines = []
+            while True:
+                try:
+                    line = console.input("")
+                except EOFError:
+                    break
+                if line.strip().lower() == "done":
+                    break
+                lines.append(line)
+            stripped = "\n".join(lines).strip()
+            if not stripped:
+                console.print("[dim]No input captured.[/dim]")
+                continue
+            console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
+
+        # Learning / Creator Mode: discuss first, then confirm before routing to Codex/Claude
+        if is_learning_mode_task(stripped):
+            console.print("\n[dim]Learning / Creator Mode — discussing before routing.[/dim]")
+            discussion = generate_learning_discussion(stripped)
+            _render_general_response(discussion)
+            try:
+                confirm = console.input(
+                    "\n[bold yellow]Proceed with this change? (y/n) > [/bold yellow]"
+                )
+            except EOFError:
+                return
+            if confirm.strip().lower() not in {"y", "yes"}:
+                console.print("[dim]Change discarded — nothing written or dispatched.[/dim]")
+                append_interaction_log(stripped, "LEARNING_DECLINED", "", "openai_mini")
+                consolidate_memory_if_needed()
+                continue
+            console.print("[dim]Confirmed. Proceeding with routing...[/dim]")
+            category = "CLAUDE_EXECUTION"
+            provider = "codex"
+        else:
+            category = classify_task(stripped)
+            provider = choose_provider(stripped, category)
+
+        provider_color = PROVIDER_COLORS.get(provider, "bold white")
+        provider_label = PROVIDER_LABELS.get(provider, provider)
+        console.print(
+            f"\n[bold green]Category:[/bold green] {category}  "
+            f"[{provider_color}]Provider: {provider_label}[/{provider_color}]"
+        )
 
         scope = ""
 
@@ -448,20 +661,24 @@ def _action_ask_alfred() -> None:
             _render_general_response(response)
 
         elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
-            console.print("\n[bold cyan]Generating Claude scope...[/bold cyan]")
+            console.print("\n[bold cyan]Generating scope...[/bold cyan]")
             skills_context = load_relevant_skills(stripped)
             scope = generate_claude_scope(stripped, skills_context)
-            console.print(f"\n[bold magenta]Claude Plan:[/bold magenta]\n{scope}")
+            console.print(f"\n[bold magenta]Plan:[/bold magenta]\n{scope}")
 
-            if should_send_to_claude(stripped, category):
-                console.print("\n[bold cyan]Auto-dispatching to Claude...[/bold cyan]")
-                _render_claude_result(run_claude(scope))
+            if should_send_to_claude(stripped, category, provider):
+                if provider == "codex":
+                    console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
+                    _render_provider_result(provider, category, run_codex(scope))
+                else:
+                    console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
+                    _render_provider_result(provider, category, run_claude(scope))
             else:
                 console.print(
-                    "\n[bold yellow]Plan ready. Send to Claude manually if needed.[/bold yellow]"
+                    "\n[bold yellow]Plan ready. Send to provider manually if needed.[/bold yellow]"
                 )
 
-        append_interaction_log(stripped, category, scope)
+        append_interaction_log(stripped, category, scope, provider)
         consolidate_memory_if_needed()
 
 
@@ -517,14 +734,60 @@ def _action_view_logs() -> None:
 def _action_show_dispatch_rules() -> None:
     console.print(Rule("[bold cyan]Dispatch Rules[/bold cyan]"))
 
-    t = Table(title="Auto-Dispatch Logic", box=box.ROUNDED, border_style="dim", padding=(0, 1))
+    t = Table(
+        title="Provider Routing", box=box.ROUNDED, border_style="dim", padding=(0, 1)
+    )
     t.add_column("Condition", style="bold cyan")
+    t.add_column("Provider", style="bold yellow")
     t.add_column("Outcome", style="white")
-    t.add_row("Category = CLAUDE_EXECUTION", "[green]Auto-dispatch to Claude[/green]")
-    t.add_row("Category = POWERBI + action keyword", "[green]Auto-dispatch to Claude[/green]")
-    t.add_row("Category = GENERAL", "[yellow]Plan only — no dispatch[/yellow]")
-    t.add_row("Dangerous keyword detected", "[red]Blocked — no dispatch[/red]")
+    t.add_row(
+        "Category = GENERAL",
+        "openai_mini",
+        "[yellow]Answer — no CLI dispatch[/yellow]",
+    )
+    t.add_row(
+        "Category = POWERBI",
+        "claude_code",
+        "[green]Auto-dispatch to Claude Code[/green]",
+    )
+    t.add_row(
+        "CLAUDE_EXECUTION + codex keywords score higher",
+        "codex",
+        "[blue]Auto-dispatch to Codex[/blue]",
+    )
+    t.add_row(
+        "CLAUDE_EXECUTION (default / claude keywords score higher)",
+        "claude_code",
+        "[green]Auto-dispatch to Claude Code[/green]",
+    )
+    t.add_row(
+        "CLAUDE_EXECUTION + no keyword signal",
+        "openai_mini",
+        "[yellow]Plan shown — no auto-dispatch[/yellow]",
+    )
+    t.add_row(
+        "Learning / Creator Mode (confirmed)",
+        "codex",
+        "[blue]Discuss → confirm → dispatch to Codex[/blue]",
+    )
+    t.add_row(
+        "Dangerous keyword detected",
+        "—",
+        "[red]Blocked — no dispatch[/red]",
+    )
     console.print(t)
+
+    console.print("\n[bold yellow]Learning / Creator Mode[/bold yellow] [dim](triggers confirmation flow)[/dim]")
+    console.print("  " + "  ".join(f"[cyan]{k}[/cyan]" for k in sorted(LEARNING_MODE_KEYWORDS)))
+
+    kw_table = Table(
+        title="Routing Keywords", box=box.ROUNDED, border_style="dim", padding=(0, 1)
+    )
+    kw_table.add_column("Provider", style="bold yellow", no_wrap=True)
+    kw_table.add_column("Trigger Keywords", style="white")
+    kw_table.add_row("codex", ", ".join(sorted(CODEX_ROUTING_KEYWORDS)))
+    kw_table.add_row("claude_code", ", ".join(sorted(CLAUDE_CODE_ROUTING_KEYWORDS)))
+    console.print(kw_table)
 
     console.print("\n[bold yellow]Dangerous Keywords[/bold yellow] [dim](block dispatch)[/dim]")
     console.print("  " + "  ".join(f"[red]{k}[/red]" for k in DANGEROUS_KEYWORDS))

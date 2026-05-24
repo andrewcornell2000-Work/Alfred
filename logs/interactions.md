@@ -1,11 +1,59 @@
+## 2026-05-23 17:22:34
+**Category:** GENERAL
+**Input:** 7
+**Scope:** 
 
-## 2026-05-23 14:08:24
+
+## 2026-05-23 17:22:41
+**Category:** GENERAL
+**Input:** stop
+**Scope:** 
+
+
+## 2026-05-23 17:22:45
+**Category:** GENERAL
+**Input:** Stop
+**Scope:** 
+
+
+## 2026-05-23 17:23:46
 **Category:** POWERBI
-**Input:** ï»¿My Power BI report shows a column missing error in the sales query
-**Scope:** 1. Likely issue: A Power Query step in the sales query references a column that is missing, removed, renamed, or not present in the expected schema.
+**Input:** 1
+paste
+Analyze why this DAX measure may return blanks:
 
-2. First inspection target: The Transform Sample File query associated with the sales query to check if the missing column is present or manipulated early in the query pipeline.
+Sales Per Active Customer =
+DIVIDE(
+    SUM(Sales[Sales Amount]),
+    CALCULATE(
+        DISTINCTCOUNT(Customers[CustomerID]),
+        FILTER(
+            Customers,
+            Customers[Status] = "Active"
+                && SELECTEDVALUE(Regions[RegionName]) <> BLANK()
+        )
+    )
+)
+**Scope:** 1. **Likely issue:**  
+The measure may return blanks because the filter inside the `CALCULATE` on `Customers` includes a condition on `SELECTEDVALUE(Regions[RegionName])` which might return `BLANK()` if the current filter context does not have exactly one `RegionName` selected. When `SELECTEDVALUE(Regions[RegionName])` is blank, the filter condition `Customers[Status] = "Active" && BLANK() <> BLANK()` evaluates to FALSE, resulting in zero active customers and thus a division by zero resulting in
 
-3. Forbidden scope: Do not scan all source files or unrelated queries; avoid inspecting all file contents before confirming query logic issues.
 
-4. Optimized Claude prompt
+## 2026-05-23 17:29:18
+**Category:** POWERBI
+**Input:** Sales Per Active Customer =
+DIVIDE(
+    SUM(Sales[Sales Amount]),
+    CALCULATE(
+        DISTINCTCOUNT(Customers[CustomerID]),
+        FILTER(
+            Customers,
+            Customers[Status] = "Active"
+                && SELECTEDVALUE(Regions[RegionName]) <> BLANK()
+        )
+    )
+)
+**Scope:** 1. **Likely issue:**  
+The measure uses `SELECTEDVALUE(Regions[RegionName])` inside a `FILTER` on the `Customers` table, which can cause context transition or filter propagation problems if `Regions` is not directly related or properly linked in the filter context. This may result in an unexpected or blank denominator. Also, the filter on `Regions[RegionName]` being not blank inside a filter on `Customers` table hints at possible model relationship or filter context misalignment.
+
+2. **First ins
+
