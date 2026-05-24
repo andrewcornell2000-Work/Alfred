@@ -115,8 +115,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ── Quant Intelligence Tool ────────────────────────────────────────────────────
 
-QUANT_PATH = r"C:\Users\andre\OneDrive\Desktop\Quant"
-QUANT_PORT = 5000
+QUANT_PATH = os.getenv("QUANT_PATH", r"C:\Users\andre\OneDrive\Desktop\Quant")
+QUANT_PORT = int(os.getenv("QUANT_PORT", "5000"))
 QUANT_BASE = f"http://127.0.0.1:{QUANT_PORT}"
 
 _quant_proc: "subprocess.Popen | None" = None
