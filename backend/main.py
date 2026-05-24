@@ -49,7 +49,7 @@ You are Alfred, an AI orchestration assistant — precise, calm, and quietly ind
 
 Speak like a senior operator who has seen everything and remains unflappable: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
 
-Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION / QUANT), provider routing (openai_mini / codex / claude_code / quant_tool), optimized prompt generation, skill-based context injection, memory consolidation, auto-dispatch, and the integrated Quant Intelligence System for live stock analysis.
+Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION / QUANT), provider routing (Codex for chat and classification, Claude Code for execution and file tasks, Quant tool for live stock analysis), optimized prompt generation, skill-based context injection, memory consolidation, and auto-dispatch.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -110,7 +110,7 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
     full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
     try:
         result = subprocess.run(
-            ["claude", "-p", full_prompt],
+            [_resolve_claude_executable(), "-p", full_prompt],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -119,10 +119,15 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
             return result.stdout.strip()
         console.print(f"[dim red]Claude CLI: {result.stderr.strip()[:120]}[/dim red]")
     except FileNotFoundError:
-        console.print(
-            "[bold red]Claude CLI not found.[/bold red] "
-            "Run [bold yellow]claude login[/bold yellow] in a terminal first."
+        msg = (
+            "Claude Code CLI is not installed.\n"
+            "Fix it now:\n"
+            "  1. npm install -g @anthropic-ai/claude-code\n"
+            "  2. claude login\n"
+            "Then restart Alfred."
         )
+        console.print(f"[bold red]Setup required:[/bold red]\n{msg}")
+        return msg
     except subprocess.TimeoutExpired:
         console.print("[dim red]Claude CLI timed out.[/dim red]")
     return ""
@@ -730,7 +735,7 @@ def load_relevant_skills(user_input: str) -> str:
 
 
 def classify_task(user_input: str) -> str:
-    raw = _call_claude(CLASSIFIER_PROMPT, user_input)
+    raw = _call_codex(CLASSIFIER_PROMPT, user_input)
     for cat in ["QUANT", "POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
         if cat in raw.upper():
             return cat
@@ -741,7 +746,7 @@ def generate_general_response(user_input: str) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
-    return _call_claude(system, user_input) or "No response."
+    return _call_codex(system, user_input) or "No response."
 
 
 def generate_claude_scope(user_input: str, skills_context: str = "") -> str:
@@ -799,9 +804,47 @@ def extract_structured_response(raw_response: str) -> dict:
 def run_claude(prompt: str) -> subprocess.CompletedProcess:
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
     return subprocess.run(
-        ["claude", "-p", full_prompt],
+        [_resolve_claude_executable(), "-p", full_prompt],
         capture_output=True,
         text=True,
+    )
+
+
+def _call_codex(system_prompt: str, user_content: str, timeout: int = 60) -> str:
+    """Send a prompt to the codex CLI and return the response text.
+    No API key needed — uses credentials from `codex login`."""
+    full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
+    exe = _resolve_codex_executable()
+    try:
+        result = subprocess.run(
+            [exe, full_prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        if result.stderr.strip():
+            console.print(f"[dim red]Codex CLI: {result.stderr.strip()[:120]}[/dim red]")
+    except FileNotFoundError:
+        msg = (
+            "Codex CLI not found. Run:\n"
+            "  npm install -g @openai/codex\n"
+            "  codex login"
+        )
+        console.print(f"[bold red]Setup required:[/bold red]\n{msg}")
+        return msg
+    except subprocess.TimeoutExpired:
+        console.print("[dim red]Codex CLI timed out.[/dim red]")
+    return ""
+
+
+def _resolve_claude_executable() -> str:
+    return (
+        os.getenv("CLAUDE_BIN")
+        or shutil.which("claude.cmd")
+        or shutil.which("claude")
+        or "claude.cmd"
     )
 
 
@@ -918,7 +961,7 @@ def generate_learning_discussion(user_input: str) -> str:
     system = LEARNING_DISCUSSION_PROMPT
     if _memory_context:
         system += f"\n\n## Current project context\n{_memory_context}"
-    return _call_claude(system, user_input) or "No response."
+    return _call_codex(system, user_input) or "No response."
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────
@@ -997,7 +1040,7 @@ def _show_header() -> None:
     console.print(
         Panel.fit(
             "[bold cyan]Alfred Console[/bold cyan]  [dim]v2[/dim]\n"
-            "[dim]Multi-Provider AI Router — openai_mini / codex / claude_code / quant_tool[/dim]",
+            "[dim]Multi-Provider AI Router — Codex (chat/classify) / Claude Code (execution) / Quant[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
@@ -1137,6 +1180,18 @@ def _action_ask_alfred() -> None:
         if stripped.lower() in {"back", "menu", "exit"}:
             console.print("[dim]Returning to main menu.[/dim]")
             return
+
+        if "claude login" in stripped.lower() or stripped.lower() in {"login", "claude-login"}:
+            console.print("[dim]Running claude login — a browser window will open...[/dim]")
+            try:
+                subprocess.run([_resolve_claude_executable(), "login"])
+                console.print("[bold green]Done. Restart Alfred if this was your first login.[/bold green]")
+            except FileNotFoundError:
+                console.print(
+                    "[bold red]Claude CLI not found.[/bold red] "
+                    "Run in PowerShell: [bold yellow]npm install -g @anthropic-ai/claude-code[/bold yellow]"
+                )
+            continue
 
         if stripped.lower() in {"clip", "clipboard"}:
             try:
@@ -1481,9 +1536,30 @@ _ACTIONS = {
 }
 
 
+def _check_setup() -> None:
+    missing = []
+    if not shutil.which("claude.cmd") and not shutil.which("claude"):
+        missing.append(
+            "Claude Code CLI:\n"
+            "  npm install -g @anthropic-ai/claude-code\n"
+            "  claude login"
+        )
+    if not shutil.which("codex.cmd") and not shutil.which("codex"):
+        missing.append(
+            "Codex CLI:\n"
+            "  npm install -g @openai/codex\n"
+            "  codex login"
+        )
+    if missing:
+        body = "[bold red]Missing tools — Alfred will not work until these are set up:[/bold red]\n\n"
+        body += "\n\n".join(f"[yellow]{m}[/yellow]" for m in missing)
+        console.print(Panel(body, title="[bold red]Setup Required[/bold red]", border_style="red", padding=(1, 2)))
+
+
 def main():
     _show_header()
     _ensure_memory_files()
+    _check_setup()
     reload_memory()
     check_github_updates()
 
