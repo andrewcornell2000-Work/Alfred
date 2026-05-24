@@ -211,39 +211,26 @@ if (Find-Command "node") {
     Write-Warn "Node.js not available — Claude Code and Codex CLIs skipped."
 }
 
-# ── Step 5: .env (API keys) ───────────────────────────────────────────────────
+# ── Step 5: Claude login ──────────────────────────────────────────────────────
 
-Write-Step "Step 5: API keys"
+Write-Step "Step 5: Claude login (no API keys needed)"
+Write-Host ""
+Write-Host "  Alfred uses your existing Claude account — no API keys required." -ForegroundColor White
+Write-Host "  Auth is handled by the Claude Code CLI." -ForegroundColor DarkGray
+Write-Host ""
 
-$EnvFile = Join-Path $InstallPath ".env"
-
-if (Test-Path $EnvFile) {
-    Write-OK ".env found."
-} else {
-    Write-Warn ".env not found — Alfred needs API keys to run."
+if (Find-Command "claude") {
+    Write-Host "  Run this now to log in:" -ForegroundColor White
+    Write-Host "    claude login" -ForegroundColor Yellow
     Write-Host ""
-
-    $openaiKey = Read-Host "  Paste your OpenAI API key (sk-...)   [press Enter to skip]"
-    $anthropicKey = Read-Host "  Paste your Anthropic API key (sk-ant-) [press Enter to skip]"
-
-    $envContent = "# Alfred API keys — do not commit this file`n"
-    if ($openaiKey.Trim()) {
-        $envContent += "OPENAI_API_KEY=$($openaiKey.Trim())`n"
-        Write-Done "OpenAI key saved."
-    } else {
-        $envContent += "OPENAI_API_KEY=sk-replace-me`n"
-        Write-Warn "OpenAI key skipped — edit .env before running Alfred."
+    $doLogin = Read-Host "  Open claude login now? (Y/n)"
+    if ($doLogin -notmatch "^[Nn]") {
+        Write-Host "  Launching claude login..." -ForegroundColor Cyan
+        & claude login
     }
-    if ($anthropicKey.Trim()) {
-        $envContent += "ANTHROPIC_API_KEY=$($anthropicKey.Trim())`n"
-        Write-Done "Anthropic key saved."
-    } else {
-        $envContent += "ANTHROPIC_API_KEY=sk-ant-replace-me`n"
-        Write-Warn "Anthropic key skipped — edit .env before running Alfred."
-    }
-
-    Set-Content -Path $EnvFile -Encoding utf8 -Value $envContent
-    Write-Done ".env written to $EnvFile"
+} else {
+    Write-Warn "Claude Code CLI not found — it will be installed in the next step."
+    Write-Host "  After install, run: claude login" -ForegroundColor Yellow
 }
 
 # ── Step 6: Desktop shortcut ──────────────────────────────────────────────────

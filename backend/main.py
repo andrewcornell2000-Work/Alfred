@@ -1,6 +1,4 @@
 from dotenv import load_dotenv
-from openai import OpenAI
-from anthropic import Anthropic
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -27,14 +25,6 @@ load_dotenv()
 # redirected).
 _stdout_utf8 = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 console = Console(file=_stdout_utf8, highlight=False)
-
-openai_client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
-
-anthropic_client = Anthropic(
-    api_key=os.getenv("ANTHROPIC_API_KEY")
-)
 
 CLASSIFIER_PROMPT = """
 You are an AI task router.
@@ -112,6 +102,31 @@ Return:
 """
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> str:
+    """Send a prompt to the claude CLI and return the response text.
+    No API key needed — uses the credentials from `claude login`."""
+    full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
+    try:
+        result = subprocess.run(
+            ["claude", "-p", full_prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        console.print(f"[dim red]Claude CLI: {result.stderr.strip()[:120]}[/dim red]")
+    except FileNotFoundError:
+        console.print(
+            "[bold red]Claude CLI not found.[/bold red] "
+            "Run [bold yellow]claude login[/bold yellow] in a terminal first."
+        )
+    except subprocess.TimeoutExpired:
+        console.print("[dim red]Claude CLI timed out.[/dim red]")
+    return ""
+
 
 # ── Quant Intelligence Tool ────────────────────────────────────────────────────
 
@@ -209,15 +224,11 @@ def _quant_fetch(endpoint: str) -> dict:
 
 
 def _quant_parse_command(user_input: str) -> dict:
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": QUANT_COMMAND_PROMPT},
-            {"role": "user", "content": user_input},
-        ],
-    )
-    raw = response.choices[0].message.content.strip()
+    raw = _call_claude(QUANT_COMMAND_PROMPT, user_input)
     try:
+        parsed = extract_structured_response(raw)
+        if "cmd" in parsed:
+            return parsed
         return json.loads(raw)
     except Exception:
         return {"cmd": "opportunities"}
@@ -225,14 +236,10 @@ def _quant_parse_command(user_input: str) -> dict:
 
 def _quant_summarize(data: dict, user_input: str) -> str:
     payload = json.dumps(data, default=str)[:4000]
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": QUANT_SUMMARY_PROMPT},
-            {"role": "user", "content": f"User asked: {user_input}\n\nData:\n{payload}"},
-        ],
+    return (
+        _call_claude(QUANT_SUMMARY_PROMPT, f"User asked: {user_input}\n\nData:\n{payload}", timeout=90)
+        or "No summary available."
     )
-    return response.choices[0].message.content.strip()
 
 
 def run_quant_query(user_input: str) -> str:
@@ -449,14 +456,7 @@ def compress_autosave_if_needed() -> None:
         f"Existing recent-context.md:\n{existing_recent}\n\n"
         f"Recent autosave entries:\n{content}"
     )
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": AUTOSAVE_COMPRESS_PROMPT},
-            {"role": "user", "content": user_content},
-        ],
-    )
-    raw = response.choices[0].message.content.strip()
+    raw = _call_claude(AUTOSAVE_COMPRESS_PROMPT, user_content, timeout=120)
 
     session_match = re.search(
         r"---SESSION-SUMMARY---\s*(.*?)(?=---RECENT-CONTEXT---|$)", raw, re.DOTALL
@@ -497,14 +497,9 @@ def save_session_exit_summary() -> None:
         return
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": SESSION_EXIT_PROMPT},
-                {"role": "user", "content": content},
-            ],
-        )
-        raw = response.choices[0].message.content.strip()
+        raw = _call_claude(SESSION_EXIT_PROMPT, content, timeout=120)
+        if not raw:
+            return
     except Exception:
         return
 
@@ -734,46 +729,28 @@ def load_relevant_skills(user_input: str) -> str:
     return "\n".join(relevant)
 
 
-def classify_task(user_input: str):
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": CLASSIFIER_PROMPT},
-            {"role": "user", "content": user_input},
-        ],
-    )
-    return response.choices[0].message.content.strip()
+def classify_task(user_input: str) -> str:
+    raw = _call_claude(CLASSIFIER_PROMPT, user_input)
+    for cat in ["QUANT", "POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
+        if cat in raw.upper():
+            return cat
+    return "GENERAL"
 
 
 def generate_general_response(user_input: str) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_input},
-        ],
-    )
-    return response.choices[0].message.content.strip()
+    return _call_claude(system, user_input) or "No response."
 
 
-def generate_claude_scope(user_input: str, skills_context: str = ""):
+def generate_claude_scope(user_input: str, skills_context: str = "") -> str:
     system_prompt = CLAUDE_SCOPE_PROMPT
     if _memory_context:
         system_prompt += f"\n\n## Current project memory\n{_memory_context}"
     if skills_context:
         system_prompt += f"\n\nRelevant skills loaded for this task:\n{skills_context}"
-
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input},
-        ],
-    )
-    return response.choices[0].message.content.strip()
+    return _call_claude(system_prompt, user_input) or "Could not generate scope."
 
 
 CLAUDE_JSON_INSTRUCTION = (
@@ -941,14 +918,7 @@ def generate_learning_discussion(user_input: str) -> str:
     system = LEARNING_DISCUSSION_PROMPT
     if _memory_context:
         system += f"\n\n## Current project context\n{_memory_context}"
-    response = openai_client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_input},
-        ],
-    )
-    return response.choices[0].message.content.strip()
+    return _call_claude(system, user_input) or "No response."
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────

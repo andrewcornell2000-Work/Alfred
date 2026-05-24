@@ -358,30 +358,12 @@ $EnvTemplate = Join-Path $Root ".env.template"
 $hasEnv = Test-Path $EnvFile
 
 if ($hasEnv) {
-    Write-OK ".env found."
+    Write-OK ".env found (optional config)."
 } else {
-    Write-Warn ".env not found -- Alfred cannot run without API keys."
-
+    Write-Info ".env not present -- that's fine. Auth uses 'claude login', no API keys needed."
     if (-not (Test-Path $EnvTemplate)) {
-        Set-Content -Path $EnvTemplate -Encoding utf8 -Value @"
-# Copy this file to .env and fill in your keys.
-# NEVER commit .env to Git -- it is already in .gitignore.
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-"@
-        Write-Done ".env.template created."
-    } else {
-        Write-OK ".env.template already exists."
+        Copy-Item (Join-Path $Root ".env.template") $EnvTemplate -ErrorAction SilentlyContinue
     }
-
-    Write-Host ""
-    Write-Host "  To add your API keys:" -ForegroundColor White
-    Write-Host "    Copy-Item .env.template .env" -ForegroundColor Yellow
-    Write-Host "    notepad .env" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  Key sources:" -ForegroundColor White
-    Write-Host "    OPENAI_API_KEY    -- https://platform.openai.com/api-keys" -ForegroundColor DarkYellow
-    Write-Host "    ANTHROPIC_API_KEY -- https://console.anthropic.com/settings/keys" -ForegroundColor DarkYellow
 }
 
 # ── login instructions ────────────────────────────────────────────────────────
@@ -423,7 +405,7 @@ Write-Host "  Setup summary" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-$readyToRun = $hasPython -and $hasGit -and $hasSupportedNode -and $hasNpm -and $allNpmToolsReady -and $hasEnv
+$readyToRun = $hasPython -and $hasGit -and $hasSupportedNode -and $hasNpm -and $allNpmToolsReady
 
 if ($hasPython) { Write-Host "  [x] Python"   -ForegroundColor Green  } else { Write-Host "  [ ] Python 3.10+  --  https://www.python.org/downloads/"  -ForegroundColor Yellow }
 if ($hasGit)    { Write-Host "  [x] Git"      -ForegroundColor Green  } else { Write-Host "  [ ] Git           --  https://git-scm.com/download/win"    -ForegroundColor Yellow }
@@ -446,7 +428,7 @@ foreach ($tool in $npmToolList) {
     }
 }
 
-if ($hasEnv) { Write-Host "  [x] .env (API keys)" -ForegroundColor Green } else { Write-Host "  [ ] .env  --  copy .env.template to .env and add your keys" -ForegroundColor Yellow }
+Write-Host "  [i] Auth: run 'claude login' once to authenticate (no API keys needed)" -ForegroundColor Cyan
 
 Write-Host ""
 
@@ -461,5 +443,4 @@ Write-Host ""
 # Exit codes (read by Install-Alfred.bat and run-alfred.bat)
 if (-not $hasPython) { exit 2 }
 if (-not $hasGit -or -not $hasSupportedNode -or -not $hasNpm -or -not $allNpmToolsReady) { exit 3 }
-if (-not $hasEnv)    { exit 1 }
 exit 0
