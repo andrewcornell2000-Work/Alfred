@@ -36,10 +36,19 @@ POWERBI
 CLAUDE_EXECUTION
 QUANT
 
+CLAUDE_EXECUTION: Any request that requires taking action on files, folders, or code.
+This includes: organise/organize a folder, read/edit/create/delete files, run scripts,
+fix bugs, write code, refactor, inspect a file, scan a directory, execute a command,
+anything involving the filesystem or coding tasks.
+
 QUANT: Any request about stocks, trading opportunities, market analysis, backtesting,
 institutional flow, paper trading, portfolio stats, or queries mentioning specific tickers
 (e.g. AAPL, MSFT, NVDA, SPY, TSLA). Also matches: "analyze [ticker]", "opportunities",
 "smart money", "trade signal", "quant".
+
+POWERBI: Any request about Power BI reports, dashboards, Power Query, data models.
+
+GENERAL: Conversation, questions, explanations — anything that does NOT require file/code action.
 
 Return ONLY the category name.
 """
@@ -108,13 +117,30 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
     """Send a prompt to the claude CLI and return the response text.
     No API key needed — uses the credentials from `claude login`."""
     full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
+    # Windows command line limit is ~8191 chars — write long prompts to a temp file
+    exe = _resolve_claude_executable()
     try:
-        result = subprocess.run(
-            [_resolve_claude_executable(), "-p", full_prompt],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        if len(full_prompt) > 6000:
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
+                f.write(full_prompt)
+                tmp_path = f.name
+            try:
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     f"Get-Content -Raw '{tmp_path}' | & '{exe}' -p -"],
+                    capture_output=True, text=True, timeout=timeout,
+                )
+            finally:
+                try: os.unlink(tmp_path)
+                except Exception: pass
+        else:
+            result = subprocess.run(
+                [exe, "-p", full_prompt],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
         if result.returncode == 0:
             return result.stdout.strip()
         console.print(f"[dim red]Claude CLI: {result.stderr.strip()[:120]}[/dim red]")
