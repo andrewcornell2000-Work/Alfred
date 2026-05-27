@@ -253,10 +253,13 @@ if (-not $claudeExe) {
 if ($claudeExe) {
     $doLogin = Read-Host "  Run claude login now? (Y/n)"
     if ($doLogin -notmatch "^[Nn]") {
-        & $claudeExe login
+        Write-Host "  Opening a new terminal for Claude authentication..." -ForegroundColor Cyan
+        Write-Host "  Sign in via the browser that opens, then close the new window." -ForegroundColor DarkGray
+        Start-Process "cmd.exe" -ArgumentList "/k `"$claudeExe`""
+        Read-Host "  Press Enter here once you have finished authenticating"
     }
 } else {
-    Write-Warn "Claude Code CLI not found on PATH. Run 'claude login' after opening a new terminal."
+    Write-Warn "Claude Code CLI not found on PATH. Open a new terminal and run 'claude' to authenticate."
 }
 
 # ── Step 6: Codex login ───────────────────────────────────────────────────────

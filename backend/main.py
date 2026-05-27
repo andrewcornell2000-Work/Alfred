@@ -762,6 +762,9 @@ def load_relevant_skills(user_input: str) -> str:
 
 def classify_task(user_input: str) -> str:
     raw = _call_openai(CLASSIFIER_PROMPT, user_input)
+    if not raw:
+        console.print("[dim yellow]OpenAI unavailable — classifying with Claude.[/dim yellow]")
+        raw = _call_claude(CLASSIFIER_PROMPT, user_input)
     for cat in ["QUANT", "POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
         if cat in raw.upper():
             return cat
@@ -772,7 +775,7 @@ def generate_general_response(user_input: str) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
-    return _call_openai(system, user_input) or "No response."
+    return _call_openai(system, user_input) or _call_claude(system, user_input) or "No response."
 
 
 def generate_claude_scope(user_input: str, skills_context: str = "") -> str:
@@ -1070,7 +1073,7 @@ def generate_learning_discussion(user_input: str) -> str:
     system = LEARNING_DISCUSSION_PROMPT
     if _memory_context:
         system += f"\n\n## Current project context\n{_memory_context}"
-    return _call_openai(system, user_input) or "No response."
+    return _call_openai(system, user_input) or _call_claude(system, user_input) or "No response."
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────
@@ -1291,14 +1294,14 @@ def _action_ask_alfred() -> None:
             return
 
         if "claude login" in stripped.lower() or stripped.lower() in {"login", "claude-login"}:
-            console.print("[dim]Running claude login — a browser window will open...[/dim]")
+            console.print("[dim]Opening a new terminal for Claude authentication — sign in via the browser that opens.[/dim]")
             try:
-                subprocess.run([_resolve_claude_executable(), "login"])
-                console.print("[bold green]Done. Restart Alfred if this was your first login.[/bold green]")
-            except FileNotFoundError:
+                subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", _resolve_claude_executable()])
+                console.print("[bold green]New terminal opened. Complete login there, then restart Alfred.[/bold green]")
+            except Exception as e:
                 console.print(
-                    "[bold red]Claude CLI not found.[/bold red] "
-                    "Run in PowerShell: [bold yellow]npm install -g @anthropic-ai/claude-code[/bold yellow]"
+                    f"[bold red]Could not open terminal:[/bold red] {e}\n"
+                    "Run manually in a new terminal: [bold yellow]claude[/bold yellow]"
                 )
             continue
 
@@ -1677,9 +1680,24 @@ def _check_setup() -> None:
         if not os.path.isfile(auth) or os.path.getsize(auth) < 10:
             issues.append("Codex not logged in.\n  Fix: run [bold yellow]codex login[/bold yellow] in a terminal")
 
-    # OpenAI key
-    if not os.getenv("OPENAI_API_KEY"):
-        issues.append("OpenAI API key missing.\n  Fix: re-run Alfred-Install.exe or add OPENAI_API_KEY to .env")
+    # OpenAI key — optional; Claude handles fallback when missing
+    openai_missing = not os.getenv("OPENAI_API_KEY")
+    claude_logged_in = (
+        claude_installed
+        and os.path.isfile(os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json"))
+        and os.path.getsize(os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")) >= 10
+    )
+    if openai_missing and not claude_logged_in:
+        issues.append(
+            "OpenAI API key missing and Claude not logged in.\n"
+            "  Alfred needs at least one provider to work.\n"
+            "  Option A: add OPENAI_API_KEY to .env\n"
+            "  Option B: run 'claude' in a terminal to authenticate"
+        )
+    elif openai_missing:
+        console.print(
+            "[dim yellow]No OpenAI key — using Claude as fallback for classification and chat.[/dim yellow]"
+        )
 
     if issues:
         body = "[bold red]Pre-flight check failed:[/bold red]\n\n"
@@ -1688,7 +1706,7 @@ def _check_setup() -> None:
     else:
         console.print("[dim green]Pre-flight check passed.[/dim green]")
 
-    if not os.getenv("OPENAI_API_KEY"):
+    if openai_missing and not claude_logged_in:
         _setup_openai_key()
 
 
