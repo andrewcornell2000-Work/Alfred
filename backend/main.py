@@ -1017,6 +1017,8 @@ CLAUDE_CODE_ROUTING_KEYWORDS = {
     "mcp", "inspect file", "read file", "execute", "run script",
     "power bi", "powerbi", "power query", "folder", "database", "scan",
     "filesystem", "file system", "workspace", "onedrive", "sharepoint",
+    # Excel live editing via excellm MCP
+    "excel", "spreadsheet", "workbook", "pivot table", "macro", "vba",
     # Repository/file exploration and deep tool use
     "explore", "file exploration", "repository exploration", "deep tool",
 }
@@ -1700,6 +1702,43 @@ def _check_setup() -> None:
         console.print(
             "[dim yellow]No OpenAI key — using Claude as fallback for classification and chat.[/dim yellow]"
         )
+
+    # MCP server health checks — verify registered servers are actually available
+    settings_path = os.path.join(_ROOT, ".claude", "settings.json")
+    mcp_ready = []
+    if os.path.isfile(settings_path):
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                mcp_cfg = json.load(f)
+            for svc_name, svc in mcp_cfg.get("mcpServers", {}).items():
+                cmd = svc.get("command", "")
+                if svc_name == "powerbi-modeling-mcp":
+                    if cmd and not os.path.isfile(cmd):
+                        issues.append(
+                            f"Power BI MCP: server exe not found at {cmd}\n"
+                            "  Fix: re-run Alfred-Install.exe to repair the VS Code extension"
+                        )
+                    else:
+                        mcp_ready.append("Power BI")
+                elif svc_name == "excel":
+                    try:
+                        import excellm  # noqa: F401
+                        mcp_ready.append("Excel")
+                    except ImportError:
+                        issues.append(
+                            "Excel MCP: excellm not installed.\n"
+                            "  Fix: activate .venv and run: pip install excellm"
+                        )
+        except Exception:
+            pass
+    else:
+        console.print(
+            "[dim yellow]MCP tools not configured — Power BI and Excel editing unavailable.[/dim yellow]\n"
+            "[dim]Re-run Alfred-Install.exe to set up MCP tools.[/dim]"
+        )
+
+    if mcp_ready:
+        console.print(f"[dim green]MCP ready: {', '.join(mcp_ready)}[/dim green]")
 
     if issues:
         body = "[bold red]Pre-flight check failed:[/bold red]\n\n"

@@ -345,7 +345,10 @@ if (-not $codexExe) {
 if ($codexExe) {
     $doCodex = Read-Host "  Run codex login now? (Y/n)"
     if ($doCodex -notmatch "^[Nn]") {
-        & $codexExe login
+        Write-Host "  Opening a new terminal for Codex authentication..." -ForegroundColor Cyan
+        Write-Host "  Sign in via the browser that opens, then close the new window." -ForegroundColor DarkGray
+        Start-Process "cmd.exe" -ArgumentList "/k `"$codexExe`""
+        Read-Host "  Press Enter here once you have finished authenticating"
     }
 } else {
     Write-Warn "Codex CLI not found on PATH. Run 'codex login' after opening a new terminal."
@@ -418,46 +421,109 @@ New-Item -ItemType Directory -Path $ClaudeSettingsDir -Force | Out-Null
 
 $mcpServers = [ordered]@{}
 
-# Power BI Modeling MCP — installed as a VS Code extension
-$pbimcpExt = Get-ChildItem "$env:USERPROFILE\.vscode\extensions" `
-    -Filter "analysis-services.powerbi-modeling-mcp*" -Directory -ErrorAction SilentlyContinue |
-    Sort-Object Name -Descending | Select-Object -First 1
-if ($pbimcpExt) {
-    $pbimcpExe = Join-Path $pbimcpExt.FullName "server\powerbi-modeling-mcp.exe"
-    if (Test-Path $pbimcpExe) {
-        $mcpServers["powerbi-modeling-mcp"] = [ordered]@{
-            command = $pbimcpExe
-            args    = @("--start")
-        }
-        Write-OK "Power BI Modeling MCP — $($pbimcpExt.Name)"
-    } else {
-        Write-Warn "Power BI Modeling MCP extension found but exe missing: $pbimcpExe"
+# ── Power BI Modeling MCP ─────────────────────────────────────────────────────
+# Requires VS Code + the analysis-services.powerbi-modeling-mcp extension.
+# Alfred auto-installs the extension if VS Code is present.
+
+$vscodeCLI = Find-Command "code"
+if (-not $vscodeCLI) {
+    foreach ($cand in @(
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+        "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd"
+    )) {
+        if (Test-Path $cand) { $vscodeCLI = $cand; break }
     }
-} else {
-    Write-Warn "Power BI Modeling MCP not found."
-    Write-Host "  Install VS Code extension: analysis-services.powerbi-modeling-mcp" -ForegroundColor DarkGray
 }
 
-# Excel Live MCP — excellm pip package (installed above in Step 3)
-$pyForMcp = if (Find-Command "python") { (Find-Command "python") } else { "python" }
+if (-not $vscodeCLI) {
+    Write-Warn "VS Code not found — required for Power BI MCP."
+    $installVSCode = Read-Host "  Install VS Code now (user install, no admin)? (Y/n)"
+    if ($installVSCode -notmatch "^[Nn]") {
+        Install-Tool "Microsoft.VisualStudioCode" "vscode" "VS Code" | Out-Null
+        Refresh-Path
+        foreach ($cand in @(
+            "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+            "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd"
+        )) {
+            if (Test-Path $cand) { $vscodeCLI = $cand; break }
+        }
+        if (-not $vscodeCLI) { $vscodeCLI = Find-Command "code" }
+    }
+}
+
+if ($vscodeCLI) {
+    Write-OK "VS Code — $vscodeCLI"
+
+    # Look for extension; auto-install if missing
+    $pbimcpExt = Get-ChildItem "$env:USERPROFILE\.vscode\extensions" `
+        -Filter "analysis-services.powerbi-modeling-mcp*" -Directory -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | Select-Object -First 1
+
+    if (-not $pbimcpExt) {
+        Write-Host "  Installing Power BI Modeling MCP extension..." -ForegroundColor Cyan
+        & $vscodeCLI --install-extension analysis-services.powerbi-modeling-mcp --force 2>$null
+        Start-Sleep -Seconds 5
+        $pbimcpExt = Get-ChildItem "$env:USERPROFILE\.vscode\extensions" `
+            -Filter "analysis-services.powerbi-modeling-mcp*" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending | Select-Object -First 1
+    }
+
+    if ($pbimcpExt) {
+        $pbimcpExe = Join-Path $pbimcpExt.FullName "server\powerbi-modeling-mcp.exe"
+        if (Test-Path $pbimcpExe) {
+            $mcpServers["powerbi-modeling-mcp"] = [ordered]@{
+                command = $pbimcpExe
+                args    = @("--start")
+            }
+            Write-OK "Power BI Modeling MCP — $($pbimcpExt.Name)"
+        } else {
+            Write-Warn "Power BI MCP extension found but server exe missing: $pbimcpExe"
+            Write-Host "  Try re-installing: VS Code > Extensions > analysis-services.powerbi-modeling-mcp > Uninstall then Install" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Warn "Power BI MCP extension could not be installed automatically."
+        Write-Host "  Install manually in VS Code: Extensions > Search 'powerbi-modeling-mcp' > Install" -ForegroundColor DarkGray
+    }
+} else {
+    Write-Warn "VS Code not installed — Power BI MCP skipped."
+    Write-Host "  Install VS Code from https://code.visualstudio.com then re-run this installer." -ForegroundColor DarkGray
+}
+
+# ── Excel Live MCP ────────────────────────────────────────────────────────────
+# excellm must run from the venv Python so it can import the installed package.
+# Using system Python would fail if excellm is only in the venv.
+
+$venvPython = Join-Path $InstallPath ".venv\Scripts\python.exe"
+$pyForMcp = if (Test-Path $venvPython) { $venvPython } else { "python" }
+
 $excellmOk = $false
 try {
-    $excellmOk = (& $pyForMcp -c "import excellm" 2>$null; $LASTEXITCODE -eq 0)
+    & $pyForMcp -c "import excellm" 2>$null | Out-Null
+    $excellmOk = ($LASTEXITCODE -eq 0)
 } catch {}
+
 if (-not $excellmOk) {
-    # Try installing it now
+    Write-Host "  Installing excellm into venv..." -ForegroundColor Cyan
     & $PipExe install --quiet excellm 2>$null
-    try { $excellmOk = (& $pyForMcp -c "import excellm" 2>$null; $LASTEXITCODE -eq 0) } catch {}
+    try {
+        & $pyForMcp -c "import excellm" 2>$null | Out-Null
+        $excellmOk = ($LASTEXITCODE -eq 0)
+    } catch {}
 }
+
 if ($excellmOk) {
     $mcpServers["excel"] = [ordered]@{
         command = $pyForMcp
         args    = @("-m", "excellm")
     }
-    Write-OK "Excel MCP (excellm) ready."
+    Write-OK "Excel MCP (excellm) ready — using $pyForMcp"
 } else {
-    Write-Warn "excellm not available — Excel MCP skipped. Run: pip install excellm"
+    Write-Warn "excellm install failed — Excel MCP skipped."
+    Write-Host "  Activate .venv and run: pip install excellm" -ForegroundColor DarkGray
 }
+
+# ── Write settings.json ───────────────────────────────────────────────────────
 
 if ($mcpServers.Count -gt 0) {
     $settingsObj = [ordered]@{ mcpServers = $mcpServers }
@@ -465,8 +531,11 @@ if ($mcpServers.Count -gt 0) {
     $settingsPath = Join-Path $ClaudeSettingsDir "settings.json"
     Set-Content $settingsPath $settingsJson -Encoding UTF8
     Write-Done ".claude\settings.json written with $($mcpServers.Count) MCP server(s)."
+    Write-Host "  Power BI: edit measures, tables, relationships, DAX" -ForegroundColor DarkGray
+    Write-Host "  Excel:    read/write cells, charts, pivot tables, VBA (workbook must be open)" -ForegroundColor DarkGray
 } else {
     Write-Warn "No MCP servers configured — .claude\settings.json not written."
+    Write-Host "  Re-run this installer after installing VS Code + Power BI extension." -ForegroundColor DarkGray
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────
