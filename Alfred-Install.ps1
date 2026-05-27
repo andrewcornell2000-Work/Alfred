@@ -62,10 +62,14 @@ function Add-PathEntry([string]$Entry) {
 }
 
 function Install-Tool([string]$WingetId, [string]$ScoopName, [string]$DisplayName) {
-    # Try winget first
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if ($winget) {
-        Write-Host "  Installing $DisplayName via winget..." -ForegroundColor Cyan
+        # --scope user avoids UAC — installs to %LOCALAPPDATA% with no admin needed
+        Write-Host "  Installing $DisplayName via winget (user scope, no admin)..." -ForegroundColor Cyan
+        winget install --id $WingetId --scope user --silent --accept-package-agreements --accept-source-agreements
+        Refresh-Path
+        if ($LASTEXITCODE -eq 0) { return $true }
+        # Some packages only support machine scope — try without --scope as fallback
         winget install --id $WingetId --silent --accept-package-agreements --accept-source-agreements
         Refresh-Path
         if ($LASTEXITCODE -eq 0) { return $true }
@@ -90,6 +94,58 @@ function Install-Tool([string]$WingetId, [string]$ScoopName, [string]$DisplayNam
     return $false
 }
 
+function Install-Python-NoAdmin {
+    # Downloads the official Python installer and runs it in per-user mode — no admin needed.
+    $pyVer = "3.12.9"
+    $url   = "https://www.python.org/ftp/python/$pyVer/python-$pyVer-amd64.exe"
+    $tmp   = Join-Path $env:TEMP "python-$pyVer-amd64.exe"
+    Write-Host "  Downloading Python $pyVer (user install)..." -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+        $proc = Start-Process $tmp `
+            -ArgumentList "/passive InstallAllUsers=0 Include_launcher=0 PrependPath=1" `
+            -Wait -PassThru
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+        Refresh-Path
+        if ($proc.ExitCode -eq 0 -and (Find-Command "python")) { return $true }
+    } catch {
+        Write-Warn "Python direct download failed: $_"
+    }
+    return $false
+}
+
+function Install-Node-Portable([string]$RepoPath) {
+    # Downloads the Node.js portable ZIP — no installer, no admin needed.
+    # run-alfred.bat already looks for node.exe under $REPO\Node\node-v*-win-x64\
+    $nodeVer = "22.13.1"
+    try {
+        $idx     = Invoke-RestMethod "https://nodejs.org/dist/index.json" -UseBasicParsing
+        $lts     = $idx | Where-Object { $_.lts } | Select-Object -First 1
+        if ($lts) { $nodeVer = $lts.version.TrimStart('v') }
+    } catch {}
+
+    $url       = "https://nodejs.org/dist/v$nodeVer/node-v$nodeVer-win-x64.zip"
+    $zip       = Join-Path $env:TEMP "node-$nodeVer.zip"
+    $nodeParent = Join-Path $RepoPath "Node"
+    Write-Host "  Downloading portable Node.js v$nodeVer..." -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+        if (Test-Path $nodeParent) { Remove-Item $nodeParent -Recurse -Force -ErrorAction SilentlyContinue }
+        New-Item -ItemType Directory -Path $nodeParent -Force | Out-Null
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $nodeParent)
+        Remove-Item $zip -ErrorAction SilentlyContinue
+        # Add the versioned subfolder (e.g. node-v22.13.1-win-x64) to PATH
+        $nodeDir = Get-ChildItem $nodeParent -Directory | Select-Object -ExpandProperty FullName -First 1
+        if ($nodeDir) { Add-PathEntry $nodeDir }
+        Refresh-Path
+        return $true
+    } catch {
+        Write-Warn "Portable Node.js download failed: $_"
+        return $false
+    }
+}
+
 function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
     if (Test-Path $EnvPath) {
         $content = Get-Content $EnvPath -Raw
@@ -110,7 +166,7 @@ Write-Banner "Alfred Installer"
 Write-Host ""
 Write-Host "  Install path : $InstallPath" -ForegroundColor White
 Write-Host "  Repository   : $RepoUrl" -ForegroundColor White
-Write-Host "  No admin required if Git, Python, and Node.js are already installed." -ForegroundColor DarkGray
+Write-Host "  No admin required — falls back to portable/user installs automatically." -ForegroundColor DarkGray
 Write-Host ""
 
 $confirm = Read-Host "  Install / update Alfred here? (Y/n)"
@@ -166,6 +222,10 @@ if (Find-Command "python") {
 } else {
     $ok = Install-Tool "Python.Python.3.12" "python" "Python 3.12"
     if (-not $ok -and -not (Find-Command "python")) {
+        Write-Warn "winget/scoop failed — trying direct Python download (no admin)..."
+        $ok = Install-Python-NoAdmin
+    }
+    if (-not $ok -and -not (Find-Command "python")) {
         Write-Fail "Python is required. Install from https://www.python.org/downloads/ then re-run."
         exit 2
     }
@@ -202,7 +262,11 @@ Write-Step "Step 4: Node.js"
 if (Find-Command "node") {
     Write-OK "Node.js — $(& node --version 2>&1 | Select-Object -First 1)"
 } else {
-    Install-Tool "OpenJS.NodeJS.LTS" "nodejs" "Node.js LTS"
+    $ok = Install-Tool "OpenJS.NodeJS.LTS" "nodejs" "Node.js LTS"
+    if (-not $ok -and -not (Find-Command "node")) {
+        Write-Warn "winget/scoop failed — downloading portable Node.js (no admin)..."
+        Install-Node-Portable $InstallPath | Out-Null
+    }
 }
 
 if (Find-Command "node") {
