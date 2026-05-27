@@ -5,3 +5,4 @@ openai
 truststore
 excellm
 pbi-cli-tool
+winotify

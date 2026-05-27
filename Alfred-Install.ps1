@@ -386,6 +386,63 @@ if ($existingKey) {
 Write-EnvVar $EnvFile "QUANT_BASE_URL" $QuantUrl
 Write-OK "Quant plugin URL configured."
 
+# ── Step 7b: Brave Search API key ─────────────────────────────────────────────
+
+Write-Step "Step 7b: Brave Search API key (live web search)"
+Write-Host ""
+Write-Host "  Alfred uses Brave Search for real-time results — latest docs, current versions, news." -ForegroundColor White
+Write-Host "  Free plan: 2,000 queries/month. Get a key: https://api.search.brave.com/" -ForegroundColor DarkGray
+Write-Host ""
+
+$braveApiKey = ""
+$existingBrave = ""
+if (Test-Path $EnvFile) {
+    $existingBrave = (Get-Content $EnvFile | Where-Object { $_ -match "^BRAVE_API_KEY=" }) -replace "^BRAVE_API_KEY=",""
+}
+if ($existingBrave) {
+    $braveApiKey = $existingBrave
+    Write-OK "Brave Search API key already saved."
+} else {
+    $openBrave = Read-Host "  Open api.search.brave.com in browser? (Y/n)"
+    if ($openBrave -notmatch "^[Nn]") { Start-Process "https://api.search.brave.com/" }
+    $braveApiKey = Read-Host "  Paste your Brave Search API key (or press Enter to skip)"
+    if ($braveApiKey) {
+        Write-EnvVar $EnvFile "BRAVE_API_KEY" $braveApiKey
+        Write-Done "Brave Search API key saved to .env"
+    } else {
+        Write-Warn "Brave Search skipped — web search MCP will not be configured."
+    }
+}
+
+# ── Step 7c: GitHub Personal Access Token ────────────────────────────────────
+
+Write-Step "Step 7c: GitHub Personal Access Token (create PRs, manage issues, search repos)"
+Write-Host ""
+Write-Host "  Alfred uses GitHub MCP to manage repositories directly from chat." -ForegroundColor White
+Write-Host "  Create a token (classic): https://github.com/settings/tokens/new" -ForegroundColor DarkGray
+Write-Host "  Recommended scopes: repo, read:org, workflow" -ForegroundColor DarkGray
+Write-Host ""
+
+$githubToken = ""
+$existingGithub = ""
+if (Test-Path $EnvFile) {
+    $existingGithub = (Get-Content $EnvFile | Where-Object { $_ -match "^GITHUB_TOKEN=" }) -replace "^GITHUB_TOKEN=",""
+}
+if ($existingGithub) {
+    $githubToken = $existingGithub
+    Write-OK "GitHub token already saved."
+} else {
+    $openGithub = Read-Host "  Open github.com/settings/tokens in browser? (Y/n)"
+    if ($openGithub -notmatch "^[Nn]") { Start-Process "https://github.com/settings/tokens/new" }
+    $githubToken = Read-Host "  Paste your GitHub Personal Access Token (ghp_... or press Enter to skip)"
+    if ($githubToken) {
+        Write-EnvVar $EnvFile "GITHUB_TOKEN" $githubToken
+        Write-Done "GitHub token saved to .env"
+    } else {
+        Write-Warn "GitHub token skipped — GitHub MCP will not be configured."
+    }
+}
+
 # ── Step 8: Desktop shortcut ──────────────────────────────────────────────────
 
 Write-Step "Step 8: Desktop shortcut"
@@ -523,6 +580,44 @@ if ($excellmOk) {
     Write-Host "  Activate .venv and run: pip install excellm" -ForegroundColor DarkGray
 }
 
+# ── Brave Search MCP ──────────────────────────────────────────────────────────
+
+if ($braveApiKey) {
+    $mcpServers["brave-search"] = [ordered]@{
+        command = "npx"
+        args    = @("-y", "@modelcontextprotocol/server-brave-search")
+        env     = [ordered]@{ BRAVE_API_KEY = $braveApiKey }
+    }
+    Write-OK "Brave Search MCP configured — live web search enabled."
+} else {
+    Write-Warn "Brave Search MCP skipped (no API key). Re-run installer to add it."
+}
+
+# ── GitHub MCP ────────────────────────────────────────────────────────────────
+
+if ($githubToken) {
+    $mcpServers["github"] = [ordered]@{
+        command = "npx"
+        args    = @("-y", "@modelcontextprotocol/server-github")
+        env     = [ordered]@{ GITHUB_PERSONAL_ACCESS_TOKEN = $githubToken }
+    }
+    Write-OK "GitHub MCP configured — PR creation, issue management, repo search enabled."
+} else {
+    Write-Warn "GitHub MCP skipped (no token). Re-run installer to add it."
+}
+
+# ── Playwright MCP ────────────────────────────────────────────────────────────
+
+if (Find-Command "npx") {
+    $mcpServers["playwright"] = [ordered]@{
+        command = "npx"
+        args    = @("-y", "@playwright/mcp", "--browser", "chromium")
+    }
+    Write-OK "Playwright MCP configured — browser automation enabled."
+} else {
+    Write-Warn "Playwright MCP skipped (npx not found — install Node.js first)."
+}
+
 # ── Write settings.json ───────────────────────────────────────────────────────
 
 if ($mcpServers.Count -gt 0) {
@@ -531,11 +626,33 @@ if ($mcpServers.Count -gt 0) {
     $settingsPath = Join-Path $ClaudeSettingsDir "settings.json"
     Set-Content $settingsPath $settingsJson -Encoding UTF8
     Write-Done ".claude\settings.json written with $($mcpServers.Count) MCP server(s)."
-    Write-Host "  Power BI: edit measures, tables, relationships, DAX" -ForegroundColor DarkGray
-    Write-Host "  Excel:    read/write cells, charts, pivot tables, VBA (workbook must be open)" -ForegroundColor DarkGray
+    Write-Host "  Power BI:   edit measures, tables, relationships, DAX" -ForegroundColor DarkGray
+    Write-Host "  Excel:      read/write cells, charts, pivot tables, VBA" -ForegroundColor DarkGray
+    Write-Host "  Web Search: real-time results via Brave Search" -ForegroundColor DarkGray
+    Write-Host "  GitHub:     create PRs, manage issues, search repos" -ForegroundColor DarkGray
+    Write-Host "  Browser:    navigate pages, fill forms, scrape data, take screenshots" -ForegroundColor DarkGray
 } else {
     Write-Warn "No MCP servers configured — .claude\settings.json not written."
     Write-Host "  Re-run this installer after installing VS Code + Power BI extension." -ForegroundColor DarkGray
+}
+
+# ── Playwright Chromium browser ───────────────────────────────────────────────
+
+if ($mcpServers.ContainsKey("playwright")) {
+    Write-Host ""
+    Write-Host "  Playwright needs a Chromium browser to run (~150 MB download)." -ForegroundColor White
+    $doChrome = Read-Host "  Download Chromium now for browser automation? (Y/n)"
+    if ($doChrome -notmatch "^[Nn]") {
+        Write-Host "  Installing Chromium — this may take a few minutes..." -ForegroundColor Cyan
+        npx -y playwright install chromium
+        if ($LASTEXITCODE -eq 0) {
+            Write-Done "Chromium installed for Playwright browser automation."
+        } else {
+            Write-Warn "Chromium install may have had issues. Run 'npx playwright install chromium' manually if browser tasks fail."
+        }
+    } else {
+        Write-Warn "Chromium skipped. Run 'npx playwright install chromium' before using browser automation."
+    }
 }
 
 # ── pbi-cli: Power BI Visual Creation ────────────────────────────────────────

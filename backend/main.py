@@ -44,14 +44,22 @@ GENERAL
 POWERBI
 CLAUDE_EXECUTION
 
-CLAUDE_EXECUTION: Any request that requires taking action on files, folders, or code.
-This includes: organise/organize a folder, read/edit/create/delete files, run scripts,
-fix bugs, write code, refactor, inspect a file, scan a directory, execute a command,
-anything involving the filesystem or coding tasks.
+CLAUDE_EXECUTION: Any request that requires taking action using a tool, external API, or live data.
+This includes:
+- File and code tasks: organise/organize folders, read/edit/create/delete files, run scripts,
+  fix bugs, write code, refactor, inspect files, scan directories, execute commands
+- Live web lookups: searching the web, finding latest versions, current documentation,
+  real-time information that requires a web search
+- Browser automation: navigating websites, filling forms, scraping data, taking screenshots
+- GitHub operations: creating PRs, managing issues, reviewing diffs, searching repositories,
+  pushing files, creating branches
+- Excel or Power BI operations: reading/writing spreadsheets, editing charts, building visuals
 
-POWERBI: Any request about Power BI reports, dashboards, Power Query, data models.
+POWERBI: Questions about Power BI design, architecture, or DAX that can be answered without
+live tool use (no execution needed).
 
-GENERAL: Conversation, questions, explanations — anything that does NOT require file/code action.
+GENERAL: Pure conversation and questions answerable from training knowledge — no tools, no live
+data, no file access needed.
 
 Return ONLY the category name.
 """
@@ -1045,6 +1053,16 @@ CLAUDE_CODE_ROUTING_KEYWORDS = {
     "excel", "spreadsheet", "workbook", "pivot table", "macro", "vba",
     # Repository/file exploration and deep tool use
     "explore", "file exploration", "repository exploration", "deep tool",
+    # Live web search via Brave Search MCP
+    "search online", "search the web", "web search", "look up online",
+    "latest version of", "current version of", "latest docs", "find online",
+    # Browser automation via Playwright MCP
+    "playwright", "navigate to http", "browser automation",
+    "web scrape", "scrape the", "take a screenshot of", "open the browser",
+    # GitHub operations via GitHub MCP
+    "pull request", "create pr", "create a pr", "open pr",
+    "github issue", "open issue", "create issue", "review pr",
+    "github.com", "merge pr", "push to github",
 }
 
 
@@ -1130,6 +1148,21 @@ PROVIDER_LABELS = {
     "codex": "Codex",
     "openai_mini": "OpenAI Mini",
 }
+
+
+def _notify(title: str, message: str) -> None:
+    """Show a Windows toast notification — silent no-op if winotify is unavailable."""
+    try:
+        from winotify import Notification
+        toast = Notification(
+            app_id="Alfred Console",
+            title=title,
+            msg=message,
+            duration="short",
+        )
+        toast.show()
+    except Exception:
+        pass
 
 
 def _render_provider_result(
@@ -1282,6 +1315,7 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
                 console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
                 result = run_codex(scope)
                 _render_provider_result(provider, category, result)
+                _notify("Alfred", "Codex task " + ("complete" if result.returncode == 0 else "failed"))
                 outcome = (
                     result.stdout[:200]
                     if result.returncode == 0
@@ -1291,6 +1325,7 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
                 console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
                 result = run_claude(scope)
                 _render_provider_result(provider, category, result)
+                _notify("Alfred", "Claude Code task " + ("complete" if result.returncode == 0 else "failed"))
                 outcome = (
                     result.stdout[:200]
                     if result.returncode == 0
@@ -1437,6 +1472,7 @@ def _action_ask_alfred() -> None:
                     console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
                     result = run_codex(scope)
                     _render_provider_result(provider, category, result)
+                    _notify("Alfred", "Codex task " + ("complete" if result.returncode == 0 else "failed"))
                     outcome = (
                         result.stdout[:200]
                         if result.returncode == 0
@@ -1446,6 +1482,7 @@ def _action_ask_alfred() -> None:
                     console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
                     result = run_claude(scope)
                     _render_provider_result(provider, category, result)
+                    _notify("Alfred", "Claude Code task " + ("complete" if result.returncode == 0 else "failed"))
                     outcome = (
                         result.stdout[:200]
                         if result.returncode == 0
@@ -1885,6 +1922,26 @@ def _check_setup() -> None:
                             "Excel MCP: excellm not installed.\n"
                             "  Fix: activate .venv and run: pip install excellm"
                         )
+                elif svc_name == "brave-search":
+                    api_key = svc.get("env", {}).get("BRAVE_API_KEY", "")
+                    if api_key:
+                        mcp_ready.append("Web Search")
+                    else:
+                        issues.append(
+                            "Brave Search MCP: API key missing.\n"
+                            "  Fix: re-run Alfred-Install.exe and enter your Brave Search API key"
+                        )
+                elif svc_name == "github":
+                    token = svc.get("env", {}).get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
+                    if token:
+                        mcp_ready.append("GitHub")
+                    else:
+                        issues.append(
+                            "GitHub MCP: Personal Access Token missing.\n"
+                            "  Fix: re-run Alfred-Install.exe and enter your GitHub token"
+                        )
+                elif svc_name == "playwright":
+                    mcp_ready.append("Browser")
         except Exception:
             pass
     else:

@@ -20,6 +20,15 @@
         "category": "POWERBI",
         "destructive": true,
         "trust": "community"
+      },
+      {
+        "package": "winotify",
+        "command": null,
+        "description": "Windows toast notifications",
+        "purpose": "Show a desktop notification when a long Claude Code or Codex task completes.",
+        "category": "UX",
+        "destructive": false,
+        "trust": "community"
       }
     ]
   },
@@ -61,6 +70,37 @@
         "purpose": "Read/write live open Excel workbooks",
         "category": "CLAUDE_EXECUTION",
         "destructive": true,
+        "trust": "official"
+      },
+      {
+        "name": "brave-search",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-brave-search",
+        "purpose": "Live web search — real-time results, latest docs, current versions",
+        "category": "CLAUDE_EXECUTION",
+        "requiresKey": "BRAVE_API_KEY",
+        "keySource": "https://api.search.brave.com/",
+        "destructive": false,
+        "trust": "official"
+      },
+      {
+        "name": "github",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-github",
+        "purpose": "GitHub operations — create PRs, manage issues, search repos, push files",
+        "category": "CLAUDE_EXECUTION",
+        "requiresKey": "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "keySource": "https://github.com/settings/tokens",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "name": "playwright",
+        "source": "npx",
+        "package": "@playwright/mcp",
+        "purpose": "Browser automation — navigate pages, fill forms, scrape data, take screenshots",
+        "category": "CLAUDE_EXECUTION",
+        "destructive": false,
         "trust": "official"
       }
     ]
