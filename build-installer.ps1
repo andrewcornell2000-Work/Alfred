@@ -44,7 +44,7 @@ Invoke-ps2exe `
     -OutputFile $OutputFile `
     -Title       "Alfred Installer" `
     -Description "Alfred AI Assistant - one-click installer" `
-    -Version     "1.1.0"
+    -Version     "1.5.0"
 
 Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green
