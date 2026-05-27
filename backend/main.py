@@ -20,6 +20,15 @@ import webbrowser
 
 load_dotenv()
 
+# On corporate networks with SSL inspection, Python's bundled CA bundle
+# doesn't include the corporate root cert. truststore makes Python use the
+# Windows certificate store (where IT has already installed the corp CA).
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 # Force UTF-8 output so rich does not fall back to the cp1252 legacy renderer
 # on Windows when stdout is not a recognised VT terminal (e.g. piped or
 # redirected).
