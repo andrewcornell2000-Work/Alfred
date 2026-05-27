@@ -1,62 +1,87 @@
-# Power BI Model Editing
+# Power BI Model Editing and Visual Creation
 
-Use this skill for any task involving Power BI data models, measures, DAX, tables, or relationships.
+Use this skill for any task involving Power BI data models, measures, DAX, tables, relationships,
+or creating and editing report visuals.
 
-## What Alfred can edit via MCP
-The Power BI Modeling MCP (powerbi-modeling-mcp) connects directly to a live Power BI Desktop
-model and can read and write the semantic layer:
+## Two tools — use both together
+
+| Tool | What it handles | Prerequisite |
+|---|---|---|
+| `powerbi-modeling-mcp` | Semantic model: measures, tables, relationships, RLS, DAX | Power BI Desktop open |
+| `pbi-cli` | Report visuals: create, update, delete, bind data, pages | `pbi connect` run in terminal |
+
+## Visual creation with pbi-cli
+
+pbi-cli gives Claude Code 13 Power BI skills and connects directly to Power BI Desktop.
+
+### Connect first
+```
+pbi connect     # run once per session with Power BI Desktop open
+```
+
+### Core visual commands
+```
+pbi visual list --page "Page Name"           # list all visuals on a page
+pbi visual add --page "Overview" --type barChart --x 0 --y 0 --w 400 --h 300
+pbi visual update --id <visualId> --title "Sales by Region"
+pbi visual delete --id <visualId>
+pbi visual bind --id <visualId> --field "Sales[Amount]" --role "Y"
+pbi visual bulk-bind --id <visualId> --fields '[{"field":"Date[Year]","role":"X"},{"field":"Sales[Amount]","role":"Y"}]'
+```
+
+### Page management
+```
+pbi page list
+pbi page add --name "New Page"
+```
+
+### Data queries (for building visuals)
+```
+pbi dax execute "EVALUATE SUMMARIZE(Sales, Date[Year], \"Total\", SUM(Sales[Amount]))"
+pbi measure list
+```
+
+## Typical visual creation workflow
+1. `pbi connect` — link to Power BI Desktop (user runs this with Desktop open)
+2. `pbi dax execute` — query data to confirm field names and values
+3. `pbi measure list` — confirm available measures
+4. `pbi visual add` — create the visual container on the target page
+5. `pbi visual bind` — bind fields to visual roles (X axis, Y axis, Legend, etc.)
+6. `pbi visual update` — set title, formatting
+7. Ask user to refresh Desktop to see changes
+
+## Semantic model editing with powerbi-modeling-mcp
 
 | Area | What can be changed |
 |---|---|
 | Measures | Create, edit, or delete DAX measures |
-| Calculated columns | Add or modify calculated columns on any table |
+| Calculated columns | Add or modify calculated columns |
 | Tables | Create calculated tables, edit properties |
-| Relationships | Add, remove, or edit relationships (cardinality, direction) |
-| Calculation groups | Create/edit calculation items and precedence |
+| Relationships | Add, remove, or edit relationships |
+| Calculation groups | Create/edit calculation items |
 | Hierarchies | Add or edit user hierarchies |
-| Perspectives | Create or modify perspectives |
-| Security roles | Add or edit RLS row-level security roles and DAX filters |
-| Partitions | Inspect or modify table partitions |
-| Named expressions | Shared expressions (M functions) used in Power Query |
+| Security roles | Add or edit RLS DAX filters |
 
-## Requirements
-- Power BI Desktop must be open with the model loaded
-- MCP: powerbi-modeling-mcp (VS Code extension from Microsoft Analysis Services)
-- A transaction must be opened before writing; commit or rollback when done
-
-## Approach for model edits
-1. Use `model_operations` → `getModel` to read the current state before making changes
-2. Use `transaction_operations` → `beginTransaction` before any write
-3. Make targeted changes (measure, column, relationship)
-4. Use `dax_query_operations` → `executeQuery` to verify the result
-5. Use `transaction_operations` → `commitTransaction` to save, or `rollbackTransaction` to undo
-
-## DAX measure editing pattern
-```
-1. Read existing measure: measure_operations → getMeasure
-2. Open transaction
-3. Update with new DAX: measure_operations → updateMeasure
-4. Test with executeQuery: SELECT [MeasureName] FROM $SYSTEM.DISCOVER_…
-5. Commit or rollback
-```
-
-## Routing note
-- **Data model changes** (measures, tables, relationships, DAX) → use powerbi-modeling-mcp via Claude Code
-- **Visual layout changes** (chart types, visual formatting, filter pane, report pages) → these require
-  editing the .pbix file directly or using the Power BI REST API; not handled by powerbi-modeling-mcp
+### Model edit pattern
+1. `model_operations → getModel` — read current state
+2. `transaction_operations → beginTransaction`
+3. Make targeted change (measure, column, relationship)
+4. `dax_query_operations → executeQuery` — verify result
+5. `transaction_operations → commitTransaction` (or rollback)
 
 ## Power Query errors
-When the user reports missing columns, schema drift, or folder-combine errors:
+When user reports missing columns, schema drift, or folder-combine errors:
 1. Inspect Transform Sample File query first
-2. Check Changed Type steps
-3. Check Removed Columns steps
-4. Check Expanded Table Column steps
-5. Check Renamed Columns steps
-6. Only inspect actual source files if query steps are inconclusive
-Do NOT scan all source files immediately — always start with query step diagnosis.
+2. Check Changed Type steps → Removed Columns → Expanded Table → Renamed Columns
+3. Only inspect actual source files if query steps are inconclusive — never scan all files first
+
+## Routing note
+- **Measures, DAX, tables, relationships** → use `powerbi-modeling-mcp` via Claude Code
+- **Visuals, report pages, chart types, data binding** → use `pbi-cli` via Claude Code
+- **Visual layout formatting** (colours, fonts, sizes) → `pbi visual update` after `pbi connect`
 
 ## Safety rules
-- Always open a transaction before writing; always commit or rollback
+- Always open a transaction before model writes; always commit or rollback
 - Never drop a table or delete a measure without user confirmation
 - Verify DAX with executeQuery after every measure change before committing
-- DANGEROUS_KEYWORDS gate in Alfred blocks dispatch if destructive terms are detected
+- Always run `pbi visual list` before deleting to confirm the target visual ID

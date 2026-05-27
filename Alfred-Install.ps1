@@ -538,6 +538,49 @@ if ($mcpServers.Count -gt 0) {
     Write-Host "  Re-run this installer after installing VS Code + Power BI extension." -ForegroundColor DarkGray
 }
 
+# ── pbi-cli: Power BI Visual Creation ────────────────────────────────────────
+# Installs 13 Power BI skills into Claude Code for visual add/update/delete,
+# DAX execution, and PBIR report editing — built specifically for Claude Code.
+# Ships its own .NET DLLs; no separate .NET install needed.
+# Prerequisite at runtime: open Power BI Desktop with your file, then run 'pbi connect'.
+
+Write-Host ""
+Write-Host "  pbi-cli: Power BI visual editing..." -ForegroundColor Cyan
+
+# Find pbi-cli in venv (may be .exe or .cmd)
+$pbiCliExe = $null
+foreach ($candidate in @("pbi-cli.exe", "pbi-cli.cmd", "pbi-cli")) {
+    $path = Join-Path $InstallPath ".venv\Scripts\$candidate"
+    if (Test-Path $path) { $pbiCliExe = $path; break }
+}
+
+if (-not $pbiCliExe) {
+    Write-Host "  Installing pbi-cli-tool into venv..." -ForegroundColor Cyan
+    & $PipExe install --quiet pbi-cli-tool 2>$null
+    foreach ($candidate in @("pbi-cli.exe", "pbi-cli.cmd", "pbi-cli")) {
+        $path = Join-Path $InstallPath ".venv\Scripts\$candidate"
+        if (Test-Path $path) { $pbiCliExe = $path; break }
+    }
+}
+
+if ($pbiCliExe) {
+    Write-Host "  Registering Power BI visual skills with Claude Code..." -ForegroundColor Cyan
+    & $pbiCliExe skills install 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Done "pbi-cli ready — 13 Power BI skills registered with Claude Code."
+    } else {
+        Write-Warn "pbi-cli skills install returned non-zero — skills may not have registered. Try: pbi-cli skills install"
+    }
+    Write-Host ""
+    Write-Host "  To enable visual editing:" -ForegroundColor DarkGray
+    Write-Host "    1. Open Power BI Desktop with your .pbip or .pbix file" -ForegroundColor DarkGray
+    Write-Host "    2. Run: pbi connect   (in a terminal with .venv active)" -ForegroundColor Yellow
+    Write-Host "    3. Then ask Alfred to create or edit visuals" -ForegroundColor DarkGray
+} else {
+    Write-Warn "pbi-cli-tool install failed — Power BI visual editing unavailable."
+    Write-Host "  Try manually: .venv\Scripts\pip install pbi-cli-tool" -ForegroundColor DarkGray
+}
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 Write-Banner "Alfred is ready"

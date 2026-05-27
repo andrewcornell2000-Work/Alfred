@@ -8,7 +8,19 @@
       "rich",
       "python-dotenv",
       "typer",
-      "openai"
+      "openai",
+      "truststore",
+      "excellm",
+      {
+        "package": "pbi-cli-tool",
+        "command": "pbi-cli",
+        "description": "Power BI CLI for Claude Code",
+        "purpose": "Visual creation/editing in Power BI Desktop — 13 Claude Code skills. Run 'pbi connect' with Desktop open.",
+        "postInstall": "pbi-cli skills install",
+        "category": "POWERBI",
+        "destructive": true,
+        "trust": "community"
+      }
     ]
   },
   "npm": {

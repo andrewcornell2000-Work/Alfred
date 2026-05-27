@@ -326,6 +326,30 @@ def _render_quant_result(summary: str) -> None:
     )
 
 
+def _action_pbi_connect() -> None:
+    """Open a new terminal and run 'pbi connect' to link pbi-cli to Power BI Desktop."""
+    pbi_exe = shutil.which("pbi.cmd") or shutil.which("pbi")
+    if not pbi_exe:
+        venv_pbi = os.path.join(_ROOT, ".venv", "Scripts", "pbi.exe")
+        if os.path.isfile(venv_pbi):
+            pbi_exe = venv_pbi
+    if not pbi_exe:
+        console.print(
+            "[bold red]pbi not found.[/bold red] "
+            "Re-run Alfred-Install.exe to install pbi-cli-tool, then try again."
+        )
+        return
+    console.print("[dim]Opening terminal to connect pbi-cli to Power BI Desktop...[/dim]")
+    console.print("[dim]Make sure Power BI Desktop is open with your file before confirming.[/dim]")
+    try:
+        subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", pbi_exe, "connect"])
+        console.print("[bold green]Terminal opened. Run 'pbi connect' completes the link.[/bold green]")
+        console.print("[dim]Once connected, ask Alfred to create or edit Power BI visuals.[/dim]")
+    except Exception as e:
+        console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
+        console.print(f"Run manually in a new terminal (with .venv active): [bold yellow]pbi connect[/bold yellow]")
+
+
 def _action_quant_dashboard() -> None:
     console.print(Rule("[bold green]Quant Dashboard[/bold green]"))
     console.print(f"[dim]Opening {QUANT_BASE}[/dim]")
@@ -1287,7 +1311,7 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
 
 def _action_ask_alfred() -> None:
     console.print(
-        "\n[dim][bold]clip[/bold] = analyze clipboard  |  [bold]back[/bold] = menu[/dim]"
+        "\n[dim][bold]clip[/bold] = clipboard  |  [bold]pbi connect[/bold] = link to Power BI Desktop  |  [bold]back[/bold] = menu[/dim]"
     )
 
     while True:
@@ -1306,6 +1330,10 @@ def _action_ask_alfred() -> None:
 
         if stripped.lower() in {"update key", "openai key", "new key", "set key", "update openai key"}:
             _setup_openai_key()
+            continue
+
+        if stripped.lower() in {"pbi connect", "connect pbi", "connect power bi", "power bi connect"}:
+            _action_pbi_connect()
             continue
 
         if "claude login" in stripped.lower() or stripped.lower() in {"login", "claude-login"}:

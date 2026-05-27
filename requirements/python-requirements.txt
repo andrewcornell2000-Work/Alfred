@@ -4,3 +4,4 @@ typer
 openai
 truststore
 excellm
+pbi-cli-tool
