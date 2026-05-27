@@ -1205,15 +1205,13 @@ def _show_menu() -> None:
     t.add_column("Opt", style="bold yellow", no_wrap=True)
     t.add_column("Action", style="white")
     t.add_row("1", "Ask Alfred")
-    t.add_row("2", "View Memory")
-    t.add_row("3", "View Skills")
-    t.add_row("4", "View Recent Logs")
-    t.add_row("5", "Show Dispatch Rules")
-    t.add_row("6", "Run Claude Directly")
-    t.add_row("7", "Exit")
-    t.add_row("8", "Dev Portal")
-    t.add_row("9", "Quant Dashboard  [dim](launch browser)[/dim]")
+    t.add_row("2", "View Skills")
+    t.add_row("3", "Platforms")
+    t.add_row("4", "Dev Portal")
+    t.add_row("5", "Plugins")
+    t.add_row("6", "Exit")
     console.print(t)
+    console.print("[dim]Type [bold]HOME[/bold] at any prompt to return here.[/dim]")
 
 
 # ── Menu actions ───────────────────────────────────────────────────────────────
@@ -1324,7 +1322,7 @@ def _action_ask_alfred() -> None:
         if not stripped:
             continue
 
-        if stripped.lower() in {"back", "menu", "exit"}:
+        if stripped.upper() == "HOME" or stripped.lower() in {"back", "menu", "exit"}:
             console.print("[dim]Returning to main menu.[/dim]")
             return
 
@@ -1482,7 +1480,7 @@ def _action_dev_portal() -> None:
             continue
 
         lowered = stripped.lower()
-        if lowered in {"back", "menu", "exit"}:
+        if stripped.upper() == "HOME" or lowered in {"back", "menu", "exit"}:
             console.print("[dim]Returning to main menu.[/dim]")
             return
 
@@ -1568,18 +1566,151 @@ def _action_view_skills() -> None:
         console.print("[dim]No skills loaded.[/dim]")
         return
 
-    for fname in files:
-        skill_path = os.path.join(skills_dir, fname)
-        with open(skill_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        console.print(
-            Panel(
-                Markdown(content),
-                title=f"[bold yellow]{fname}[/bold yellow]",
-                border_style="dim",
-                padding=(0, 1),
-            )
-        )
+    for i, fname in enumerate(files, 1):
+        name = fname[:-3].replace("-", " ").title()
+        console.print(f"  [bold yellow]{i}[/bold yellow]  {name}")
+
+    console.print(
+        "\n[dim]Type a number to view, or [bold]back[/bold] / [bold]HOME[/bold] to return.[/dim]"
+    )
+
+    while True:
+        try:
+            choice = console.input("\n[bold yellow]Skills > [/bold yellow]").strip()
+        except EOFError:
+            return
+
+        if not choice:
+            continue
+        if choice.upper() == "HOME" or choice.lower() in {"back", "menu", "exit"}:
+            return
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(files):
+                skill_path = os.path.join(skills_dir, files[idx])
+                with open(skill_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                console.print(
+                    Panel(
+                        Markdown(content),
+                        title=f"[bold yellow]{files[idx]}[/bold yellow]",
+                        border_style="dim",
+                        padding=(0, 1),
+                    )
+                )
+            else:
+                console.print(f"[dim]Enter a number between 1 and {len(files)}.[/dim]")
+        except ValueError:
+            console.print("[dim]Enter a number or 'back'.[/dim]")
+
+
+def _action_platforms() -> None:
+    console.print(Rule("[bold cyan]Platforms[/bold cyan]"))
+    t = Table(show_header=False, box=box.SIMPLE, padding=(0, 2))
+    t.add_column("Opt", style="bold yellow", no_wrap=True)
+    t.add_column("Platform", style="white")
+    t.add_row("1", "Claude Code  [dim](opens new terminal)[/dim]")
+    t.add_row("2", "Codex        [dim](opens new terminal)[/dim]")
+    t.add_row("3", "Back")
+    console.print(t)
+
+    while True:
+        try:
+            choice = console.input("\n[bold yellow]Platforms > [/bold yellow]").strip()
+        except EOFError:
+            return
+
+        if not choice:
+            continue
+        if choice.upper() == "HOME" or choice.lower() in {"back", "menu", "exit", "3"}:
+            return
+
+        if choice == "1":
+            exe = _resolve_claude_executable()
+            console.print("[dim]Opening Claude Code in a new terminal...[/dim]")
+            try:
+                subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", exe])
+                console.print("[bold green]Claude Code terminal opened.[/bold green]")
+            except Exception as e:
+                console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
+            continue
+
+        if choice == "2":
+            exe = _resolve_codex_executable()
+            console.print("[dim]Opening Codex in a new terminal...[/dim]")
+            try:
+                subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", exe])
+                console.print("[bold green]Codex terminal opened.[/bold green]")
+            except Exception as e:
+                console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
+            continue
+
+        console.print("[dim]Enter 1, 2, or 3.[/dim]")
+
+
+def _discover_plugins() -> list:
+    """Return available plugins as dicts with name, description, action callable."""
+    plugins = []
+    if os.path.isdir(QUANT_PATH):
+        plugins.append({
+            "name": "Quant Intelligence",
+            "description": "Live trading analysis — signals, paper trading, alerts",
+            "action": _action_quant_dashboard,
+        })
+    plugins_dir = os.path.join(_ROOT, "plugins")
+    if os.path.isdir(plugins_dir):
+        for entry in sorted(os.listdir(plugins_dir)):
+            if entry == "quant":
+                continue
+            entry_path = os.path.join(plugins_dir, entry)
+            if os.path.isdir(entry_path) and os.path.isfile(os.path.join(entry_path, "app.py")):
+                plugins.append({
+                    "name": entry.replace("-", " ").replace("_", " ").title(),
+                    "description": f"Plugin at plugins/{entry}",
+                    "action": lambda: webbrowser.open("http://127.0.0.1:5000"),
+                })
+    return plugins
+
+
+def _action_plugins() -> None:
+    console.print(Rule("[bold cyan]Plugins[/bold cyan]"))
+    plugins = _discover_plugins()
+    if not plugins:
+        console.print("[dim]No plugins found.[/dim]")
+        console.print("[dim]Type [bold]back[/bold] or [bold]HOME[/bold] to return.[/dim]")
+        try:
+            console.input("[bold yellow]Plugins > [/bold yellow]")
+        except EOFError:
+            pass
+        return
+
+    for i, p in enumerate(plugins, 1):
+        console.print(f"  [bold yellow]{i}[/bold yellow]  {p['name']}  [dim]{p['description']}[/dim]")
+
+    console.print(
+        "\n[dim]Type a number to launch, or [bold]back[/bold] / [bold]HOME[/bold] to return.[/dim]"
+    )
+
+    while True:
+        try:
+            choice = console.input("\n[bold yellow]Plugins > [/bold yellow]").strip()
+        except EOFError:
+            return
+
+        if not choice:
+            continue
+        if choice.upper() == "HOME" or choice.lower() in {"back", "menu", "exit"}:
+            return
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(plugins):
+                plugins[idx]["action"]()
+            else:
+                console.print(f"[dim]Enter a number between 1 and {len(plugins)}.[/dim]")
+        except ValueError:
+            console.print("[dim]Enter a number or 'back'.[/dim]")
 
 
 def _action_view_logs() -> None:
@@ -1679,13 +1810,10 @@ def _action_run_claude_directly() -> None:
 
 _ACTIONS = {
     "1": _action_ask_alfred,
-    "2": _action_view_memory,
-    "3": _action_view_skills,
-    "4": _action_view_logs,
-    "5": _action_show_dispatch_rules,
-    "6": _action_run_claude_directly,
-    "8": _action_dev_portal,
-    "9": _action_quant_dashboard,
+    "2": _action_view_skills,
+    "3": _action_platforms,
+    "4": _action_dev_portal,
+    "5": _action_plugins,
 }
 
 
@@ -1792,11 +1920,16 @@ def main():
 
         try:
             raw = console.input("[bold yellow]Select > [/bold yellow]")
-            choice = "".join(ch for ch in raw if ch.isdigit())
         except EOFError:
             break
 
-        if choice == "7":
+        stripped_raw = raw.strip()
+        if stripped_raw.upper() == "HOME":
+            continue
+
+        choice = "".join(ch for ch in stripped_raw if ch.isdigit())
+
+        if choice == "6":
             console.print("\n[bold cyan]Alfred Console signing off. Goodbye.[/bold cyan]")
             break
 
@@ -1804,7 +1937,7 @@ def main():
         if action:
             action()
         else:
-            console.print("[dim]Invalid option. Enter 1-8.[/dim]")
+            console.print("[dim]Invalid option. Enter 1–6.[/dim]")
 
     save_session_exit_summary()
     check_and_offer_git_commit()
