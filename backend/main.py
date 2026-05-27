@@ -1051,6 +1051,9 @@ CLAUDE_CODE_ROUTING_KEYWORDS = {
     "filesystem", "file system", "workspace", "onedrive", "sharepoint",
     # Excel live editing via excellm MCP
     "excel", "spreadsheet", "workbook", "pivot table", "macro", "vba",
+    # Office mastery
+    "word document", "document", "docx", "report", "proposal",
+    "powerpoint", "presentation", "slide deck", "pptx", "pdf",
     # Repository/file exploration and deep tool use
     "explore", "file exploration", "repository exploration", "deep tool",
     # Live web search via Brave Search MCP
@@ -1238,11 +1241,12 @@ def _show_menu() -> None:
     t.add_column("Opt", style="bold yellow", no_wrap=True)
     t.add_column("Action", style="white")
     t.add_row("1", "Ask Alfred")
-    t.add_row("2", "View Skills")
-    t.add_row("3", "Platforms")
-    t.add_row("4", "Dev Portal")
-    t.add_row("5", "Plugins")
-    t.add_row("6", "Exit")
+    t.add_row("2", "Control Tower")
+    t.add_row("3", "View Skills")
+    t.add_row("4", "Platforms")
+    t.add_row("5", "Dev Portal")
+    t.add_row("6", "Plugins")
+    t.add_row("7", "Exit")
     console.print(t)
     console.print("[dim]Type [bold]HOME[/bold] at any prompt to return here.[/dim]")
 
@@ -1642,6 +1646,137 @@ def _action_view_skills() -> None:
             console.print("[dim]Enter a number or 'back'.[/dim]")
 
 
+def _load_tool_manifest() -> dict:
+    manifest_path = os.path.join(_ROOT, "requirements", "alfred-tools.json")
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _load_mcp_servers() -> dict:
+    settings_path = os.path.join(_ROOT, ".claude", "settings.json")
+    if not os.path.isfile(settings_path):
+        return {}
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            return json.load(f).get("mcpServers", {})
+    except Exception:
+        return {}
+
+
+def _mcp_runtime_status(name: str, configured_servers: dict) -> tuple[str, str]:
+    if name not in configured_servers:
+        return "planned", "Not configured yet"
+
+    svc = configured_servers.get(name, {})
+    if name == "powerbi-modeling-mcp":
+        cmd = svc.get("command", "")
+        if cmd and not os.path.isfile(cmd):
+            return "attention", "Configured path is missing"
+        return "ready", "Power BI Desktop model tools available"
+
+    if name == "excel":
+        try:
+            import excellm  # noqa: F401
+            return "ready", "Live workbook tools available"
+        except ImportError:
+            return "attention", "excellm is not importable"
+
+    if name == "brave-search":
+        return (
+            ("ready", "Live web search available")
+            if svc.get("env", {}).get("BRAVE_API_KEY")
+            else ("attention", "Missing Brave API key")
+        )
+
+    if name == "github":
+        return (
+            ("ready", "GitHub API tools available")
+            if svc.get("env", {}).get("GITHUB_PERSONAL_ACCESS_TOKEN")
+            else ("attention", "Missing GitHub token")
+        )
+
+    if name == "playwright":
+        return "ready", "Browser automation configured"
+
+    return "ready", "Configured in Claude MCP settings"
+
+
+def _status_style(status: str) -> str:
+    return {
+        "ready": "[green]ready[/green]",
+        "attention": "[yellow]attention[/yellow]",
+        "planned": "[dim]planned[/dim]",
+    }.get(status, status)
+
+
+def _action_control_tower() -> None:
+    console.print(Rule("[bold cyan]Control Tower[/bold cyan]"))
+    console.print(
+        "[dim]Capability registry for Alfred's providers, Office mastery, MCP stack, and safety posture.[/dim]"
+    )
+
+    manifest = _load_tool_manifest()
+    mcp_servers = _load_mcp_servers()
+
+    providers = Table(title="Providers", box=box.ROUNDED, border_style="dim", padding=(0, 1))
+    providers.add_column("Provider", style="bold yellow")
+    providers.add_column("Status", style="white")
+    providers.add_column("Role", style="white")
+    claude_ok = shutil.which("claude.cmd") or shutil.which("claude")
+    codex_ok = shutil.which("codex.cmd") or shutil.which("codex")
+    providers.add_row("OpenAI Mini", "[green]configured[/green]" if os.getenv("OPENAI_API_KEY") else "[yellow]fallback only[/yellow]", "Classification and fast chat")
+    providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "Execution, MCP runtime, Office/PC operations")
+    providers.add_row("Codex", "[green]installed[/green]" if codex_ok else "[red]missing[/red]", "Code edits, tests, Alfred self-improvement")
+    console.print(providers)
+
+    office = Table(title="Office Mastery", box=box.ROUNDED, border_style="dim", padding=(0, 1))
+    office.add_column("Domain", style="bold cyan")
+    office.add_column("Capability", style="white")
+    office.add_column("Current Path", style="white")
+    office.add_row("Excel", "Live workbook read/write, formulas, tables, pivots, charts, VBA", "excellm MCP")
+    office.add_row("Power BI", "DAX, model edits, relationships, visuals, Power Query diagnosis", "Power BI MCP + pbi-cli")
+    office.add_row("Word", "Reports, proposals, templates, structured documents", "python-docx skill path")
+    office.add_row("PowerPoint", "Slide decks from analysis, dashboards, and outlines", "python-pptx skill path")
+    office.add_row("PDF", "Extract, compare, summarize, convert source material", "pypdf skill path")
+    console.print(office)
+
+    mcp_table = Table(title="MCP Stack", box=box.ROUNDED, border_style="dim", padding=(0, 1))
+    mcp_table.add_column("Tool", style="bold yellow", no_wrap=True)
+    mcp_table.add_column("Status", style="white", no_wrap=True)
+    mcp_table.add_column("Risk", style="white", no_wrap=True)
+    mcp_table.add_column("Purpose", style="white")
+
+    for tool in manifest.get("mcp", {}).get("tools", []):
+        name = tool.get("name", "")
+        status, note = _mcp_runtime_status(name, mcp_servers)
+        risk = "[red]write[/red]" if tool.get("destructive") else "[green]read[/green]"
+        purpose = tool.get("purpose", "")
+        if note:
+            purpose = f"{purpose} [dim]({note})[/dim]"
+        mcp_table.add_row(name, _status_style(status), risk, purpose)
+    console.print(mcp_table)
+
+    gaps = []
+    for tool in manifest.get("mcp", {}).get("tools", []):
+        status, note = _mcp_runtime_status(tool.get("name", ""), mcp_servers)
+        if status != "ready":
+            gaps.append(f"{tool.get('name')}: {note}")
+
+    if gaps:
+        console.print(Panel("\n".join(f"- {gap}" for gap in gaps), title="[bold yellow]Next Setup Gaps[/bold yellow]", border_style="yellow"))
+    else:
+        console.print(Panel("[green]All registered MCP tools are configured.[/green]", title="[bold green]Ready[/bold green]", border_style="green"))
+
+    console.print("\n[dim]Type [bold]back[/bold] or [bold]HOME[/bold] to return.[/dim]")
+    try:
+        console.input("\n[bold yellow]Control Tower > [/bold yellow]")
+    except EOFError:
+        return
+
+
 def _action_platforms() -> None:
     console.print(Rule("[bold cyan]Platforms[/bold cyan]"))
     t = Table(show_header=False, box=box.SIMPLE, padding=(0, 2))
@@ -1847,10 +1982,11 @@ def _action_run_claude_directly() -> None:
 
 _ACTIONS = {
     "1": _action_ask_alfred,
-    "2": _action_view_skills,
-    "3": _action_platforms,
-    "4": _action_dev_portal,
-    "5": _action_plugins,
+    "2": _action_control_tower,
+    "3": _action_view_skills,
+    "4": _action_platforms,
+    "5": _action_dev_portal,
+    "6": _action_plugins,
 }
 
 
@@ -1986,7 +2122,7 @@ def main():
 
         choice = "".join(ch for ch in stripped_raw if ch.isdigit())
 
-        if choice == "6":
+        if choice == "7":
             console.print("\n[bold cyan]Alfred Console signing off. Goodbye.[/bold cyan]")
             break
 
@@ -1994,7 +2130,7 @@ def main():
         if action:
             action()
         else:
-            console.print("[dim]Invalid option. Enter 1–6.[/dim]")
+            console.print("[dim]Invalid option. Enter 1-7.[/dim]")
 
     save_session_exit_summary()
     check_and_offer_git_commit()

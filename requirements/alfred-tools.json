@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "updated": "2026-05-24",
+  "updated": "2026-05-27",
   "note": "Reference manifest for Alfred tools and plugins. setup.ps1 reads requirements/python-requirements.txt and requirements/npm-tools.txt directly; keep this file in sync when adding tools via learning mode.",
   "python": {
     "source": "requirements/python-requirements.txt",
@@ -29,6 +29,51 @@
         "category": "UX",
         "destructive": false,
         "trust": "community"
+      },
+      {
+        "package": "python-docx",
+        "command": null,
+        "description": "Word document creation and editing",
+        "purpose": "Create and polish DOCX reports, proposals, briefs, and templates.",
+        "category": "OFFICE",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "package": "python-pptx",
+        "command": null,
+        "description": "PowerPoint deck creation",
+        "purpose": "Create PPTX slide decks from analysis, outlines, data, and screenshots.",
+        "category": "OFFICE",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "package": "pypdf",
+        "command": null,
+        "description": "PDF reading and extraction",
+        "purpose": "Extract, inspect, split, merge, and compare PDF content.",
+        "category": "OFFICE",
+        "destructive": false,
+        "trust": "official"
+      },
+      {
+        "package": "openpyxl",
+        "command": null,
+        "description": "Offline Excel file editing",
+        "purpose": "Read and write XLSX files when Excel is not open or MCP is not needed.",
+        "category": "OFFICE",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "package": "pandas",
+        "command": null,
+        "description": "Data shaping for Office workflows",
+        "purpose": "Clean, reshape, join, summarize, and export tabular data for Excel, Power BI, and reports.",
+        "category": "OFFICE",
+        "destructive": false,
+        "trust": "official"
       }
     ]
   },
@@ -102,6 +147,68 @@
         "category": "CLAUDE_EXECUTION",
         "destructive": false,
         "trust": "official"
+      },
+      {
+        "name": "filesystem",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-filesystem",
+        "purpose": "Scoped local file access for controlled PC operator workflows",
+        "category": "CONTROL_TOWER",
+        "destructive": true,
+        "trust": "official",
+        "status": "planned",
+        "notes": "Must be launched with explicit allowed directories only."
+      },
+      {
+        "name": "memory",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-memory",
+        "purpose": "Persistent knowledge graph memory across Alfred sessions and projects",
+        "category": "CONTROL_TOWER",
+        "destructive": true,
+        "trust": "official",
+        "status": "planned",
+        "notes": "Store under Alfred memory/, never in committed secrets."
+      },
+      {
+        "name": "fetch",
+        "source": "uvx",
+        "package": "mcp-server-fetch",
+        "purpose": "Clean web page fetching and HTML-to-Markdown conversion for docs and research",
+        "category": "CLAUDE_EXECUTION",
+        "destructive": false,
+        "trust": "official",
+        "status": "planned"
+      },
+      {
+        "name": "git",
+        "source": "uvx",
+        "package": "mcp-server-git",
+        "purpose": "Repository inspection, history, diffs, and local git operations",
+        "category": "CLAUDE_EXECUTION",
+        "destructive": true,
+        "trust": "official",
+        "status": "planned"
+      },
+      {
+        "name": "sequential-thinking",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-sequential-thinking",
+        "purpose": "Structured multi-step reasoning for complex Office, BI, and PC operator tasks",
+        "category": "CONTROL_TOWER",
+        "destructive": false,
+        "trust": "official",
+        "status": "planned"
+      },
+      {
+        "name": "time",
+        "source": "uvx",
+        "package": "mcp-server-time",
+        "purpose": "Time and timezone conversion for scheduling and automation context",
+        "category": "CONTROL_TOWER",
+        "destructive": false,
+        "trust": "official",
+        "status": "planned"
       }
     ]
   },

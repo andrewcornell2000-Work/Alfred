@@ -6,3 +6,8 @@ truststore
 excellm
 pbi-cli-tool
 winotify
+python-docx
+python-pptx
+pypdf
+openpyxl
+pandas

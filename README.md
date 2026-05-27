@@ -119,15 +119,31 @@ Useful menu options:
 | Option | Purpose |
 |---|---|
 | 1 | Ask Alfred |
-| 2 | View Memory |
+| 2 | Control Tower |
 | 3 | View Skills |
-| 4 | View Recent Logs |
-| 5 | Show Dispatch Rules |
-| 6 | Run Claude Directly |
-| 8 | Dev Portal / Learning Creator Mode |
-| 9 | Quant Dashboard |
+| 4 | Platforms |
+| 5 | Dev Portal / Learning Creator Mode |
+| 6 | Plugins |
+
+Control Tower is Alfred's first-class capability registry. It shows provider status, Office Mastery paths, configured MCP tools, planned MCP stack tools, destructive/read-only risk, and setup gaps.
 
 Use Dev Portal when you want to teach Alfred a new skill, routing rule, tool requirement, or self-improvement. Dev Portal discusses the proposed change first, asks for confirmation, then routes confirmed implementation work through Codex.
+
+## Office Mastery
+
+Alfred is being shaped into an Office operator, not just a chat router:
+
+| Domain | Tool path |
+|---|---|
+| Excel live workbooks | `excel` MCP / `excellm` |
+| Excel offline files | `openpyxl` and `pandas` |
+| Power BI models | `powerbi-modeling-mcp` |
+| Power BI visuals | `pbi-cli` |
+| Word documents | `python-docx` |
+| PowerPoint decks | `python-pptx` |
+| PDFs | `pypdf` |
+
+Use `Control Tower` to see which capabilities are ready on the current machine.
 
 ---
 
