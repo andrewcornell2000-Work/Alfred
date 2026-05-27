@@ -1167,7 +1167,7 @@ def _show_header() -> None:
     console.print(
         Panel.fit(
             "[bold cyan]Alfred Console[/bold cyan]  [dim]v2[/dim]\n"
-            "[dim]Multi-Provider AI Router — Codex (chat/classify) / Claude Code (execution) / Quant[/dim]",
+            "[dim]Multi-Provider AI Router — OpenAI (classify/chat) · Claude Code (execution) · Codex (refactoring)[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
