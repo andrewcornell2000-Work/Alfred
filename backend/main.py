@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 
+
 load_dotenv()
 
 # On corporate networks with SSL inspection, Python's bundled CA bundle
@@ -121,7 +122,10 @@ Return:
 4. optimized Claude prompt
 """
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if getattr(sys, "frozen", False):
+    _ROOT = os.path.dirname(sys.executable)
+else:
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> str:
