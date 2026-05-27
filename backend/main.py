@@ -866,7 +866,8 @@ def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-min
             console.print(
                 "[bold red]OpenAI key rejected (401).[/bold red] "
                 "Get a new key at [cyan]https://platform.openai.com/api-keys[/cyan] "
-                "and update [cyan].env[/cyan] — using Claude as fallback for this session."
+                "and update [cyan].env[/cyan] — using Claude as fallback for this session.\n"
+                "[dim]Tip: type [bold]update key[/bold] in Alfred to enter a new key without restarting.[/dim]"
             )
         else:
             console.print(f"[dim red]OpenAI: {err[:120]}[/dim red]")
@@ -905,6 +906,8 @@ def _setup_openai_key() -> bool:
         f.write(content)
 
     os.environ["OPENAI_API_KEY"] = key
+    global _openai_disabled
+    _openai_disabled = False  # reset so next call tries the new key
     console.print("[bold green]API key saved to .env (stays on this PC only).[/bold green]")
     return True
 
@@ -1298,6 +1301,10 @@ def _action_ask_alfred() -> None:
         if stripped.lower() in {"back", "menu", "exit"}:
             console.print("[dim]Returning to main menu.[/dim]")
             return
+
+        if stripped.lower() in {"update key", "openai key", "new key", "set key", "update openai key"}:
+            _setup_openai_key()
+            continue
 
         if "claude login" in stripped.lower() or stripped.lower() in {"login", "claude-login"}:
             console.print("[dim]Opening a new terminal for Claude authentication — sign in via the browser that opens.[/dim]")
