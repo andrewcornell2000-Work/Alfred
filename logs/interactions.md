@@ -145,3 +145,33 @@ use codex refactor the classify_task function in backend/main.py
 ```
 
 That gives the orchestration planner a real task to produce a scoped Codex prompt 
+
+## 2026-05-27 11:17:14
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** help me with power BI
+**Scope:** 
+
+## 2026-05-27 11:40:17
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** What CLI packages do you have installed
+**Scope:** 
+
+## 2026-05-27 11:41:08
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** claude
+**Scope:** 
+
+## 2026-05-27 11:43:08
+**Category:** QUANT
+**Provider:** claude_code
+**Input:** what MCP capabilities do you have
+**Scope:** 
+
+## 2026-05-27 11:43:49
+**Category:** GENERAL
+**Provider:** openai_mini
+**Input:** what MCP tools are isntalled right now
+**Scope:** 
