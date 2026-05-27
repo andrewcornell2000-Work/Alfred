@@ -6,7 +6,21 @@ via `claude mcp add` rather than being hard-installed globally.
 
 ## Currently Configured
 
-None — no persistent MCP servers installed at setup time.
+### powerbi-modeling-mcp
+- **Source:** VS Code extension `analysis-services.powerbi-modeling-mcp` (Microsoft Analysis Services)
+- **Command:** `<extension-path>\server\powerbi-modeling-mcp.exe --start`
+- **Purpose:** Read and edit Power BI data models — measures, columns, tables, relationships, hierarchies, calculation groups
+- **Trust:** official (Microsoft)
+- **Destructive:** true (can modify live Power BI models — represented in Alfred's DANGEROUS_KEYWORDS gate)
+- **Install:** Install VS Code extension `analysis-services.powerbi-modeling-mcp` — Alfred installer auto-detects the path
+
+### excel
+- **Source:** pip package `excellm`
+- **Command:** `python -m excellm`
+- **Purpose:** Read and write live open Excel workbooks — cells, ranges, formatting, charts, pivot tables, VBA
+- **Trust:** official
+- **Destructive:** true (can write to open workbooks)
+- **Install:** `pip install excellum` — Alfred installer handles this automatically
 
 ---
 

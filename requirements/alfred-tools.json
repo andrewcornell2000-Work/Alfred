@@ -32,7 +32,26 @@
   },
   "mcp": {
     "source": "requirements/mcp-tools.md",
-    "tools": []
+    "tools": [
+      {
+        "name": "powerbi-modeling-mcp",
+        "source": "vscode-extension",
+        "extension": "analysis-services.powerbi-modeling-mcp",
+        "purpose": "Edit Power BI data models — measures, columns, tables, relationships",
+        "category": "POWERBI",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "name": "excel",
+        "package": "excellm",
+        "command": "python -m excellm",
+        "purpose": "Read/write live open Excel workbooks",
+        "category": "CLAUDE_EXECUTION",
+        "destructive": true,
+        "trust": "official"
+      }
+    ]
   },
   "plugins": {
     "quant_intelligence": {

@@ -409,6 +409,66 @@ if (-not (Test-Path $Shortcut)) {
     Write-OK "Desktop shortcut already exists."
 }
 
+# ── Step 9: MCP Tools ────────────────────────────────────────────────────────
+
+Write-Step "Step 9: MCP Tools (Power BI + Excel)"
+
+$ClaudeSettingsDir = Join-Path $InstallPath ".claude"
+New-Item -ItemType Directory -Path $ClaudeSettingsDir -Force | Out-Null
+
+$mcpServers = [ordered]@{}
+
+# Power BI Modeling MCP — installed as a VS Code extension
+$pbimcpExt = Get-ChildItem "$env:USERPROFILE\.vscode\extensions" `
+    -Filter "analysis-services.powerbi-modeling-mcp*" -Directory -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending | Select-Object -First 1
+if ($pbimcpExt) {
+    $pbimcpExe = Join-Path $pbimcpExt.FullName "server\powerbi-modeling-mcp.exe"
+    if (Test-Path $pbimcpExe) {
+        $mcpServers["powerbi-modeling-mcp"] = [ordered]@{
+            command = $pbimcpExe
+            args    = @("--start")
+        }
+        Write-OK "Power BI Modeling MCP — $($pbimcpExt.Name)"
+    } else {
+        Write-Warn "Power BI Modeling MCP extension found but exe missing: $pbimcpExe"
+    }
+} else {
+    Write-Warn "Power BI Modeling MCP not found."
+    Write-Host "  Install VS Code extension: analysis-services.powerbi-modeling-mcp" -ForegroundColor DarkGray
+}
+
+# Excel Live MCP — excellm pip package (installed above in Step 3)
+$pyForMcp = if (Find-Command "python") { (Find-Command "python") } else { "python" }
+$excellmOk = $false
+try {
+    $excellmOk = (& $pyForMcp -c "import excellm" 2>$null; $LASTEXITCODE -eq 0)
+} catch {}
+if (-not $excellmOk) {
+    # Try installing it now
+    & $PipExe install --quiet excellm 2>$null
+    try { $excellmOk = (& $pyForMcp -c "import excellm" 2>$null; $LASTEXITCODE -eq 0) } catch {}
+}
+if ($excellmOk) {
+    $mcpServers["excel"] = [ordered]@{
+        command = $pyForMcp
+        args    = @("-m", "excellm")
+    }
+    Write-OK "Excel MCP (excellm) ready."
+} else {
+    Write-Warn "excellm not available — Excel MCP skipped. Run: pip install excellm"
+}
+
+if ($mcpServers.Count -gt 0) {
+    $settingsObj = [ordered]@{ mcpServers = $mcpServers }
+    $settingsJson = $settingsObj | ConvertTo-Json -Depth 5
+    $settingsPath = Join-Path $ClaudeSettingsDir "settings.json"
+    Set-Content $settingsPath $settingsJson -Encoding UTF8
+    Write-Done ".claude\settings.json written with $($mcpServers.Count) MCP server(s)."
+} else {
+    Write-Warn "No MCP servers configured — .claude\settings.json not written."
+}
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 Write-Banner "Alfred is ready"
