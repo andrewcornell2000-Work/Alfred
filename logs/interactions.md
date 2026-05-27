@@ -123,3 +123,25 @@ First inspection target:
 - Terminal UI code handling main menu and user input loop (likely `backend/main.py` or related CLI code).
 - Project memory file structure handling code under `projects/`.
 - Learning mode interaction and memory write logic related to `skills/`, `memory/routing-rules.md`, `memory/learning-log.md`, and `requirements/` manife
+
+## 2026-05-27 11:09:17
+**Category:** CLAUDE_EXECUTION
+**Provider:** codex
+**Input:** I need to teach you some new imporvments
+**Scope:** I'm ready to learn. What improvements do you have in mind?
+
+## 2026-05-27 11:10:59
+**Category:** CLAUDE_EXECUTION
+**Provider:** codex
+**Input:** use codex
+**Scope:** The input `use codex` is a provider override directive with no task description attached. There is nothing to scope or generate a prompt for.
+
+**What Alfred should do here:** detect the explicit override (`use codex`), then prompt the user for the actual task before invoking scope generation.
+
+If you meant to test the override routing, try:
+
+```
+use codex refactor the classify_task function in backend/main.py
+```
+
+That gives the orchestration planner a real task to produce a scoped Codex prompt 
