@@ -43,17 +43,11 @@ Classify requests into ONE category only:
 GENERAL
 POWERBI
 CLAUDE_EXECUTION
-QUANT
 
 CLAUDE_EXECUTION: Any request that requires taking action on files, folders, or code.
 This includes: organise/organize a folder, read/edit/create/delete files, run scripts,
 fix bugs, write code, refactor, inspect a file, scan a directory, execute a command,
 anything involving the filesystem or coding tasks.
-
-QUANT: Any request about stocks, trading opportunities, market analysis, backtesting,
-institutional flow, paper trading, portfolio stats, or queries mentioning specific tickers
-(e.g. AAPL, MSFT, NVDA, SPY, TSLA). Also matches: "analyze [ticker]", "opportunities",
-"smart money", "trade signal", "quant".
 
 POWERBI: Any request about Power BI reports, dashboards, Power Query, data models.
 
@@ -67,7 +61,7 @@ You are Alfred, an AI orchestration assistant — precise, calm, and quietly ind
 
 Speak like a senior operator who has seen everything and remains unflappable: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
 
-Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION / QUANT), provider routing (Codex for chat and classification, Claude Code for execution and file tasks, Quant tool for live stock analysis), optimized prompt generation, skill-based context injection, memory consolidation, and auto-dispatch.
+Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION), provider routing (Claude Code for execution and file tasks, OpenAI Mini or Claude for chat and classification), optimized prompt generation, skill-based context injection, memory consolidation, and auto-dispatch.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -334,15 +328,9 @@ def _render_quant_result(summary: str) -> None:
 
 def _action_quant_dashboard() -> None:
     console.print(Rule("[bold green]Quant Dashboard[/bold green]"))
-    if not _quant_ensure_running():
-        return
-    url = f"http://127.0.0.1:{QUANT_PORT}"
-    console.print(f"[dim]Opening {url}[/dim]")
-    webbrowser.open(url)
-    console.print(
-        "[bold green]Dashboard launched.[/bold green]  "
-        "[dim]Server stays running in the background.[/dim]"
-    )
+    console.print(f"[dim]Opening {QUANT_BASE}[/dim]")
+    webbrowser.open(QUANT_BASE)
+    console.print("[bold green]Dashboard launched in browser.[/bold green]")
 
 # ── Memory system ──────────────────────────────────────────────────────────────
 
@@ -774,7 +762,7 @@ def classify_task(user_input: str) -> str:
     if not raw:
         console.print("[dim yellow]OpenAI unavailable — classifying with Claude.[/dim yellow]")
         raw = _call_claude(CLASSIFIER_PROMPT, user_input)
-    for cat in ["QUANT", "POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
+    for cat in ["POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
         if cat in raw.upper():
             return cat
     return "GENERAL"
@@ -1255,12 +1243,6 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
         _render_general_response(response)
         outcome = response[:200]
 
-    elif category == "QUANT":
-        console.print("\n[bold green]Routing to Quant Intelligence System...[/bold green]")
-        summary = run_quant_query(stripped)
-        _render_quant_result(summary)
-        outcome = summary[:200]
-
     elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
         console.print("\n[bold cyan]Generating scope...[/bold cyan]")
         skills_context = load_relevant_skills(stripped)
@@ -1407,12 +1389,6 @@ def _action_ask_alfred() -> None:
             response = generate_general_response(stripped)
             _render_general_response(response)
             outcome = response[:200]
-
-        elif category == "QUANT":
-            console.print("\n[bold green]Routing to Quant Intelligence System...[/bold green]")
-            summary = run_quant_query(stripped)
-            _render_quant_result(summary)
-            outcome = summary[:200]
 
         elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
             console.print("\n[bold cyan]Generating scope...[/bold cyan]")
@@ -1621,11 +1597,6 @@ def _action_show_dispatch_rules() -> None:
         "Learning / Creator Mode (confirmed)",
         "codex",
         "[blue]Discuss → confirm → dispatch to Codex[/blue]",
-    )
-    t.add_row(
-        "Category = QUANT",
-        "quant_tool",
-        "[bold green]Direct Quant API call — no CLI dispatch[/bold green]",
     )
     t.add_row(
         "Dangerous keyword detected",
