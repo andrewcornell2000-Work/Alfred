@@ -848,8 +848,14 @@ def run_claude(prompt: str) -> subprocess.CompletedProcess:
     )
 
 
+_openai_disabled = False  # set True on auth failure so we don't retry every call
+
+
 def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-mini", timeout: int = 60) -> str:
     """Call OpenAI API with the stored API key."""
+    global _openai_disabled
+    if _openai_disabled:
+        return ""
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         return ""
@@ -866,7 +872,16 @@ def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-min
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        console.print(f"[dim red]OpenAI: {str(e)[:120]}[/dim red]")
+        err = str(e)
+        if "401" in err or "Incorrect API key" in err or "invalid_api_key" in err:
+            _openai_disabled = True
+            console.print(
+                "[bold red]OpenAI key rejected (401).[/bold red] "
+                "Get a new key at [cyan]https://platform.openai.com/api-keys[/cyan] "
+                "and update [cyan].env[/cyan] — using Claude as fallback for this session."
+            )
+        else:
+            console.print(f"[dim red]OpenAI: {err[:120]}[/dim red]")
         return ""
 
 
