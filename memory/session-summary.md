@@ -1,108 +1,79 @@
-# Alfred Session Summary  
+# Alfred Session Summary
 *Last updated: 2026-05-28*
 
 ## Current Architecture
 
-- **Entry point:** `backend/main.py` (all logic consolidated in one file)  
-- **API clients:** `openai_client` (GPT-4.1-mini, actively used) + `anthropic_client` (Anthropic SDK present but unused for inference); Claude fallback active when OpenAI is unavailable  
-- **Brave Search:** Integrated for GENERAL category responses, providing live web search results  
-- **Claude execution:** Headless Claude Code CLI via `subprocess.run(["claude", "-p", prompt])`  
-- **Codex execution:** Headless Codex CLI via subprocess; currently fails with "stdout is not a terminal" in non-TTY environments  
-- **Terminal UI:** Utilizes `rich.console.Console` for user interaction; API token input is masked  
-- **Environment:** `.env` file manages `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`; virtual environment `.venv` used; private/credential files untracked from git  
-- **Skill files:** Markdown files in `skills/` folder, auto-loaded by filename and first-line title keyword matching  
-- **SSL handling:** Corporate Maersk network SSL cert error patched in setup/invocation path  
-- **Install paths:** No-admin install support added (`winget --scope user`, portable Node.js, user-scope Python)  
-- **Installer:** Alfred packaged via PyInstaller; root path for MCP config resolved correctly  
-- **Publish Update:** Uses GitHub REST API directly (gh CLI removed from this path)  
+- **Entry point:** `backend/main.py` — all logic consolidated in one file
+- **Routing brain:** `alfred_brain()` — single Claude CLI call classifies intent, selects provider, and optionally generates a multi-step plan; keyword fallback when Claude is unavailable
+- **Providers:** Claude Code CLI (`claude -p`) for chat, execution, MCP tasks; Codex CLI (`codex`) for code changes and refactoring; Quant plugin API for market intelligence
+- **Web search:** Tavily direct API (`_tavily_search()`) — no MCP needed; injected into execution scope when `needs_search=true`
+- **Execution model:** `run_claude()` / `run_codex()` with 300s timeout; `_render_execution_result()` parses JSON summary/next-step fields for clean output
+- **Multi-step tasks:** `_run_step_sequence()` — compound requests decomposed into 2–5 steps; each step feeds context forward; single approval before sequence starts
+- **Terminal UI:** `rich.console.Console`; panels for plans, results, and memory; no verbose provider headers shown to user
+- **Environment:** `.env` manages `TAVILY_API_KEY`, `GITHUB_TOKEN`, `QUANT_BASE_URL`; no OpenAI key required
+- **Memory:** Hot context (`current-focus.md`, `recent-context.md`, `active-projects.md`, `notes.md`) injected into LLM calls; `autosave.md` excluded from injection (raw logs only); full dump available in Memory viewer
+
+## Capability Registry
+
+| Capability | Provider | Category |
+|---|---|---|
+| General Chat | Claude | GENERAL |
+| Web Research | Tavily + Claude | SEARCH |
+| Code & Refactoring | Codex | CODE |
+| File & System Operations | Claude Code | EXECUTE |
+| Excel Automation | Claude Code + MCP | EXECUTE |
+| Power BI | Claude Code + MCP | POWERBI |
+| Browser Automation | Claude Code + Playwright MCP | EXECUTE |
+| GitHub Operations | Claude Code + GitHub MCP | EXECUTE |
+| Office Documents | Claude Code | EXECUTE |
+| Market Intelligence | Quant plugin | QUANT |
 
 ## Request Flow
 
-1. **Classify:** Function `classify_task()` uses GPT-4.1-mini with `CLASSIFIER_PROMPT` to categorize input as `GENERAL`, `POWERBI`, `CLAUDE_EXECUTION`, or `QUANT`  
-2. **Skill loading:** `load_relevant_skills()` matches keywords against filenames and first-line titles in `skills/*.md` to inject relevant skill content into prompts  
-3. **Scope generation:** `generate_claude_scope()` uses GPT-4.1-mini with `CLAUDE_SCOPE_PROMPT`, current memory summary, and skills context to generate a structured plan  
-4. **Dispatch decision:** `should_send_to_claude()` prevents auto-dispatch if dangerous keywords detected; `detect_provider_override()` (hardened) handles explicit `use claude` / `use codex` phrases  
-5. **Web search:** GENERAL responses augmented with Brave Search results where relevant  
-6. **Logging:** Interaction logged with timestamp at `logs/interactions.md` via `append_interaction_log()`  
-7. **Memory consolidation:** After ~10 log entries, `consolidate_memory_if_needed()` uses GPT-4.1-mini to merge logs into `memory/session-summary.md`, retaining last 5 logs  
+1. **Brain:** `alfred_brain()` → JSON decision: `{category, provider, needs_search, needs_clarification, steps[]}`
+2. **Clarification:** If `needs_clarification=true`, Alfred asks one targeted question before dispatching
+3. **Multi-step detection:** If `steps[]` has 2+ items, show numbered plan, one approval, then `_run_step_sequence()`
+4. **Single-step execution:** `generate_claude_scope()` → plan panel → confirm → `run_claude()` / `run_codex()`
+5. **QUANT:** Routes directly to Quant plugin API without scope generation
+6. **GENERAL/SEARCH:** `generate_general_response()` with optional Tavily pre-fetch; no dispatch
+7. **Memory:** `append_autosave_entry()` after every interaction; compresses to `session-summary.md` after 10 entries
 
 ## Safety Rules
 
-- **Dangerous keywords** block automatic dispatch: `delete`, `remove`, `overwrite`, `credentials`, `password`, `entire onedrive`, `all folders`, `whole workspace`  
-- **Action keywords** trigger POWERBI dispatch: `inspect`, `run`, `edit`, `use mcp`, `use claude`  
-- **Scope prompt design:** Emphasizes minimal MCP usage; precludes broad file/data scans; sets hard stop conditions; prioritizes Power Query transformation inspection before source file inspection  
-- **Token input masking:** API keys and tokens masked in terminal input  
-- **Private file hygiene:** Credential/private files untracked from git repository  
+- **Dangerous keywords** block automatic dispatch: `delete`, `remove`, `overwrite`, `credentials`, `password`, `entire onedrive`, `all folders`, `whole workspace`
+- **Action keywords** trigger POWERBI dispatch: `inspect`, `run`, `edit`, `use mcp`, `use claude`
+- **Learning / Creator Mode:** Detects self-modification requests → discussion → confirm → Codex dispatch
+- **Execution timeouts:** `run_claude()` and `run_codex()` both have 300s timeout — Alfred never hangs
+- **Auto-repair:** `_check_setup()` at startup shows numbered issue list; repair functions run in-place
 
-## Current Features
+## Memory System
 
-- Automatic task classification with GPT-4.1-mini across four categories: `GENERAL`, `POWERBI`, `CLAUDE_EXECUTION`, `QUANT`  
-- Dynamic skill loading from Markdown files by keyword matching  
-- Scope generation that carefully scopes and structures Claude prompts  
-- Blocking of risky commands to prevent unsafe dispatches  
-- Automatic interaction logging and memory consolidation after threshold interactions  
-- Headless invocation of Claude CLI and Codex CLI for execution when appropriate  
-- Terminal user interface based on `rich`  
-- **Brave Search integration** for GENERAL category responses (live web results)  
-- Partial context handling for incomplete or fragmented user inputs, especially for Power BI DAX snippets  
-- Incremental recognition and scoped inspection targets for fragmentary DAX expressions  
-- Enhanced scope generation for incomplete DAX expressions (hypotheses, inspection targets, forbidden scopes)  
-- Detailed diagnostic explanations for complex DAX measures (context transition, filter propagation, relationship misalignment, `SELECTEDVALUE` in FILTER)  
-- Claude fallback when OpenAI is unavailable  
-- SSL certificate error handling for corporate (Maersk) network environments  
-- No-admin installation paths: `winget --scope user`, portable Node.js, user-scope Python  
-- Hardened explicit provider override parsing (`use claude ...` / `use codex ...` bypass keyword scoring)  
-- QUANT category routing defined; currently falling back to `openai_mini` â€” Quant plugin API path not yet fully connected  
-- Security hardening: private files untracked from git, API token input masked in terminal  
-- Alfred packaged as standalone installer via PyInstaller (MCP config root path resolved)  
-- Publish Update flow uses GitHub REST API directly (gh CLI dependency removed)  
+- `memory/current-focus.md` — what you're working on (updated at session exit)
+- `memory/recent-context.md` — recent decisions and outcomes (updated at session exit)
+- `memory/session-summary.md` — this file; full architecture reference (compressed from autosave)
+- `memory/autosave.md` — raw interaction log; gitignored; excluded from LLM injection
+- `memory/notes.md` — quick notes via "remember: X" command
+- `memory/active-projects.md` — active project tracking
+- Compression threshold: 10 autosave entries → consolidated into summary + recent-context
 
 ## Current Skills
 
-- `skills/powerquery-column-errors.md` â€” specialized logic to diagnose Power Query column errors by inspecting Transform steps before source inspection  
+- `skills/powerquery-column-errors.md` — diagnose Power Query column errors by inspecting Transform steps
 
-## Memory & Logging
+## Implemented Since Initial Build (chronological highlights)
 
-- `memory/session-summary.md` â€” consolidated memory summary updated periodically  
-- `logs/interactions.md` â€” append-only log, trimmed to last 5 after consolidation  
-- Consolidation model: GPT-4.1-mini  
-- Consolidation threshold: 10 interactions  
-
-## Placeholder Directories
-
-- `skills/` â€” hosts `.md` skill files, auto-loaded via keyword matching  
-- `templates/` â€” currently empty, planned for prompt templates  
-- `logs/` â€” auto-created at first interaction  
-
-## Implemented Commits (chronological)
-
-1. Initial working orchestrator design  
-2. Exclude `.venv` from git tracking  
-3. Handle EOFError on piped stdin; add CLAUDE.md documentation  
-4. Automatic Claude dispatch with dangerous keyword blocking  
-5. Deterministic skill loading via filename and first-line title keyword matching  
-6. Memory context injection and interaction logging  
-7. Automatic memory consolidation with GPT-4.1-mini  
-8. Improved partial user input recognition in POWERBI category, handling incomplete DAX snippets  
-9. Enhanced scope generation for partial/fragmentary DAX expressions  
-10. Added detailed diagnostic handling of complex DAX measures with nested FILTER and SELECTEDVALUE  
-11. Hardened explicit provider override parsing  
-12. Fix SSL certificate error on corporate Maersk network  
-13. Fix claude login and add Claude fallback when OpenAI is unavailable  
-14. No-admin installs: `--scope user` winget + portable Node.js + user Python  
-15. Rebuild Alfred installer  
-16. Fix PyInstaller root path for MCP config  
-17. Replace gh CLI with GitHub REST API in Publish Update  
-18. Security hardening: untrack private files, mask token input  
-19. Add Brave Search to Alfred general chat responses  
+1. Alfred Brain — unified LLM routing replacing keyword-only classification
+2. Capability registry — single source of truth for Control Tower and Brain prompt
+3. Mid-task clarification — Brain asks one targeted question before dispatch
+4. Clean execution output — summary/next-step only, no provider/category headers
+5. Auto-repair setup failures — interactive numbered issue list at startup
+6. Multi-step task decomposition — compound requests execute step by step with context forwarding
+7. Execution timeouts — 300s ceiling on run_claude / run_codex
+8. Unified session memory — hot memory injection, startup briefing, "remember" command
+9. OpenAI / Brave Search fully removed from all user-facing surfaces
+10. Tavily direct API replaces Brave Search MCP
 
 ## Next Planned Features
 
-- **Codex TTY fix:** Resolve "stdout is not a terminal" error when invoking Codex headlessly (pty wrapper or `-p` flag equivalent)  
-- **QUANT plugin routing:** Connect QUANT-classified tasks to the Quant Intelligence plugin API instead of falling back to openai_mini  
-- **Anthropic inference:** Replace GPT-4.1-mini in scope generation with Claude API (Haiku for low cost, Sonnet for quality), incorporating prompt caching on `CLAUDE_SCOPE_PROMPT`  
-- **pbi-cli integration:** Route `POWERBI` classified tasks through `pbi-cli` tool  
-- **Expanded skillset:** Add skill files such as `excel-errors.md`, `mcp-usage.md`  
-- **MCP governance:** Implement allowlist/blocklist controls for MCP usage in generated prompts  
-- **Structured output:** Transition scope plans to JSON schema outputs for safer downstream parsing  
-- **User interface/dashboard:** Web or terminal UI dashboard for plan review and dispatch confirmation
+- **Unified identity / session management** — single Alfred login managing all provider sessions
+- **Agent workflows** — background tasks, scheduled tasks, persistent workspaces

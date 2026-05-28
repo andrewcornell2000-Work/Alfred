@@ -437,14 +437,24 @@ def _ensure_memory_files() -> None:
                 f.write(content)
 
 
+_MEMORY_SKIP_INJECTION = {"autosave.md"}   # raw logs — excluded from all LLM injection
+_MEMORY_HOT_FILES = (                       # focused context injected into every LLM call
+    "current-focus.md", "recent-context.md", "active-projects.md", "notes.md"
+)
+_MEMORY_DEFAULT_MARKERS = {                 # placeholder text created by _ensure_memory_files
+    "No session data yet.", "No active projects recorded yet.",
+    "No recent context yet.", "No tool history recorded yet.",
+}
+
+
 def load_all_memory() -> str:
-    """Read all memory/*.md files and return a combined context string."""
+    """Read processed memory/*.md files (excluding raw autosave log) for the viewer."""
     memory_dir = os.path.join(_ROOT, "memory")
     if not os.path.isdir(memory_dir):
         return ""
     parts = []
     for fname in sorted(os.listdir(memory_dir)):
-        if not fname.endswith(".md"):
+        if not fname.endswith(".md") or fname in _MEMORY_SKIP_INJECTION:
             continue
         path = os.path.join(memory_dir, fname)
         try:
@@ -457,9 +467,38 @@ def load_all_memory() -> str:
     return "\n\n".join(parts)
 
 
+def _load_hot_memory() -> str:
+    """Return a compact context string from the most relevant memory files.
+    Injected into every LLM call — stays small and focused."""
+    memory_dir = os.path.join(_ROOT, "memory")
+    if not os.path.isdir(memory_dir):
+        return ""
+    parts = []
+    for fname in _MEMORY_HOT_FILES:
+        path = os.path.join(memory_dir, fname)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+        except OSError:
+            continue
+        if not content or any(m in content for m in _MEMORY_DEFAULT_MARKERS):
+            continue
+        # Extract bullet points only (first 5) — skip headers, blank lines
+        bullets = [
+            ln.strip() for ln in content.splitlines()
+            if ln.strip().startswith(("- ", "* ", "• "))
+        ][:5]
+        if bullets:
+            label = fname.replace(".md", "").replace("-", " ").title()
+            parts.append(f"**{label}:**\n" + "\n".join(bullets))
+    return "\n\n".join(parts)
+
+
 def reload_memory() -> None:
     global _memory_context
-    _memory_context = load_all_memory()
+    _memory_context = _load_hot_memory()
 
 
 def read_memory_summary() -> str:
@@ -1578,6 +1617,34 @@ def _render_general_response(response: str) -> None:
     )
 
 
+def _show_startup_memory() -> None:
+    """Show a brief memory briefing at startup — only if meaningful content exists."""
+    focus_path = os.path.join(_ROOT, "memory", "current-focus.md")
+    if not os.path.isfile(focus_path):
+        return
+    try:
+        with open(focus_path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+    except OSError:
+        return
+    if not content or any(m in content for m in _MEMORY_DEFAULT_MARKERS):
+        return
+    bullets = [
+        ln.strip() for ln in content.splitlines()
+        if ln.strip().startswith(("- ", "* ", "• "))
+    ][:3]
+    if not bullets:
+        return
+    console.print(
+        Panel(
+            Markdown("\n".join(bullets)),
+            title="[bold dim]Last session[/bold dim]",
+            border_style="dim",
+            padding=(0, 2),
+        )
+    )
+
+
 def _show_header() -> None:
     console.print(
         Panel.fit(
@@ -2001,6 +2068,22 @@ def _action_ask_alfred() -> None:
                 console.print("[dim]No input captured.[/dim]")
                 continue
             console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
+
+        # ── Memory shortcuts ────────────────────────────────────────────────
+        if re.match(r"(?i)^(remember|note)\s*:?\s+", stripped):
+            note_text = re.sub(r"(?i)^(remember|note)\s*:?\s+", "", stripped).strip()
+            if note_text:
+                notes_path = os.path.join(_ROOT, "memory", "notes.md")
+                ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                with open(notes_path, "a", encoding="utf-8") as _nf:
+                    _nf.write(f"- [{ts}] {note_text}\n")
+                reload_memory()
+                console.print("[dim]Noted.[/dim]")
+            continue
+
+        if stripped.lower() in {"context", "memory", "what do you remember", "what do you know"}:
+            _action_view_memory()
+            continue
 
         # Check for explicit provider override ("use claude ...", "use codex ...")
         provider_override = detect_provider_override(stripped)
@@ -2996,6 +3079,7 @@ def main():
     _ensure_memory_files()
     _check_setup()
     reload_memory()
+    _show_startup_memory()
     check_github_updates()
 
     while True:
