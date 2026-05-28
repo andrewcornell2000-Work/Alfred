@@ -2010,10 +2010,17 @@ def _action_ask_alfred() -> None:
     console.print(
         "\n[dim][bold]clip[/bold] = clipboard  |  [bold]pbi connect[/bold] = link to Power BI Desktop  |  [bold]back[/bold] = menu[/dim]"
     )
+    # Sticky provider: set by "use claude" / "use codex", cleared by "auto" / "reset"
+    sticky_provider: "str | None" = None
 
     while True:
         try:
-            user_input = console.input("\n[bold yellow]Alfred > [/bold yellow]")
+            prompt_label = (
+                f"\n[bold yellow]Alfred [{('Claude' if sticky_provider == 'claude_code' else 'Codex')}] > [/bold yellow]"
+                if sticky_provider
+                else "\n[bold yellow]Alfred > [/bold yellow]"
+            )
+            user_input = console.input(prompt_label)
         except EOFError:
             return
 
@@ -2087,12 +2094,23 @@ def _action_ask_alfred() -> None:
             continue
 
         # Check for explicit provider override ("use claude ...", "use codex ...")
-        provider_override = detect_provider_override(stripped)
-        if provider_override:
+        detected_override = detect_provider_override(stripped)
+        if detected_override:
+            # New explicit directive — update sticky and strip the prefix
+            sticky_provider = detected_override
             stripped = strip_provider_prefix(stripped)
-            console.print(f"[dim]Provider override: {provider_override}[/dim]")
+            provider_label = "Claude" if sticky_provider == "claude_code" else "Codex"
+            console.print(f"[dim]Provider locked to {provider_label} — say [bold]auto[/bold] to let Alfred decide again.[/dim]")
+        elif stripped.lower() in {"auto", "reset", "reset provider", "auto route", "let alfred decide"}:
+            sticky_provider = None
+            console.print("[dim]Provider reset — Alfred will route automatically.[/dim]")
+            continue
 
-        if not _process_alfred_request(stripped, provider_override=provider_override):
+        # Apply sticky provider (may be None — auto-route in that case)
+        if sticky_provider and not stripped:
+            continue
+
+        if not _process_alfred_request(stripped, provider_override=sticky_provider):
             return
 
 
