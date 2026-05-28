@@ -810,7 +810,24 @@ def generate_general_response(user_input: str) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
-    return _call_openai(system, user_input) or _call_claude(system, user_input) or "No response."
+
+    content = user_input
+    if _should_search(user_input):
+        results = _brave_search(user_input)
+        if results:
+            console.print(f"[dim]Web search: {len(results)} result(s) found.[/dim]")
+            snippets = "\n\n".join(
+                f"[{r['title']}]({r['url']})\n{r['snippet']}"
+                for r in results
+            )
+            content = (
+                f"{user_input}\n\n"
+                f"---\n"
+                f"Live search results (use these to answer accurately):\n\n"
+                f"{snippets}"
+            )
+
+    return _call_openai(system, content) or _call_claude(system, content) or "No response."
 
 
 def generate_claude_scope(user_input: str, skills_context: str = "") -> str:
@@ -1073,6 +1090,86 @@ CLAUDE_CODE_ROUTING_KEYWORDS = {
     "github issue", "open issue", "create issue", "review pr",
     "github.com", "merge pr", "push to github",
 }
+
+# Keywords that suggest the query needs live web data — trigger Brave Search
+SEARCH_TRIGGER_KEYWORDS = {
+    # Recency / time
+    "latest", "newest", "current", "recent", "today", "right now",
+    "this week", "this month", "this year",
+    "2024", "2025", "2026",
+    # Explicit lookup intent
+    "search for", "search the web", "look up", "find out", "find me",
+    "what is the price", "how much does", "price of", "cost of",
+    # Version / release queries
+    "latest version", "new version", "version of", "release of",
+    "what version", "current version", "just released", "just launched",
+    # News / events
+    "news about", "what happened", "recently announced", "just announced",
+    # General knowledge gaps
+    "who is", "what is", "where is", "when did", "how does",
+}
+
+
+def _get_brave_api_key() -> str:
+    """Read the Brave Search API key from env or Claude MCP settings."""
+    key = os.getenv("BRAVE_API_KEY", "")
+    if key:
+        return key
+    settings_path = os.path.join(_ROOT, ".claude", "settings.json")
+    if os.path.isfile(settings_path):
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            return (
+                cfg.get("mcpServers", {})
+                .get("brave-search", {})
+                .get("env", {})
+                .get("BRAVE_API_KEY", "")
+            )
+        except Exception:
+            pass
+    return ""
+
+
+def _should_search(query: str) -> bool:
+    lowered = query.lower()
+    return any(kw in lowered for kw in SEARCH_TRIGGER_KEYWORDS)
+
+
+def _brave_search(query: str, count: int = 5) -> list:
+    """Call Brave Search API and return [{title, url, snippet}] or []."""
+    api_key = _get_brave_api_key()
+    if not api_key:
+        return []
+    url = (
+        "https://api.search.brave.com/res/v1/web/search"
+        f"?q={urllib.parse.quote(query)}&count={count}"
+    )
+    req = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", "X-Subscription-Token": api_key},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return [
+            {
+                "title": r.get("title", ""),
+                "url":   r.get("url", ""),
+                "snippet": r.get("description", ""),
+            }
+            for r in data.get("web", {}).get("results", [])
+            if r.get("description")
+        ]
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            console.print("[dim yellow]Brave Search: invalid API key.[/dim yellow]")
+        else:
+            console.print(f"[dim red]Brave Search: HTTP {e.code}[/dim red]")
+        return []
+    except Exception as e:
+        console.print(f"[dim red]Brave Search: {e}[/dim red]")
+        return []
 
 
 def should_send_to_claude(user_input: str, category: str, provider: str = "") -> bool:
