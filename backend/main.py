@@ -1497,7 +1497,7 @@ PROVIDER_LABELS = {
     "codex": "Codex",
     "claude": "Claude",
     "openai_mini": "Claude",      # legacy alias → Claude
-    "quant": "Quant",
+    "quant": "Quant plugin",
 }
 
 
@@ -2070,7 +2070,7 @@ def _action_control_tower() -> None:
     # ── Capability Registry ─────────────────────────────────────────────────────
     cap_table = Table(title="Capabilities", box=box.ROUNDED, border_style="dim", padding=(0, 1))
     cap_table.add_column("Capability", style="bold cyan", no_wrap=True)
-    cap_table.add_column("Provider", style="bold yellow", no_wrap=True)
+    cap_table.add_column("Via", style="bold yellow", no_wrap=True)
     cap_table.add_column("Status", style="white", no_wrap=True)
     cap_table.add_column("What Alfred can do", style="white")
 
@@ -2092,8 +2092,7 @@ def _action_control_tower() -> None:
     providers.add_column("Role", style="white")
     claude_ok = shutil.which("claude.cmd") or shutil.which("claude")
     codex_ok = shutil.which("codex.cmd") or shutil.which("codex")
-    providers.add_row("OpenAI Mini", "[green]configured[/green]" if os.getenv("OPENAI_API_KEY") else "[dim]not configured[/dim]", "Optional fallback (not required)")
-    providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "Execution, MCP runtime, Office/PC operations")
+    providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "Chat, execution, MCP tools, Office/PC operations")
     providers.add_row("Codex", "[green]installed[/green]" if codex_ok else "[red]missing[/red]", "Code edits, tests, Alfred self-improvement")
     console.print(providers)
 
@@ -2543,45 +2542,50 @@ def _action_show_dispatch_rules() -> None:
     console.print(Rule("[bold cyan]Dispatch Rules[/bold cyan]"))
 
     t = Table(
-        title="Provider Routing", box=box.ROUNDED, border_style="dim", padding=(0, 1)
+        title="Alfred Brain Routing", box=box.ROUNDED, border_style="dim", padding=(0, 1)
     )
-    t.add_column("Condition", style="bold cyan")
-    t.add_column("Provider", style="bold yellow")
+    t.add_column("Brain Decision", style="bold cyan")
+    t.add_column("Via", style="bold yellow")
     t.add_column("Outcome", style="white")
     t.add_row(
-        "Category = GENERAL",
-        "openai_mini",
-        "[yellow]Answer — no CLI dispatch[/yellow]",
+        "GENERAL — conversation, explanations, definitions",
+        "Claude",
+        "[cyan]Alfred replies directly — no dispatch[/cyan]",
     )
     t.add_row(
-        "Category = POWERBI",
-        "claude_code",
-        "[green]Auto-dispatch to Claude Code[/green]",
+        "SEARCH — current data, prices, news, versions",
+        "Claude + Tavily",
+        "[cyan]Web pre-fetch → Alfred replies[/cyan]",
     )
     t.add_row(
-        "CLAUDE_EXECUTION + codex keywords score higher",
-        "codex",
-        "[blue]Auto-dispatch to Codex[/blue]",
+        "CODE — write / fix / refactor / test code",
+        "Codex",
+        "[blue]Plan shown → confirm → dispatch to Codex[/blue]",
     )
     t.add_row(
-        "CLAUDE_EXECUTION (default / claude keywords score higher)",
-        "claude_code",
-        "[green]Auto-dispatch to Claude Code[/green]",
+        "EXECUTE — files, Excel, browser, GitHub, Office",
+        "Claude Code",
+        "[green]Plan shown → confirm → dispatch to Claude Code[/green]",
     )
     t.add_row(
-        "CLAUDE_EXECUTION + no keyword signal",
-        "openai_mini",
-        "[yellow]Plan shown — no auto-dispatch[/yellow]",
+        "POWERBI — DAX, model, visuals, Power Query",
+        "Claude Code",
+        "[green]Plan shown → confirm → dispatch to Claude Code[/green]",
     )
     t.add_row(
-        "Learning / Creator Mode (confirmed)",
-        "codex",
-        "[blue]Discuss → confirm → dispatch to Codex[/blue]",
+        "QUANT — trading signals, stock analysis",
+        "Quant plugin",
+        "[green]Routed directly to Quant API[/green]",
     )
     t.add_row(
         "Dangerous keyword detected",
         "—",
         "[red]Blocked — no dispatch[/red]",
+    )
+    t.add_row(
+        "Learning / Creator Mode (confirmed)",
+        "Codex",
+        "[blue]Discuss → confirm → dispatch to Codex[/blue]",
     )
     console.print(t)
 

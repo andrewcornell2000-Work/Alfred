@@ -8,7 +8,7 @@
     - Creates .venv and installs all Python packages
     - Installs Claude Code and Codex CLIs (user-level, no admin)
     - Runs claude login and codex login (browser OAuth)
-    - Prompts for OpenAI API key and writes .env
+    - Prompts for Tavily API key and writes .env
     - Creates a desktop shortcut
     - Idempotent: safe to re-run to update or repair
 .PARAMETER InstallPath
@@ -354,65 +354,41 @@ if ($codexExe) {
     Write-Warn "Codex CLI not found on PATH. Run 'codex login' after opening a new terminal."
 }
 
-# ── Step 7: OpenAI API key ────────────────────────────────────────────────────
+# ── Step 7: Tavily API key (live web research) ────────────────────────────────
 
-Write-Step "Step 7: OpenAI API key (for fast chat and classification)"
+Write-Step "Step 7: Tavily API key (live web research)"
 Write-Host ""
-Write-Host "  Alfred uses GPT-4o-mini for quick responses." -ForegroundColor White
-Write-Host "  Get a key: https://platform.openai.com/api-keys" -ForegroundColor DarkGray
-Write-Host "  Add credit: https://platform.openai.com/settings/organization/billing" -ForegroundColor DarkGray
+Write-Host "  Alfred uses Tavily to fetch current docs, news, prices, and live information." -ForegroundColor White
+Write-Host "  Free plan: 1,000 queries/month. Get a key: https://app.tavily.com" -ForegroundColor DarkGray
 Write-Host ""
 
 $EnvFile = Join-Path $InstallPath ".env"
-$existingKey = ""
+$tavilyKey = ""
+$existingTavily = ""
 if (Test-Path $EnvFile) {
-    $existingKey = (Get-Content $EnvFile | Where-Object { $_ -match "^OPENAI_API_KEY=" }) -replace "^OPENAI_API_KEY=",""
+    $existingTavily = (Get-Content $EnvFile | Where-Object { $_ -match "^TAVILY_API_KEY=" }) -replace "^TAVILY_API_KEY=",""
 }
-
-if ($existingKey) {
-    Write-OK "OpenAI API key already saved."
+if ($existingTavily) {
+    $tavilyKey = $existingTavily
+    Write-OK "Tavily API key already saved."
 } else {
-    $openBrowser = Read-Host "  Open platform.openai.com/api-keys in browser? (Y/n)"
-    if ($openBrowser -notmatch "^[Nn]") { Start-Process "https://platform.openai.com/api-keys" }
-    $apiKey = Read-Host "  Paste your OpenAI API key (sk-...)"
-    if ($apiKey -match "^sk-") {
-        Write-EnvVar $EnvFile "OPENAI_API_KEY" $apiKey
-        Write-Done "API key saved to .env"
+    $openTavily = Read-Host "  Open app.tavily.com in browser? (Y/n)"
+    if ($openTavily -notmatch "^[Nn]") { Start-Process "https://app.tavily.com" }
+    $secureInput = Read-Host "  Paste your Tavily API key (tvly-... or press Enter to skip)" -AsSecureString
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput)
+    try { $tavilyKey = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    if ($tavilyKey -match "^tvly-") {
+        Write-EnvVar $EnvFile "TAVILY_API_KEY" $tavilyKey
+        Write-Done "Tavily API key saved to .env"
     } else {
-        Write-Warn "Key not saved — re-run this installer to add it later."
+        Write-Warn "Tavily key not saved — web research will be skipped until added."
+        $tavilyKey = ""
     }
 }
 
 Write-EnvVar $EnvFile "QUANT_BASE_URL" $QuantUrl
 Write-OK "Quant plugin URL configured."
-
-# ── Step 7b: Brave Search API key ─────────────────────────────────────────────
-
-Write-Step "Step 7b: Brave Search API key (live web search)"
-Write-Host ""
-Write-Host "  Alfred uses Brave Search for real-time results — latest docs, current versions, news." -ForegroundColor White
-Write-Host "  Free plan: 2,000 queries/month. Get a key: https://api.search.brave.com/" -ForegroundColor DarkGray
-Write-Host ""
-
-$braveApiKey = ""
-$existingBrave = ""
-if (Test-Path $EnvFile) {
-    $existingBrave = (Get-Content $EnvFile | Where-Object { $_ -match "^BRAVE_API_KEY=" }) -replace "^BRAVE_API_KEY=",""
-}
-if ($existingBrave) {
-    $braveApiKey = $existingBrave
-    Write-OK "Brave Search API key already saved."
-} else {
-    $openBrave = Read-Host "  Open api.search.brave.com in browser? (Y/n)"
-    if ($openBrave -notmatch "^[Nn]") { Start-Process "https://api.search.brave.com/" }
-    $braveApiKey = Read-Host "  Paste your Brave Search API key (or press Enter to skip)"
-    if ($braveApiKey) {
-        Write-EnvVar $EnvFile "BRAVE_API_KEY" $braveApiKey
-        Write-Done "Brave Search API key saved to .env"
-    } else {
-        Write-Warn "Brave Search skipped — web search MCP will not be configured."
-    }
-}
 
 # ── Step 7c: GitHub Personal Access Token ────────────────────────────────────
 
@@ -583,17 +559,14 @@ if ($excellmOk) {
     Write-Host "  Activate .venv and run: pip install excellm" -ForegroundColor DarkGray
 }
 
-# ── Brave Search MCP ──────────────────────────────────────────────────────────
+# ── Tavily (direct API — no MCP server needed) ────────────────────────────────
+# Alfred calls Tavily directly from Python using the key stored in .env.
+# No MCP server entry required.
 
-if ($braveApiKey) {
-    $mcpServers["brave-search"] = [ordered]@{
-        command = "npx"
-        args    = @("-y", "@modelcontextprotocol/server-brave-search")
-        env     = [ordered]@{ BRAVE_API_KEY = $braveApiKey }
-    }
-    Write-OK "Brave Search MCP configured — live web search enabled."
+if ($tavilyKey) {
+    Write-OK "Tavily web research enabled — key stored in .env"
 } else {
-    Write-Warn "Brave Search MCP skipped (no API key). Re-run installer to add it."
+    Write-Warn "Tavily key missing — web research unavailable. Re-run installer to add it."
 }
 
 # ── GitHub MCP ────────────────────────────────────────────────────────────────
@@ -631,7 +604,7 @@ if ($mcpServers.Count -gt 0) {
     Write-Done ".claude\settings.json written with $($mcpServers.Count) MCP server(s)."
     Write-Host "  Power BI:   edit measures, tables, relationships, DAX" -ForegroundColor DarkGray
     Write-Host "  Excel:      read/write cells, charts, pivot tables, VBA" -ForegroundColor DarkGray
-    Write-Host "  Web Search: real-time results via Brave Search" -ForegroundColor DarkGray
+    Write-Host "  Web Search: real-time results via Tavily" -ForegroundColor DarkGray
     Write-Host "  GitHub:     create PRs, manage issues, search repos" -ForegroundColor DarkGray
     Write-Host "  Browser:    navigate pages, fill forms, scrape data, take screenshots" -ForegroundColor DarkGray
 } else {
