@@ -2663,30 +2663,131 @@ _ACTIONS = {
 }
 
 
-def _check_setup() -> None:
-    issues = []
+def _write_env_var(env_path: str, key: str, value: str) -> None:
+    """Write or update a single KEY=value line in a .env file."""
+    if os.path.isfile(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if re.search(rf"(?m)^{re.escape(key)}=", content):
+            content = re.sub(rf"(?m)^{re.escape(key)}=.*", f"{key}={value}", content)
+        else:
+            content = content.rstrip("\n") + f"\n{key}={value}\n"
+    else:
+        content = f"{key}={value}\n"
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
-    # Claude — installed?
+
+def _repair_install_claude() -> None:
+    console.print("[dim]Running: npm install -g @anthropic-ai/claude-code[/dim]")
+    r = subprocess.run(["npm", "install", "-g", "@anthropic-ai/claude-code"],
+                       capture_output=True, text=True)
+    if r.returncode == 0:
+        console.print("[bold green]Installed. Restart Alfred, then authenticate with: claude login[/bold green]")
+    else:
+        console.print(f"[bold red]Install failed:[/bold red] {r.stderr.strip()[:200]}")
+
+
+def _repair_claude_login() -> None:
+    exe = _resolve_claude_executable()
+    try:
+        subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", exe])
+        console.print("[bold green]Terminal opened — sign in, then restart Alfred.[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
+
+
+def _repair_install_codex() -> None:
+    console.print("[dim]Running: npm install -g @openai/codex[/dim]")
+    r = subprocess.run(["npm", "install", "-g", "@openai/codex"],
+                       capture_output=True, text=True)
+    if r.returncode == 0:
+        console.print("[bold green]Installed. Restart Alfred, then authenticate with: codex login[/bold green]")
+    else:
+        console.print(f"[bold red]Install failed:[/bold red] {r.stderr.strip()[:200]}")
+
+
+def _repair_codex_login() -> None:
+    exe = _resolve_codex_executable()
+    try:
+        subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", exe])
+        console.print("[bold green]Terminal opened — sign in, then restart Alfred.[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
+
+
+def _repair_tavily_key() -> None:
+    try:
+        ans = console.input("Open app.tavily.com in browser? (y/n) > ").strip()
+        if ans.lower() in {"y", "yes"}:
+            webbrowser.open("https://app.tavily.com")
+        key = console.input("Paste Tavily API key (tvly-...): ").strip()
+    except EOFError:
+        return
+    if not key.startswith("tvly-"):
+        console.print("[bold red]Invalid key — must start with tvly-[/bold red]")
+        return
+    _write_env_var(os.path.join(_ROOT, ".env"), "TAVILY_API_KEY", key)
+    os.environ["TAVILY_API_KEY"] = key
+    console.print("[bold green]Tavily key saved — web research now active.[/bold green]")
+
+
+def _repair_github_token() -> None:
+    try:
+        ans = console.input("Open github.com/settings/tokens in browser? (y/n) > ").strip()
+        if ans.lower() in {"y", "yes"}:
+            webbrowser.open("https://github.com/settings/tokens/new")
+        key = console.input("Paste GitHub Personal Access Token (ghp_...): ").strip()
+    except EOFError:
+        return
+    if not key:
+        return
+    _write_env_var(os.path.join(_ROOT, ".env"), "GITHUB_TOKEN", key)
+    os.environ["GITHUB_TOKEN"] = key
+    console.print("[bold green]GitHub token saved.[/bold green]")
+
+
+def _repair_excel_mcp() -> None:
+    pip = os.path.join(_ROOT, ".venv", "Scripts", "pip.exe")
+    if not os.path.isfile(pip):
+        pip = "pip"
+    console.print("[dim]Running: pip install excellm[/dim]")
+    r = subprocess.run([pip, "install", "excellm"], capture_output=True, text=True)
+    if r.returncode == 0:
+        console.print("[bold green]Excel MCP installed — restart Alfred to activate.[/bold green]")
+    else:
+        console.print(f"[bold red]Install failed:[/bold red] {r.stderr.strip()[:200]}")
+
+
+def _check_setup() -> None:
+    # Each issue is (description, repair_fn | None)
+    issues: list[tuple[str, object]] = []
+
+    # ── Claude ────────────────────────────────────────────────────────────────
     claude_installed = bool(shutil.which("claude.cmd") or shutil.which("claude"))
     if not claude_installed:
-        issues.append("Claude Code CLI not installed.\n  Fix: npm install -g @anthropic-ai/claude-code")
+        issues.append(("Claude Code CLI not installed", _repair_install_claude))
     else:
-        # Logged in?
         creds = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
         if not os.path.isfile(creds) or os.path.getsize(creds) < 10:
-            issues.append("Claude not logged in.\n  Fix: run [bold yellow]claude login[/bold yellow] in a terminal")
+            issues.append(("Claude not logged in", _repair_claude_login))
 
-    # Codex — installed?
+    # ── Codex ─────────────────────────────────────────────────────────────────
     codex_installed = bool(shutil.which("codex.cmd") or shutil.which("codex"))
     if not codex_installed:
-        issues.append("Codex CLI not installed.\n  Fix: npm install -g @openai/codex")
+        issues.append(("Codex CLI not installed", _repair_install_codex))
     else:
-        # Logged in?
         auth = os.path.join(os.path.expanduser("~"), ".codex", "auth.json")
         if not os.path.isfile(auth) or os.path.getsize(auth) < 10:
-            issues.append("Codex not logged in.\n  Fix: run [bold yellow]codex login[/bold yellow] in a terminal")
+            issues.append(("Codex not logged in", _repair_codex_login))
 
-    # MCP server health checks — verify registered servers are actually available
+    # ── Optional capabilities ─────────────────────────────────────────────────
+    if not _get_tavily_api_key():
+        issues.append(("Tavily key missing — web research unavailable", _repair_tavily_key))
+    if not _get_github_token():
+        issues.append(("GitHub token missing — GitHub operations unavailable", _repair_github_token))
+
+    # ── MCP servers ───────────────────────────────────────────────────────────
     settings_path = os.path.join(_ROOT, ".claude", "settings.json")
     mcp_ready = []
     if os.path.isfile(settings_path):
@@ -2694,13 +2795,13 @@ def _check_setup() -> None:
             with open(settings_path, "r", encoding="utf-8") as f:
                 mcp_cfg = json.load(f)
             for svc_name, svc in mcp_cfg.get("mcpServers", {}).items():
-                cmd = svc.get("command", "")
                 if svc_name == "powerbi-modeling-mcp":
+                    cmd = svc.get("command", "")
                     if cmd and not os.path.isfile(cmd):
-                        issues.append(
-                            f"Power BI MCP: server exe not found at {cmd}\n"
-                            "  Fix: re-run Alfred-Install.exe to repair the VS Code extension"
-                        )
+                        issues.append((
+                            f"Power BI MCP: server not found at {cmd}",
+                            None,  # needs Alfred-Install.exe
+                        ))
                     else:
                         mcp_ready.append("Power BI")
                 elif svc_name == "excel":
@@ -2708,47 +2809,49 @@ def _check_setup() -> None:
                         import excellm  # noqa: F401
                         mcp_ready.append("Excel")
                     except ImportError:
-                        issues.append(
-                            "Excel MCP: excellm not installed.\n"
-                            "  Fix: activate .venv and run: pip install excellm"
-                        )
-                elif svc_name == "tavily":
-                    api_key = svc.get("env", {}).get("TAVILY_API_KEY", "") or os.getenv("TAVILY_API_KEY", "")
-                    if api_key:
-                        mcp_ready.append("Web Search")
-                    else:
-                        issues.append(
-                            "Tavily Search: API key missing.\n"
-                            "  Fix: add TAVILY_API_KEY=tvly-... to your .env file"
-                        )
-                elif svc_name == "github":
-                    token = svc.get("env", {}).get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
-                    if token:
-                        mcp_ready.append("GitHub")
-                    else:
-                        issues.append(
-                            "GitHub MCP: Personal Access Token missing.\n"
-                            "  Fix: re-run Alfred-Install.exe and enter your GitHub token"
-                        )
+                        issues.append(("Excel MCP: excellm not installed", _repair_excel_mcp))
                 elif svc_name == "playwright":
                     mcp_ready.append("Browser")
         except Exception:
             pass
-    else:
-        console.print(
-            "[dim yellow]MCP tools not configured — Power BI and Excel editing unavailable.[/dim yellow]\n"
-            "[dim]Re-run Alfred-Install.exe to set up MCP tools.[/dim]"
-        )
 
     if mcp_ready:
         console.print(f"[dim green]MCP ready: {', '.join(mcp_ready)}[/dim green]")
 
-    if issues:
-        body = "[bold red]Pre-flight check failed:[/bold red]\n\n"
-        body += "\n\n".join(f"[yellow]{i}[/yellow]" for i in issues)
-        console.print(Panel(body, title="[bold red]Setup Required[/bold red]", border_style="red", padding=(1, 2)))
-    else:
-        console.print("[dim green]Pre-flight check passed.[/dim green]")
+    if not issues:
+        console.print("[dim green]All systems ready.[/dim green]")
+        return
+
+    # ── Show issues with repair options ───────────────────────────────────────
+    t = Table(show_header=False, box=None, padding=(0, 1))
+    t.add_column("n", style="bold yellow", no_wrap=True)
+    t.add_column("Issue", style="white")
+    t.add_column("", no_wrap=True)
+    for i, (desc, fn) in enumerate(issues, 1):
+        tag = "[green]fix available[/green]" if fn else "[dim]manual[/dim]"
+        t.add_row(str(i), desc, tag)
+    console.print(Panel(t, title="[bold yellow]Setup[/bold yellow]", border_style="yellow", padding=(0, 1)))
+    console.print("[dim]Type a number to fix it now, or press Enter to continue.[/dim]")
+
+    while True:
+        try:
+            choice = console.input("[bold yellow]Fix > [/bold yellow]").strip()
+        except EOFError:
+            break
+        if not choice:
+            break
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(issues):
+                desc, fn = issues[idx]
+                if fn:
+                    fn()
+                else:
+                    console.print("[dim]Re-run Alfred-Install.exe to repair this automatically.[/dim]")
+            else:
+                console.print(f"[dim]Enter 1–{len(issues)} or press Enter to skip.[/dim]")
+        except ValueError:
+            break
 
 
 
