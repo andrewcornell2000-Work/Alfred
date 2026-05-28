@@ -1277,13 +1277,14 @@ Provider assignment rules:
 - "quant": QUANT tasks only
 
 Return ONLY compact JSON — no markdown fences, no explanation:
-{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI|QUANT","provider":"claude|codex|claude_code|quant","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":""}
+{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI|QUANT","provider":"claude|codex|claude_code|quant","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":"","steps":[]}
 
 Rules:
 - needs_search=true for SEARCH category, and for CODE/EXECUTE/POWERBI tasks that would benefit from pre-fetching API docs or reference material
 - needs_clarification=true only when a required target (specific file, workbook, ticker, URL, etc.) is genuinely ambiguous and cannot be inferred
 - clarification_question should be a short, specific question — or empty string if needs_clarification is false
 - plan is a one-sentence summary of the execution approach for CODE/EXECUTE/POWERBI, empty for GENERAL/SEARCH/QUANT
+- steps: array of 2–5 short action strings for compound requests with multiple distinct sequential actions (e.g. ["Read workbook structure", "Identify data issues", "Fix formulas", "Summarise changes"]); empty array [] for single-action tasks, GENERAL, SEARCH, or QUANT
 """
 
 
@@ -1614,6 +1615,19 @@ def get_clipboard_text() -> str:
     return result.stdout.strip()
 
 
+def _render_step_plan(steps: list) -> None:
+    """Show a numbered step list as a unified Plan panel before execution."""
+    lines = [f"**{i}.** {step}" for i, step in enumerate(steps, 1)]
+    console.print(
+        Panel(
+            Markdown("\n".join(lines)),
+            title=f"[bold cyan]Plan — {len(steps)} steps[/bold cyan]",
+            border_style="dim",
+            padding=(0, 2),
+        )
+    )
+
+
 def _render_execution_result(result: subprocess.CompletedProcess) -> None:
     """Show execution result cleanly — no provider/category headers."""
     if result.returncode != 0:
@@ -1648,6 +1662,80 @@ def _render_execution_result(result: subprocess.CompletedProcess) -> None:
     )
 
 
+def _run_step_sequence(
+    original_request: str,
+    steps: list,
+    provider: str,
+    skills_context: str,
+    search_context: str,
+) -> str:
+    """Execute a compound task step-by-step, accumulating context between steps.
+    Returns a short outcome summary string."""
+    total = len(steps)
+    all_outcomes: list[str] = []
+
+    for i, step in enumerate(steps, 1):
+        console.print(Rule(f"[bold cyan]Step {i} / {total}[/bold cyan]"))
+        console.print(f"[dim]{step}[/dim]")
+
+        prior = ""
+        if all_outcomes:
+            prior = "\n\nPrior steps completed:\n" + "\n".join(
+                f"  {j}. {o}" for j, o in enumerate(all_outcomes, 1)
+            )
+
+        step_prompt = (
+            f"Multi-step task — step {i} of {total}.\n\n"
+            f"Full original request: {original_request}\n\n"
+            f"Current step ({i}/{total}): {step}"
+            + prior
+        )
+        scope = generate_claude_scope(step_prompt, skills_context, search_context=search_context)
+
+        result = run_codex(scope) if provider == "codex" else run_claude(scope)
+        _render_execution_result(result)
+
+        if result.returncode != 0:
+            if i < total:
+                try:
+                    cont = console.input(
+                        f"[bold yellow]Step {i} failed — continue with remaining steps? (y/n) > [/bold yellow]"
+                    ).strip().lower()
+                except EOFError:
+                    cont = "n"
+                if cont not in {"y", "yes"}:
+                    console.print("[dim]Sequence stopped.[/dim]")
+                    return f"Stopped at step {i}/{total}"
+            all_outcomes.append(f"failed — {result.stderr[:80]}")
+        else:
+            structured = extract_structured_response(result.stdout)
+            outcome = structured.get("summary", "") or result.stdout.strip()[:120]
+            all_outcomes.append(outcome)
+
+            if structured.get("needs_user_approval") and i < total:
+                try:
+                    cont = console.input(
+                        "[bold yellow]Step requires approval — continue to next step? (y/n) > [/bold yellow]"
+                    ).strip().lower()
+                except EOFError:
+                    cont = "n"
+                if cont not in {"y", "yes"}:
+                    console.print("[dim]Sequence paused.[/dim]")
+                    return f"Paused at step {i}/{total}"
+
+    summary_lines = [f"**{j}.** {o}" for j, o in enumerate(all_outcomes, 1)]
+    console.print(
+        Panel(
+            Markdown("\n".join(summary_lines)),
+            title="[bold green]All steps complete[/bold green]",
+            border_style="green",
+            padding=(0, 2),
+        )
+    )
+    _notify("Alfred", f"Task complete — {total} steps done")
+    return f"Completed {total} steps"
+
+
 def _process_alfred_request(
     stripped: str,
     force_learning: bool = False,
@@ -1655,7 +1743,7 @@ def _process_alfred_request(
 ) -> bool:
     scope = ""
     outcome = ""
-
+    steps: list = []
     needs_search = False
 
     # Explicit provider override — skip Brain and learning check
@@ -1692,6 +1780,15 @@ def _process_alfred_request(
         brain_category = decision.get("category", "GENERAL")
         provider = decision.get("provider", "claude")
         needs_search = bool(decision.get("needs_search", False))
+
+        # Extract multi-step plan — only for compound EXECUTE/CODE/POWERBI tasks
+        raw_steps = decision.get("steps", [])
+        if (
+            isinstance(raw_steps, list)
+            and len(raw_steps) >= 2
+            and brain_category in {"CODE", "EXECUTE", "POWERBI"}
+        ):
+            steps = [str(s) for s in raw_steps if s]
 
         # Mid-task clarification: ask before doing anything
         if decision.get("needs_clarification") and decision.get("clarification_question"):
@@ -1739,10 +1836,41 @@ def _process_alfred_request(
                 )
 
         skills_context = load_relevant_skills(stripped)
-        scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
-        outcome = scope[:200]
 
-        if should_send_to_claude(stripped, category, provider):
+        if steps and should_send_to_claude(stripped, category, provider):
+            # ── Multi-step path ──────────────────────────────────────────────
+            _render_step_plan(steps)
+            try:
+                confirm = console.input(
+                    "[bold yellow]Proceed? (Enter = yes, or type an adjustment) > [/bold yellow]"
+                ).strip()
+            except EOFError:
+                confirm = ""
+
+            if confirm.lower() in {"n", "no", "cancel", "back"}:
+                console.print("[dim]Cancelled.[/dim]")
+                append_interaction_log(stripped, category, "", provider)
+                append_autosave_entry(stripped, category, provider, "Cancelled by user")
+                compress_autosave_if_needed()
+                return True
+
+            if confirm and confirm.lower() not in {"y", "yes"}:
+                # User typed an adjustment — ask Brain to re-plan the steps
+                stripped = f"{stripped}\n\nAdjustment: {confirm}"
+                adj_decision = alfred_brain(stripped)
+                adj_steps = adj_decision.get("steps", [])
+                if isinstance(adj_steps, list) and len(adj_steps) >= 2:
+                    steps = [str(s) for s in adj_steps if s]
+                _render_step_plan(steps)
+
+            outcome = _run_step_sequence(
+                stripped, steps, provider, skills_context, search_context
+            )
+
+        elif should_send_to_claude(stripped, category, provider):
+            # ── Single-step path ─────────────────────────────────────────────
+            scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
+            outcome = scope[:200]
             console.print(
                 Panel(
                     Markdown(scope),
@@ -1786,7 +1914,11 @@ def _process_alfred_request(
                 if result.returncode == 0
                 else f"Error: {result.stderr[:100]}"
             )
+
         else:
+            # ── Plan-only (no dispatch) ──────────────────────────────────────
+            scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
+            outcome = scope[:200]
             console.print(
                 Panel(
                     Markdown(scope),
