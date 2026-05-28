@@ -911,13 +911,19 @@ def extract_structured_response(raw_response: str) -> dict:
     }
 
 
-def run_claude(prompt: str) -> subprocess.CompletedProcess:
+def run_claude(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
-    return subprocess.run(
-        [_resolve_claude_executable(), "-p", full_prompt],
-        capture_output=True,
-        text=True,
-    )
+    exe = _resolve_claude_executable()
+    args = [exe, "-p", full_prompt]
+    try:
+        return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(args, 1, "", f"Claude timed out after {timeout}s.")
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(
+            args, 127, "",
+            "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude login",
+        )
 
 
 _openai_disabled = False  # set True on auth failure so we don't retry every call
@@ -1046,15 +1052,13 @@ def _resolve_codex_executable() -> str:
     )
 
 
-def run_codex(prompt: str) -> subprocess.CompletedProcess:
+def run_codex(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
     args = [_resolve_codex_executable(), full_prompt]
     try:
-        return subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-        )
+        return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(args, 1, "", f"Codex timed out after {timeout}s.")
     except FileNotFoundError:
         message = (
             "Codex CLI was not found. Run Install-Alfred.bat to install @openai/codex, "
