@@ -336,8 +336,20 @@ if (-not $hasPython) {
     if (Test-Path $PipExe) {
         if (Test-Path $PythonReqFile) {
             Write-Host "  Installing Python packages from requirements/python-requirements.txt..." -ForegroundColor Cyan
-            & $PipExe install --quiet -r $PythonReqFile
-            Write-Done "Packages installed from requirements/python-requirements.txt"
+            $failedPythonPackages = @()
+            Get-Content $PythonReqFile | ForEach-Object {
+                $pkg = $_.Trim()
+                if ($pkg -and -not $pkg.StartsWith("#")) {
+                    & $PipExe install --quiet $pkg
+                    if ($LASTEXITCODE -ne 0) { $failedPythonPackages += $pkg }
+                }
+            }
+            if ($failedPythonPackages.Count -eq 0) {
+                Write-Done "Packages installed from requirements/python-requirements.txt"
+            } else {
+                Write-Warn "Some optional Python packages failed: $($failedPythonPackages -join ', ')"
+                Write-Info "Alfred will continue; affected specialist features can be repaired from Control Tower."
+            }
         } else {
             Write-Host "  Installing Python packages (fallback)..." -ForegroundColor Cyan
             & $PipExe install --quiet anthropic openai rich python-dotenv typer

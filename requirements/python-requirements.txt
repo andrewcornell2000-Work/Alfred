@@ -2,7 +2,6 @@ rich
 python-dotenv
 typer
 truststore
-excellm
 pbi-cli-tool
 winotify
 python-docx

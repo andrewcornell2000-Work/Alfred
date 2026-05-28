@@ -246,7 +246,18 @@ $ReqFile = Join-Path $InstallPath "requirements\python-requirements.txt"
 if (Test-Path $PipExe) {
     Write-Host "  Installing Python packages..." -ForegroundColor Cyan
     if (Test-Path $ReqFile) {
-        & $PipExe install --quiet -r $ReqFile
+        $failedPythonPackages = @()
+        Get-Content $ReqFile | ForEach-Object {
+            $pkg = $_.Trim()
+            if ($pkg -and -not $pkg.StartsWith("#")) {
+                & $PipExe install --quiet $pkg
+                if ($LASTEXITCODE -ne 0) { $failedPythonPackages += $pkg }
+            }
+        }
+        if ($failedPythonPackages.Count -gt 0) {
+            Write-Warn "Some optional Python packages failed: $($failedPythonPackages -join ', ')"
+            Write-Host "  Alfred will continue; repair affected specialist features from Control Tower." -ForegroundColor DarkGray
+        }
     } else {
         & $PipExe install --quiet openai rich python-dotenv typer
     }
