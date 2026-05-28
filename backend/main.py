@@ -1614,6 +1614,40 @@ def get_clipboard_text() -> str:
     return result.stdout.strip()
 
 
+def _render_execution_result(result: subprocess.CompletedProcess) -> None:
+    """Show execution result cleanly — no provider/category headers."""
+    if result.returncode != 0:
+        console.print(
+            Panel(
+                result.stderr.strip()[:400] or "No output.",
+                title="[bold red]Failed[/bold red]",
+                border_style="red",
+                padding=(0, 2),
+            )
+        )
+        return
+    structured = extract_structured_response(result.stdout)
+    parts = []
+    summary  = structured.get("summary", "").strip()
+    next_step = structured.get("recommended_next_step", "").strip()
+    needs_approval = structured.get("needs_user_approval", False)
+    if summary:
+        parts.append(summary)
+    if next_step:
+        parts.append(f"\n**Next:** {next_step}")
+    if needs_approval:
+        parts.append("\n*Waiting for your approval to proceed.*")
+    body = "\n".join(parts) or result.stdout.strip()[:400]
+    console.print(
+        Panel(
+            Markdown(body),
+            title="[bold green]Done[/bold green]",
+            border_style="green",
+            padding=(0, 2),
+        )
+    )
+
+
 def _process_alfred_request(
     stripped: str,
     force_learning: bool = False,
@@ -1672,7 +1706,6 @@ def _process_alfred_request(
 
         # Route QUANT directly to the plugin — no scope generation needed
         if brain_category == "QUANT":
-            console.print("\n[dim]Routing to Quant Intelligence...[/dim]")
             summary = run_quant_query(stripped)
             _render_quant_result(summary)
             append_interaction_log(stripped, "QUANT", "", "quant")
@@ -1689,41 +1722,38 @@ def _process_alfred_request(
             "POWERBI": "POWERBI",
         }.get(brain_category, "GENERAL")
 
-    provider_color = PROVIDER_COLORS.get(provider, "bold white")
-    provider_label = PROVIDER_LABELS.get(provider, provider)
-
-    # Keep tools invisible for plain chat — only surface provider for execution tasks
-    if category in ("POWERBI", "CLAUDE_EXECUTION"):
-        console.print(f"\n[dim]Routing to [{provider_color}]{provider_label}[/{provider_color}][/dim]")
-
     if category == "GENERAL":
         response = generate_general_response(stripped)
         _render_general_response(response)
         outcome = response[:200]
 
     elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
-        # Tavily pre-fetch: grab reference docs before generating the scope
+        # Tavily pre-fetch — silent
         search_context = ""
         if needs_search:
             search_results = _tavily_search(stripped, max_results=3)
             if search_results:
-                console.print(f"[dim]Pre-fetched {len(search_results)} reference(s) for context.[/dim]")
                 search_context = "\n\n".join(
                     f"[{r['title']}]({r['url']})\n{r['content'][:600]}"
                     for r in search_results
                 )
 
-        console.print("\n[bold cyan]Generating plan...[/bold cyan]")
         skills_context = load_relevant_skills(stripped)
         scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
-        console.print(f"\n[bold magenta]Plan:[/bold magenta]\n{scope}")
         outcome = scope[:200]
 
         if should_send_to_claude(stripped, category, provider):
-            # Pre-dispatch adjustment loop: user can refine the plan before execution
+            console.print(
+                Panel(
+                    Markdown(scope),
+                    title="[bold cyan]Plan[/bold cyan]",
+                    border_style="dim",
+                    padding=(0, 2),
+                )
+            )
             try:
                 confirm = console.input(
-                    "\n[bold yellow]Proceed? (Enter = yes, or describe an adjustment) > [/bold yellow]"
+                    "[bold yellow]Proceed? (Enter = yes, or type an adjustment) > [/bold yellow]"
                 ).strip()
             except EOFError:
                 confirm = ""
@@ -1736,36 +1766,34 @@ def _process_alfred_request(
                 return True
 
             if confirm and confirm.lower() not in {"y", "yes"}:
-                # User typed an adjustment — regenerate scope with their context
-                console.print("[dim]Incorporating adjustment and revising plan...[/dim]")
-                stripped = f"{stripped}\n\nUser adjustment: {confirm}"
+                stripped = f"{stripped}\n\nAdjustment: {confirm}"
                 scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
-                console.print(f"\n[bold magenta]Revised Plan:[/bold magenta]\n{scope}")
                 outcome = scope[:200]
+                console.print(
+                    Panel(
+                        Markdown(scope),
+                        title="[bold cyan]Revised Plan[/bold cyan]",
+                        border_style="dim",
+                        padding=(0, 2),
+                    )
+                )
 
-            if provider == "codex":
-                console.print("\n[bold blue]Dispatching to Codex...[/bold blue]")
-                result = run_codex(scope)
-                _render_provider_result(provider, category, result)
-                _notify("Alfred", "Codex task " + ("complete" if result.returncode == 0 else "failed"))
-                outcome = (
-                    result.stdout[:200]
-                    if result.returncode == 0
-                    else f"Error: {result.stderr[:100]}"
-                )
-            else:
-                console.print("\n[bold green]Dispatching to Claude Code...[/bold green]")
-                result = run_claude(scope)
-                _render_provider_result(provider, category, result)
-                _notify("Alfred", "Claude Code task " + ("complete" if result.returncode == 0 else "failed"))
-                outcome = (
-                    result.stdout[:200]
-                    if result.returncode == 0
-                    else f"Error: {result.stderr[:100]}"
-                )
+            result = run_codex(scope) if provider == "codex" else run_claude(scope)
+            _render_execution_result(result)
+            _notify("Alfred", "Task " + ("complete" if result.returncode == 0 else "failed"))
+            outcome = (
+                result.stdout[:200]
+                if result.returncode == 0
+                else f"Error: {result.stderr[:100]}"
+            )
         else:
             console.print(
-                "\n[bold yellow]Plan ready. Dispatch manually if needed.[/bold yellow]"
+                Panel(
+                    Markdown(scope),
+                    title="[bold cyan]Plan[/bold cyan]",
+                    border_style="dim",
+                    padding=(0, 2),
+                )
             )
 
     append_interaction_log(stripped, category, scope, provider)
