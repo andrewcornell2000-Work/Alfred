@@ -1925,8 +1925,10 @@ def _github_api(
     json_data: "dict | None" = None,
     raw_data: "bytes | None" = None,
     content_type: str = "application/octet-stream",
+    timeout: int = 30,
 ) -> "tuple[dict | list, int]":
-    """Make a GitHub API request. Returns (parsed_body, http_status_code)."""
+    """Make a GitHub API request. Returns (parsed_body, http_status_code).
+    The token is only placed in Authorization header — never logged or printed."""
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
@@ -1943,7 +1945,7 @@ def _github_api(
 
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             text = resp.read().decode("utf-8", errors="replace")
             return (json.loads(text) if text.strip() else {}), resp.status
     except urllib.error.HTTPError as e:
@@ -1952,6 +1954,10 @@ def _github_api(
             return json.loads(text), e.code
         except Exception:
             return {"message": text[:300]}, e.code
+    except urllib.error.URLError as e:
+        return {"message": f"Network error: {e.reason}"}, 0
+    except Exception as e:
+        return {"message": str(e)[:200]}, 0
 
 
 def _github_upload_asset(upload_url: str, token: str, filepath: str) -> bool:
@@ -1962,7 +1968,8 @@ def _github_upload_asset(upload_url: str, token: str, filepath: str) -> bool:
     url = f"{base_url}?name={urllib.parse.quote(filename)}"
     with open(filepath, "rb") as fh:
         data = fh.read()
-    _, status = _github_api("POST", url, token, raw_data=data)
+    # Large EXEs can take a while — allow up to 5 minutes for upload
+    _, status = _github_api("POST", url, token, raw_data=data, timeout=300)
     return status in (200, 201)
 
 

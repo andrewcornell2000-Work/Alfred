@@ -434,7 +434,10 @@ if ($existingGithub) {
 } else {
     $openGithub = Read-Host "  Open github.com/settings/tokens in browser? (Y/n)"
     if ($openGithub -notmatch "^[Nn]") { Start-Process "https://github.com/settings/tokens/new" }
-    $githubToken = Read-Host "  Paste your GitHub Personal Access Token (ghp_... or press Enter to skip)"
+    $secureInput = Read-Host "  Paste your GitHub Personal Access Token (ghp_... or press Enter to skip)" -AsSecureString
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput)
+    try { $githubToken = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
     if ($githubToken) {
         Write-EnvVar $EnvFile "GITHUB_TOKEN" $githubToken
         Write-Done "GitHub token saved to .env"
