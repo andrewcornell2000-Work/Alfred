@@ -39,6 +39,18 @@ function Write-Done([string]$Msg)  { Write-Host "  [DONE]   $Msg" -ForegroundCol
 function Write-Warn([string]$Msg)  { Write-Host "  [WARN]   $Msg" -ForegroundColor Yellow }
 function Write-Fail([string]$Msg)  { Write-Host "  [FAIL]   $Msg" -ForegroundColor Red }
 
+function Write-CommandOutput {
+    process {
+        if ($null -ne $_ -and "$_".Trim()) {
+            Write-Host "  $_" -ForegroundColor DarkGray
+        }
+    }
+}
+
+function Invoke-PipInstall([string[]]$Packages) {
+    & $PipExe install --quiet --disable-pip-version-check @Packages
+}
+
 function Find-Command([string]$Name) {
     $found = Get-Command $Name -ErrorAction SilentlyContinue
     if ($found) { return $found.Source }
@@ -197,16 +209,18 @@ if (Test-Path (Join-Path $InstallPath ".git")) {
         & git -C $InstallPath add -A
         & git -C $InstallPath commit -m "Alfred auto-save before update $(Get-Date -Format 'yyyy-MM-dd HH:mm')" 2>$null
     }
-    & git -C $InstallPath pull --ff-only origin $Branch
-    if ($LASTEXITCODE -ne 0) {
+    & git -C $InstallPath pull --ff-only origin $Branch 2>&1 | Write-CommandOutput
+    $pullExitCode = $LASTEXITCODE
+    if ($pullExitCode -ne 0) {
         Write-Warn "Pull had conflicts — continuing with local version."
     } else {
         Write-Done "Repository updated."
     }
 } else {
     Write-Host "  Cloning Alfred..." -ForegroundColor Cyan
-    & git clone --branch $Branch $RepoUrl $InstallPath
-    if ($LASTEXITCODE -ne 0) {
+    & git clone --branch $Branch $RepoUrl $InstallPath 2>&1 | Write-CommandOutput
+    $cloneExitCode = $LASTEXITCODE
+    if ($cloneExitCode -ne 0) {
         Write-Fail "Clone failed. Check your network connection."
         exit 3
     }
@@ -250,7 +264,7 @@ if (Test-Path $PipExe) {
         Get-Content $ReqFile | ForEach-Object {
             $pkg = $_.Trim()
             if ($pkg -and -not $pkg.StartsWith("#")) {
-                & $PipExe install --quiet $pkg
+                Invoke-PipInstall @($pkg)
                 if ($LASTEXITCODE -ne 0) { $failedPythonPackages += $pkg }
             }
         }
@@ -259,7 +273,7 @@ if (Test-Path $PipExe) {
             Write-Host "  Alfred will continue; repair affected specialist features from Control Tower." -ForegroundColor DarkGray
         }
     } else {
-        & $PipExe install --quiet openai rich python-dotenv typer
+        Invoke-PipInstall @("openai", "rich", "python-dotenv", "typer")
     }
     Write-Done "Python packages installed."
 } else {
@@ -552,7 +566,7 @@ try {
 
 if (-not $excellmOk) {
     Write-Host "  Installing excellm into venv..." -ForegroundColor Cyan
-    & $PipExe install --quiet excellm 2>$null
+    Invoke-PipInstall @("excellm") 2>$null
     try {
         & $pyForMcp -c "import excellm" 2>$null | Out-Null
         $excellmOk = ($LASTEXITCODE -eq 0)
@@ -660,7 +674,7 @@ foreach ($candidate in @("pbi-cli.exe", "pbi-cli.cmd", "pbi-cli")) {
 
 if (-not $pbiCliExe) {
     Write-Host "  Installing pbi-cli-tool into venv..." -ForegroundColor Cyan
-    & $PipExe install --quiet pbi-cli-tool 2>$null
+    Invoke-PipInstall @("pbi-cli-tool") 2>$null
     foreach ($candidate in @("pbi-cli.exe", "pbi-cli.cmd", "pbi-cli")) {
         $path = Join-Path $InstallPath ".venv\Scripts\$candidate"
         if (Test-Path $path) { $pbiCliExe = $path; break }

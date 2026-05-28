@@ -45,6 +45,10 @@ function Add-ProcessPathEntry([string]$PathEntry) {
     return $true
 }
 
+function Invoke-PipInstall([string[]]$Packages) {
+    & $PipExe install --quiet --disable-pip-version-check @Packages
+}
+
 function Add-PathEntry([string]$PathEntry) {
     if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
         return $false
@@ -340,7 +344,7 @@ if (-not $hasPython) {
             Get-Content $PythonReqFile | ForEach-Object {
                 $pkg = $_.Trim()
                 if ($pkg -and -not $pkg.StartsWith("#")) {
-                    & $PipExe install --quiet $pkg
+                    Invoke-PipInstall @($pkg)
                     if ($LASTEXITCODE -ne 0) { $failedPythonPackages += $pkg }
                 }
             }
@@ -352,7 +356,7 @@ if (-not $hasPython) {
             }
         } else {
             Write-Host "  Installing Python packages (fallback)..." -ForegroundColor Cyan
-            & $PipExe install --quiet anthropic openai rich python-dotenv typer
+            Invoke-PipInstall @("anthropic", "openai", "rich", "python-dotenv", "typer")
             Write-Done "Packages installed: anthropic, openai, rich, python-dotenv, typer"
         }
     } else {
