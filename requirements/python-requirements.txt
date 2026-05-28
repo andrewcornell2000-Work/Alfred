@@ -1,7 +1,6 @@
 rich
 python-dotenv
 typer
-openai
 truststore
 excellm
 pbi-cli-tool

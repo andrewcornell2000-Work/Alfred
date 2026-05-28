@@ -428,6 +428,7 @@ def _ensure_memory_files() -> None:
         "active-projects.md": f"# Active Projects\n*Last updated: {today}*\n\nNo active projects recorded yet.\n",
         "recent-context.md": f"# Recent Context\n*Last updated: {today}*\n\nNo recent context yet.\n",
         "tool-history.md": f"# Tool History\n*Last updated: {today}*\n\nNo tool history recorded yet.\n",
+        "notes.md": "",
         "autosave.md": "",
     }
     for fname, content in defaults.items():
