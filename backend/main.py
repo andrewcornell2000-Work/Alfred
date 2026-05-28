@@ -16,7 +16,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 import webbrowser
+import mimetypes
 
 
 load_dotenv()
@@ -1250,7 +1252,8 @@ def _show_menu() -> None:
     t.add_row("4", "Platforms")
     t.add_row("5", "Dev Portal")
     t.add_row("6", "Plugins")
-    t.add_row("7", "Exit")
+    t.add_row("7", "Publish Update")
+    t.add_row("8", "Exit")
     console.print(t)
     console.print("[dim]Type [bold]HOME[/bold] at any prompt to return here.[/dim]")
 
@@ -1889,6 +1892,274 @@ def _action_plugins() -> None:
             console.print("[dim]Enter a number or 'back'.[/dim]")
 
 
+# ── GitHub REST API helpers (no gh CLI dependency) ─────────────────────────────
+
+def _get_github_token() -> str:
+    """Find a GitHub PAT from .env or Claude MCP settings."""
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+    if token:
+        return token
+    settings_path = os.path.join(_ROOT, ".claude", "settings.json")
+    if os.path.isfile(settings_path):
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            token = (
+                cfg.get("mcpServers", {})
+                .get("github", {})
+                .get("env", {})
+                .get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
+            )
+            if token:
+                return token
+        except Exception:
+            pass
+    return ""
+
+
+def _github_api(
+    method: str,
+    url: str,
+    token: str,
+    *,
+    json_data: "dict | None" = None,
+    raw_data: "bytes | None" = None,
+    content_type: str = "application/octet-stream",
+) -> "tuple[dict | list, int]":
+    """Make a GitHub API request. Returns (parsed_body, http_status_code)."""
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Alfred/2.0",
+    }
+    body = None
+    if json_data is not None:
+        body = json.dumps(json_data).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    elif raw_data is not None:
+        body = raw_data
+        headers["Content-Type"] = content_type
+        headers["Content-Length"] = str(len(raw_data))
+
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+            return (json.loads(text) if text.strip() else {}), resp.status
+    except urllib.error.HTTPError as e:
+        text = e.read().decode("utf-8", errors="replace")
+        try:
+            return json.loads(text), e.code
+        except Exception:
+            return {"message": text[:300]}, e.code
+
+
+def _github_upload_asset(upload_url: str, token: str, filepath: str) -> bool:
+    """Upload a single file to a GitHub release. Returns True on success."""
+    filename = os.path.basename(filepath)
+    # upload_url looks like: https://uploads.github.com/.../assets{?name,label}
+    base_url = upload_url.split("{")[0]
+    url = f"{base_url}?name={urllib.parse.quote(filename)}"
+    with open(filepath, "rb") as fh:
+        data = fh.read()
+    _, status = _github_api("POST", url, token, raw_data=data)
+    return status in (200, 201)
+
+
+def _action_publish_update() -> None:
+    console.print(Rule("[bold green]Publish Alfred Update[/bold green]"))
+
+    # ── 1. Version tag ─────────────────────────────────────────────────────────
+    raw_version = console.input(
+        "[bold yellow]Version tag (e.g. Alfredv1.5) > [/bold yellow]"
+    ).strip()
+    if not raw_version:
+        console.print("[red]Version is required.[/red]")
+        return
+    version = raw_version.replace(" ", "")
+    if version != raw_version:
+        console.print(
+            f"[yellow]Spaces removed from tag: [bold]{raw_version}[/bold] → [bold]{version}[/bold][/yellow]"
+        )
+
+    # ── 2. GitHub token ────────────────────────────────────────────────────────
+    token = _get_github_token()
+    if not token:
+        console.print(
+            Panel(
+                "[bold red]GitHub token not found.[/bold red]\n\n"
+                "Alfred uses a GitHub Personal Access Token to publish releases.\n\n"
+                "To fix:\n"
+                "  1. Go to [cyan]https://github.com/settings/tokens[/cyan]\n"
+                "  2. Create a token with [bold]repo[/bold] scope\n"
+                "  3. Re-run Alfred-Install.exe and enter your token when prompted,\n"
+                "     OR add it to your [bold].env[/bold] file as:\n"
+                "     [cyan]GITHUB_TOKEN=ghp_...[/cyan]",
+                title="[bold red]Setup Required[/bold red]",
+                border_style="red",
+            )
+        )
+        return
+
+    repo = "andrewcornell2000-Work/Alfred"
+    project_root = (
+        os.path.dirname(_ROOT)
+        if os.path.basename(_ROOT).lower() == "dist"
+        else _ROOT
+    )
+
+    # ── 3. Build Alfred.exe ────────────────────────────────────────────────────
+    console.print("[dim]Building Alfred.exe...[/dim]")
+    build = subprocess.run(
+        ["pyinstaller", "--onefile", "--name", "Alfred", "backend\\main.py"],
+        capture_output=True, text=True, cwd=project_root,
+    )
+    if build.returncode != 0:
+        console.print("[bold red]PyInstaller build failed:[/bold red]")
+        console.print(build.stderr[:3000])
+        return
+    alfred_exe = os.path.join(project_root, "dist", "Alfred.exe")
+    if not os.path.isfile(alfred_exe):
+        console.print("[bold red]Alfred.exe not found after build.[/bold red]")
+        return
+    console.print("[green]Alfred.exe built.[/green]")
+
+    # ── 4. Build Alfred-Install.exe ────────────────────────────────────────────
+    installer_script = os.path.join(project_root, "build-installer.ps1")
+    installer_exe: "str | None" = os.path.join(project_root, "Alfred-Install.exe")
+    if os.path.isfile(installer_script):
+        console.print("[dim]Building Alfred-Install.exe...[/dim]")
+        install_build = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", installer_script],
+            capture_output=True, text=True, cwd=project_root,
+        )
+        if install_build.returncode != 0 or not os.path.isfile(installer_exe):
+            console.print("[yellow]Alfred-Install.exe build failed — will upload Alfred.exe only.[/yellow]")
+            if install_build.stderr.strip():
+                console.print(f"[dim]{install_build.stderr.strip()[:400]}[/dim]")
+            installer_exe = None
+        else:
+            console.print("[green]Alfred-Install.exe built.[/green]")
+    else:
+        console.print("[dim yellow]build-installer.ps1 not found — skipping installer build.[/dim yellow]")
+        installer_exe = None
+
+    # ── 5. Safe git commit (source files only) ─────────────────────────────────
+    console.print("[dim]Staging source changes...[/dim]")
+    safe_paths = [
+        "backend/main.py", "requirements", "skills",
+        "setup.ps1", "run-alfred.bat", "Alfred-Install.ps1", "build-installer.ps1",
+        "memory/session-summary.md", "memory/current-focus.md",
+        "memory/recent-context.md", "memory/active-projects.md",
+    ]
+    for rel in safe_paths:
+        full = os.path.join(project_root, rel.replace("/", os.sep))
+        if os.path.exists(full):
+            subprocess.run(["git", "-C", project_root, "add", rel], capture_output=True)
+
+    staged = subprocess.run(
+        ["git", "-C", project_root, "diff", "--cached", "--quiet"], capture_output=True
+    )
+    if staged.returncode != 0:
+        commit = subprocess.run(
+            ["git", "-C", project_root, "commit", "-m", f"Alfred release {version}"],
+            capture_output=True, text=True,
+        )
+        if commit.returncode == 0:
+            console.print("[green]Changes committed.[/green]")
+        else:
+            console.print(f"[yellow]Commit note:[/yellow] {commit.stderr.strip()[:120]}")
+    else:
+        console.print("[dim]No source changes to commit.[/dim]")
+
+    push = subprocess.run(
+        ["git", "-C", project_root, "push", "origin", "main"],
+        capture_output=True, text=True,
+    )
+    if push.returncode == 0:
+        console.print("[green]Pushed to GitHub.[/green]")
+    else:
+        console.print(f"[yellow]Push note:[/yellow] {push.stderr.strip()[:120]}")
+
+    # ── 6. GitHub release (REST API — no gh CLI needed) ────────────────────────
+    console.print("[dim]Checking GitHub release...[/dim]")
+    api_base = f"https://api.github.com/repos/{repo}"
+
+    release_data, status_code = _github_api(
+        "GET", f"{api_base}/releases/tags/{version}", token
+    )
+
+    if status_code == 200:
+        console.print(f"[yellow]Release [bold]{version}[/bold] exists — replacing assets.[/yellow]")
+        release_id = release_data["id"]
+        upload_url = release_data["upload_url"]
+        # Remove old assets with conflicting names so upload doesn't fail
+        assets_data, _ = _github_api("GET", f"{api_base}/releases/{release_id}/assets", token)
+        if isinstance(assets_data, list):
+            for asset in assets_data:
+                if asset.get("name") in ("Alfred.exe", "Alfred-Install.exe"):
+                    _github_api("DELETE", f"{api_base}/releases/assets/{asset['id']}", token)
+                    console.print(f"[dim]Removed old {asset['name']}[/dim]")
+    elif status_code == 404:
+        console.print(f"[dim]Creating release [bold]{version}[/bold]...[/dim]")
+        new_release, create_status = _github_api(
+            "POST", f"{api_base}/releases", token,
+            json_data={
+                "tag_name": version,
+                "name": version,
+                "body": f"Alfred release {version}",
+                "draft": False,
+                "prerelease": False,
+            },
+        )
+        if create_status not in (200, 201):
+            console.print(
+                f"[bold red]Release creation failed ({create_status}):[/bold red] "
+                f"{new_release.get('message', '')}"
+            )
+            return
+        upload_url = new_release["upload_url"]
+        console.print("[green]Release created.[/green]")
+    else:
+        console.print(
+            f"[bold red]GitHub API error ({status_code}):[/bold red] "
+            f"{release_data.get('message', '')}"
+        )
+        return
+
+    # ── 7. Upload assets ────────────────────────────────────────────────────────
+    upload_ok = True
+    for label, path in [("Alfred.exe", alfred_exe), ("Alfred-Install.exe", installer_exe)]:
+        if not path or not os.path.isfile(path):
+            console.print(f"[dim yellow]{label} not available — skipping.[/dim yellow]")
+            continue
+        console.print(f"[dim]Uploading {label} ({os.path.getsize(path) // 1024} KB)...[/dim]")
+        if _github_upload_asset(upload_url, token, path):
+            console.print(f"[green]{label} uploaded.[/green]")
+        else:
+            console.print(f"[bold red]{label} upload failed.[/bold red]")
+            upload_ok = False
+
+    # ── 8. Done ─────────────────────────────────────────────────────────────────
+    release_url = f"https://github.com/{repo}/releases/tag/{version}"
+    if upload_ok:
+        console.print(
+            Panel.fit(
+                f"[bold green]Alfred published successfully.[/bold green]\n\n"
+                f"[cyan]{release_url}[/cyan]",
+                border_style="green",
+            )
+        )
+        webbrowser.open(release_url)
+    else:
+        console.print(
+            Panel.fit(
+                f"[bold yellow]Published with warnings — check assets manually.[/bold yellow]\n"
+                f"[cyan]{release_url}[/cyan]",
+                border_style="yellow",
+            )
+        )
+
 def _action_view_logs() -> None:
     console.print(Rule("[bold cyan]Recent Interaction Logs[/bold cyan]"))
     logs_path = os.path.join(_ROOT, "logs", "interactions.md")
@@ -1991,6 +2262,7 @@ _ACTIONS = {
     "4": _action_platforms,
     "5": _action_dev_portal,
     "6": _action_plugins,
+    "7": _action_publish_update,
 }
 
 
@@ -2126,7 +2398,7 @@ def main():
 
         choice = "".join(ch for ch in stripped_raw if ch.isdigit())
 
-        if choice == "7":
+        if choice == "8":
             console.print("\n[bold cyan]Alfred Console signing off. Goodbye.[/bold cyan]")
             break
 
@@ -2134,7 +2406,7 @@ def main():
         if action:
             action()
         else:
-            console.print("[dim]Invalid option. Enter 1-7.[/dim]")
+            console.print("[dim]Invalid option. Enter 1-8.[/dim]")
 
     save_session_exit_summary()
     check_and_offer_git_commit()
