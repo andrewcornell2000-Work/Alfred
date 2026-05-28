@@ -47,12 +47,10 @@ GENERAL
 POWERBI
 CLAUDE_EXECUTION
 
-CLAUDE_EXECUTION: Any request that requires taking action using a tool, external API, or live data.
+CLAUDE_EXECUTION: Any request that requires taking direct action on files, systems, or external services.
 This includes:
 - File and code tasks: organise/organize folders, read/edit/create/delete files, run scripts,
   fix bugs, write code, refactor, inspect files, scan directories, execute commands
-- Live web lookups: searching the web, finding latest versions, current documentation,
-  real-time information that requires a web search
 - Browser automation: navigating websites, filling forms, scraping data, taking screenshots
 - GitHub operations: creating PRs, managing issues, reviewing diffs, searching repositories,
   pushing files, creating branches
@@ -61,18 +59,19 @@ This includes:
 POWERBI: Questions about Power BI design, architecture, or DAX that can be answered without
 live tool use (no execution needed).
 
-GENERAL: Pure conversation and questions answerable from training knowledge — no tools, no live
-data, no file access needed.
+GENERAL: Conversation, factual questions, research, and anything that does not require acting
+on a file or external system — including questions about latest versions, current events,
+prices, people, or anything that benefits from a web search.
 
 Return ONLY the category name.
 """
 
 GENERAL_RESPONSE_PROMPT = """
-You are Alfred, an AI orchestration assistant — precise, calm, and quietly indispensable.
+You are Alfred, a desktop AI command center — precise, calm, and quietly indispensable.
 
-Speak like a senior operator who has seen everything and remains unflappable: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
+Speak like a senior operator: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
 
-Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, mention: task classification (GENERAL / POWERBI / CLAUDE_EXECUTION), provider routing (Claude Code for execution and file tasks, OpenAI Mini or Claude for chat and classification), optimized prompt generation, skill-based context injection, memory consolidation, and auto-dispatch.
+Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, say you're a unified assistant that handles: natural conversation and reasoning (Claude), live web research (Tavily), code writing and refactoring (Codex), file and system operations, live Excel editing, Power BI model work, browser automation, GitHub operations, Word/PowerPoint/PDF creation, and market intelligence — all through one chat interface. Tools activate invisibly; you only see results.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -398,6 +397,20 @@ Return exactly this format (no code fences, no extra text outside the delimiters
 """
 
 _memory_context: str = ""
+
+# ── Conversation history (per-session, not persisted) ─────────────────────────
+_chat_history: list[dict] = []
+MAX_HISTORY_TURNS = 8
+
+
+def _append_to_history(role: str, content: str) -> None:
+    """Append to conversation history; prune beyond MAX_HISTORY_TURNS turns."""
+    global _chat_history
+    _chat_history.append({"role": role, "content": content})
+    limit = MAX_HISTORY_TURNS * 2
+    if len(_chat_history) > limit:
+        _chat_history = _chat_history[-limit:]
+
 
 # ── Project Memory State ───────────────────────────────────────────────────────
 _active_project: dict = {}          # {} when no project is active
@@ -796,10 +809,7 @@ def load_relevant_skills(user_input: str) -> str:
 
 
 def classify_task(user_input: str) -> str:
-    raw = _call_openai(CLASSIFIER_PROMPT, user_input)
-    if not raw:
-        console.print("[dim yellow]OpenAI unavailable — classifying with Claude.[/dim yellow]")
-        raw = _call_claude(CLASSIFIER_PROMPT, user_input)
+    raw = _call_claude(CLASSIFIER_PROMPT, user_input) or _call_openai(CLASSIFIER_PROMPT, user_input)
     for cat in ["POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
         if cat in raw.upper():
             return cat
@@ -811,13 +821,14 @@ def generate_general_response(user_input: str) -> str:
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
 
+    # Build search-augmented content
     content = user_input
     if _should_search(user_input):
-        results = _brave_search(user_input)
+        results = _tavily_search(user_input)
         if results:
             console.print(f"[dim]Web search: {len(results)} result(s) found.[/dim]")
             snippets = "\n\n".join(
-                f"[{r['title']}]({r['url']})\n{r['snippet']}"
+                f"[{r['title']}]({r['url']})\n{r['content']}"
                 for r in results
             )
             content = (
@@ -827,15 +838,33 @@ def generate_general_response(user_input: str) -> str:
                 f"{snippets}"
             )
 
-    return _call_openai(system, content) or _call_claude(system, content) or "No response."
+    # Inject prior conversation turns as a transcript so claude -p has context
+    if _chat_history:
+        turns = []
+        for msg in _chat_history:
+            label = "User" if msg["role"] == "user" else "Alfred"
+            turns.append(f"{label}: {msg['content']}")
+        history_block = "\n\n".join(turns)
+        system += f"\n\n## Conversation so far\n{history_block}"
+
+    response = (
+        _call_claude(system, content)
+        or _call_openai(system, content, history=_chat_history)
+        or "No response."
+    )
+    _append_to_history("user", user_input)
+    _append_to_history("assistant", response)
+    return response
 
 
-def generate_claude_scope(user_input: str, skills_context: str = "") -> str:
+def generate_claude_scope(user_input: str, skills_context: str = "", search_context: str = "") -> str:
     system_prompt = CLAUDE_SCOPE_PROMPT
     if _memory_context:
         system_prompt += f"\n\n## Current project memory\n{_memory_context}"
     if skills_context:
         system_prompt += f"\n\nRelevant skills loaded for this task:\n{skills_context}"
+    if search_context:
+        system_prompt += f"\n\n## Pre-fetched reference material (use to inform the plan)\n{search_context}"
     return _call_claude(system_prompt, user_input) or "Could not generate scope."
 
 
@@ -894,8 +923,15 @@ def run_claude(prompt: str) -> subprocess.CompletedProcess:
 _openai_disabled = False  # set True on auth failure so we don't retry every call
 
 
-def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-mini", timeout: int = 60) -> str:
-    """Call OpenAI API with the stored API key."""
+def _call_openai(
+    system_prompt: str,
+    user_content: str,
+    model: str = "gpt-4o-mini",
+    timeout: int = 60,
+    history: "list[dict] | None" = None,
+) -> str:
+    """Call OpenAI API with the stored API key.
+    Pass `history` to maintain multi-turn conversation context."""
     global _openai_disabled
     if _openai_disabled:
         return ""
@@ -905,12 +941,13 @@ def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-min
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": user_content})
         response = client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
+            messages=messages,
             timeout=timeout,
         )
         return response.choices[0].message.content.strip()
@@ -918,12 +955,7 @@ def _call_openai(system_prompt: str, user_content: str, model: str = "gpt-4o-min
         err = str(e)
         if "401" in err or "Incorrect API key" in err or "invalid_api_key" in err:
             _openai_disabled = True
-            console.print(
-                "[bold red]OpenAI key rejected (401).[/bold red] "
-                "Get a new key at [cyan]https://platform.openai.com/api-keys[/cyan] "
-                "and update [cyan].env[/cyan] — using Claude as fallback for this session.\n"
-                "[dim]Tip: type [bold]update key[/bold] in Alfred to enter a new key without restarting.[/dim]"
-            )
+            # OpenAI is optional — Claude is primary, no need to alarm the user
         else:
             console.print(f"[dim red]OpenAI: {err[:120]}[/dim red]")
         return ""
@@ -1079,9 +1111,6 @@ CLAUDE_CODE_ROUTING_KEYWORDS = {
     "powerpoint", "presentation", "slide deck", "pptx", "pdf",
     # Repository/file exploration and deep tool use
     "explore", "file exploration", "repository exploration", "deep tool",
-    # Live web search via Brave Search MCP
-    "search online", "search the web", "web search", "look up online",
-    "latest version of", "current version of", "latest docs", "find online",
     # Browser automation via Playwright MCP
     "playwright", "navigate to http", "browser automation",
     "web scrape", "scrape the", "take a screenshot of", "open the browser",
@@ -1091,7 +1120,7 @@ CLAUDE_CODE_ROUTING_KEYWORDS = {
     "github.com", "merge pr", "push to github",
 }
 
-# Keywords that suggest the query needs live web data — trigger Brave Search
+# Keywords that suggest the query needs live web data — trigger Tavily search
 SEARCH_TRIGGER_KEYWORDS = {
     # Recency / time
     "latest", "newest", "current", "recent", "today", "right now",
@@ -1110,9 +1139,219 @@ SEARCH_TRIGGER_KEYWORDS = {
 }
 
 
-def _get_brave_api_key() -> str:
-    """Read the Brave Search API key from env or Claude MCP settings."""
-    key = os.getenv("BRAVE_API_KEY", "")
+# ── Alfred Capability Registry ────────────────────────────────────────────────
+# Single source of truth: visible in Control Tower, injected into the Brain prompt.
+
+ALFRED_CAPABILITY_REGISTRY = [
+    {
+        "name": "General Chat",
+        "provider": "claude",
+        "category": "GENERAL",
+        "description": "Natural conversation, explanations, brainstorming, analysis",
+        "requires": "claude_cli",
+    },
+    {
+        "name": "Web Research",
+        "provider": "tavily",
+        "category": "SEARCH",
+        "description": "Live data — news, prices, versions, documentation, current events",
+        "requires": "tavily_key",
+    },
+    {
+        "name": "Code & Refactoring",
+        "provider": "codex",
+        "category": "CODE",
+        "description": "Write, fix, refactor, test code in any language",
+        "requires": "codex_cli",
+    },
+    {
+        "name": "File & System Operations",
+        "provider": "claude_code",
+        "category": "EXECUTE",
+        "description": "Read/write files, run scripts, inspect directories, execute commands",
+        "requires": "claude_cli",
+    },
+    {
+        "name": "Excel Automation",
+        "provider": "claude_code",
+        "category": "EXECUTE",
+        "description": "Live workbook editing — formulas, pivot tables, charts, VBA",
+        "requires": "mcp_excel",
+    },
+    {
+        "name": "Power BI",
+        "provider": "claude_code",
+        "category": "POWERBI",
+        "description": "DAX, model editing, relationships, visuals, Power Query diagnosis",
+        "requires": "mcp_powerbi",
+    },
+    {
+        "name": "Browser Automation",
+        "provider": "claude_code",
+        "category": "EXECUTE",
+        "description": "Navigate websites, fill forms, scrape data, take screenshots",
+        "requires": "mcp_playwright",
+    },
+    {
+        "name": "GitHub Operations",
+        "provider": "claude_code",
+        "category": "EXECUTE",
+        "description": "PRs, issues, diffs, commits, branches, repo management",
+        "requires": "mcp_github",
+    },
+    {
+        "name": "Office Documents",
+        "provider": "claude_code",
+        "category": "EXECUTE",
+        "description": "Word reports, PowerPoint decks, PDF extraction via python-docx/pptx",
+        "requires": "claude_cli",
+    },
+    {
+        "name": "Market Intelligence",
+        "provider": "quant",
+        "category": "QUANT",
+        "description": "Trading signals, stock analysis, paper portfolio, institutional flow",
+        "requires": "quant_server",
+    },
+]
+
+_CAPABILITY_REQUIRES_LABELS = {
+    "claude_cli":   "Claude CLI",
+    "codex_cli":    "Codex CLI",
+    "tavily_key":   "Tavily API key",
+    "mcp_excel":    "Excel MCP",
+    "mcp_powerbi":  "Power BI MCP",
+    "mcp_playwright": "Playwright MCP",
+    "mcp_github":   "GitHub MCP",
+    "quant_server": "Quant plugin",
+}
+
+
+def _capability_status(cap: dict) -> tuple[str, str]:
+    """Return (status, note) for a capability based on what's installed/configured."""
+    req = cap.get("requires", "")
+    if req == "claude_cli":
+        ok = bool(shutil.which("claude.cmd") or shutil.which("claude"))
+        return ("ready", "") if ok else ("attention", "claude not installed")
+    if req == "codex_cli":
+        ok = bool(shutil.which("codex.cmd") or shutil.which("codex"))
+        return ("ready", "") if ok else ("attention", "codex not installed")
+    if req == "tavily_key":
+        ok = bool(_get_tavily_api_key())
+        return ("ready", "") if ok else ("attention", "TAVILY_API_KEY missing")
+    if req == "mcp_excel":
+        mcp = _load_mcp_servers()
+        return ("ready", "") if "excel" in mcp else ("planned", "Excel MCP not configured")
+    if req == "mcp_powerbi":
+        mcp = _load_mcp_servers()
+        return ("ready", "") if "powerbi-modeling-mcp" in mcp else ("planned", "Power BI MCP not configured")
+    if req == "mcp_playwright":
+        mcp = _load_mcp_servers()
+        return ("ready", "") if "playwright" in mcp else ("planned", "Playwright MCP not configured")
+    if req == "mcp_github":
+        mcp = _load_mcp_servers()
+        return ("ready", "") if "github" in mcp else ("planned", "GitHub MCP not configured")
+    if req == "quant_server":
+        ok = os.path.isdir(QUANT_PATH)
+        return ("ready", "") if ok else ("planned", "Quant plugin not installed")
+    return ("ready", "")
+
+
+# ── Alfred Brain ───────────────────────────────────────────────────────────────
+
+ALFRED_BRAIN_PROMPT = """
+You are Alfred's routing brain. Given the user's request, return a routing decision as compact JSON.
+
+Alfred is a unified desktop AI command center with these capabilities:
+- GENERAL: conversation, explanations, definitions, brainstorming — Claude replies directly
+- SEARCH: questions needing live/current data (prices, news, latest releases, current events) — Tavily + Claude
+- CODE: write/fix/refactor/review code, tests, scripts — Codex CLI
+- EXECUTE: act on files, PC, apps, external services (Excel, browser, GitHub, Office docs, scripts) — Claude Code + MCP
+- POWERBI: Power BI model, DAX queries, Power Query, visuals — Claude Code + Power BI MCP
+- QUANT: trading signals, stock analysis, paper portfolio, market data — Quant plugin
+
+Provider assignment rules:
+- "claude": GENERAL and SEARCH (conversation only, no tool use)
+- "codex": CODE tasks (repository changes, tests, refactoring)
+- "claude_code": EXECUTE and POWERBI tasks (anything requiring files, MCP tools, or system access)
+- "quant": QUANT tasks only
+
+Return ONLY compact JSON — no markdown fences, no explanation:
+{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI|QUANT","provider":"claude|codex|claude_code|quant","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":""}
+
+Rules:
+- needs_search=true for SEARCH category, and for CODE/EXECUTE/POWERBI tasks that would benefit from pre-fetching API docs or reference material
+- needs_clarification=true only when a required target (specific file, workbook, ticker, URL, etc.) is genuinely ambiguous and cannot be inferred
+- clarification_question should be a short, specific question — or empty string if needs_clarification is false
+- plan is a one-sentence summary of the execution approach for CODE/EXECUTE/POWERBI, empty for GENERAL/SEARCH/QUANT
+"""
+
+
+def alfred_brain(user_input: str) -> dict:
+    """Single LLM call: classify intent, select provider, optionally plan.
+    Falls back to keyword-based routing if Claude is unavailable or returns bad JSON."""
+    raw = _call_claude(ALFRED_BRAIN_PROMPT, user_input)
+    if raw:
+        decision = extract_structured_response(raw)
+        category = decision.get("category", "").upper()
+        provider = decision.get("provider", "")
+        valid_categories = {"GENERAL", "SEARCH", "CODE", "EXECUTE", "POWERBI", "QUANT"}
+        valid_providers = {"claude", "codex", "claude_code", "quant"}
+        if category in valid_categories and provider in valid_providers:
+            decision["category"] = category
+            return decision
+
+    # Pure keyword fallback — no LLM required
+    lowered = user_input.lower()
+    if any(kw in lowered for kw in ["power bi", "powerbi", "dax", "power query"]):
+        return {
+            "category": "POWERBI", "provider": "claude_code",
+            "needs_search": False, "needs_clarification": False,
+            "clarification_question": "", "plan": "",
+        }
+    codex_score = sum(1 for kw in CODEX_ROUTING_KEYWORDS if kw in lowered)
+    claude_score = sum(1 for kw in CLAUDE_CODE_ROUTING_KEYWORDS if kw in lowered)
+    if codex_score > 0 or claude_score > 0:
+        prov = "codex" if codex_score >= claude_score else "claude_code"
+        cat = "CODE" if prov == "codex" else "EXECUTE"
+        return {
+            "category": cat, "provider": prov,
+            "needs_search": False, "needs_clarification": False,
+            "clarification_question": "", "plan": "",
+        }
+    return {
+        "category": "GENERAL", "provider": "claude",
+        "needs_search": _should_search(user_input), "needs_clarification": False,
+        "clarification_question": "", "plan": "",
+    }
+
+
+def _should_search(query: str) -> bool:
+    """Return True if this query likely benefits from live web context.
+    Intentionally broad — Tavily's free tier covers ~1,000 requests/month."""
+    lowered = query.lower().strip()
+    # Skip meta / navigation commands
+    if lowered in {"back", "menu", "home", "exit", "help", "clip", "paste", "done"}:
+        return False
+    if len(lowered) < 8:
+        return False
+    # Question-pattern prefix → almost always an informational request
+    if any(lowered.startswith(w) for w in (
+        "what ", "who ", "when ", "where ", "why ", "how ", "is ", "are ",
+        "was ", "were ", "tell me", "explain", "describe", "show me",
+        "find ", "search ", "look up",
+    )):
+        return True
+    # Explicit question mark → user is asking something
+    if "?" in lowered:
+        return True
+    # Original keyword safety-net
+    return any(kw in lowered for kw in SEARCH_TRIGGER_KEYWORDS)
+
+
+def _get_tavily_api_key() -> str:
+    """Read Tavily API key from env or .claude/settings.json."""
+    key = os.getenv("TAVILY_API_KEY", "")
     if key:
         return key
     settings_path = os.path.join(_ROOT, ".claude", "settings.json")
@@ -1122,53 +1361,55 @@ def _get_brave_api_key() -> str:
                 cfg = json.load(f)
             return (
                 cfg.get("mcpServers", {})
-                .get("brave-search", {})
+                .get("tavily", {})
                 .get("env", {})
-                .get("BRAVE_API_KEY", "")
+                .get("TAVILY_API_KEY", "")
             )
         except Exception:
             pass
     return ""
 
 
-def _should_search(query: str) -> bool:
-    lowered = query.lower()
-    return any(kw in lowered for kw in SEARCH_TRIGGER_KEYWORDS)
-
-
-def _brave_search(query: str, count: int = 5) -> list:
-    """Call Brave Search API and return [{title, url, snippet}] or []."""
-    api_key = _get_brave_api_key()
+def _tavily_search(query: str, max_results: int = 5) -> list:
+    """AI-optimised search via Tavily — returns [{title, url, content}] or [].
+    Returns [] silently if no TAVILY_API_KEY is configured."""
+    api_key = _get_tavily_api_key()
     if not api_key:
         return []
-    url = (
-        "https://api.search.brave.com/res/v1/web/search"
-        f"?q={urllib.parse.quote(query)}&count={count}"
-    )
+
+    body = json.dumps({
+        "api_key": api_key,
+        "query": query,
+        "search_depth": "basic",
+        "max_results": max_results,
+        "include_answer": False,
+    }).encode("utf-8")
     req = urllib.request.Request(
-        url,
-        headers={"Accept": "application/json", "X-Subscription-Token": api_key},
+        "https://api.tavily.com/search",
+        data=body,
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=12) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         return [
             {
                 "title": r.get("title", ""),
                 "url":   r.get("url", ""),
-                "snippet": r.get("description", ""),
+                "content": r.get("content", ""),
             }
-            for r in data.get("web", {}).get("results", [])
-            if r.get("description")
+            for r in data.get("results", [])
+            if r.get("content")
         ]
     except urllib.error.HTTPError as e:
         if e.code == 401:
-            console.print("[dim yellow]Brave Search: invalid API key.[/dim yellow]")
+            console.print("[dim yellow]Tavily Search: invalid API key.[/dim yellow]")
         else:
-            console.print(f"[dim red]Brave Search: HTTP {e.code}[/dim red]")
+            console.print(f"[dim red]Tavily Search: HTTP {e.code}[/dim red]")
         return []
     except Exception as e:
-        console.print(f"[dim red]Brave Search: {e}[/dim red]")
+        console.print(f"[dim red]Tavily Search: {e}[/dim red]")
         return []
 
 
@@ -1176,8 +1417,8 @@ def should_send_to_claude(user_input: str, category: str, provider: str = "") ->
     lowered = user_input.lower()
     if any(kw in lowered for kw in DANGEROUS_KEYWORDS):
         return False
-    # Cost-aware: no auto-dispatch when openai_mini was selected (weak keyword signal)
-    if provider == "openai_mini":
+    # Chat-only providers — no auto-dispatch
+    if provider in {"openai_mini", "claude"}:
         return False
     if category == "CLAUDE_EXECUTION":
         return True
@@ -1238,7 +1479,7 @@ def generate_learning_discussion(user_input: str) -> str:
     system = LEARNING_DISCUSSION_PROMPT
     if _memory_context:
         system += f"\n\n## Current project context\n{_memory_context}"
-    return _call_openai(system, user_input) or _call_claude(system, user_input) or "No response."
+    return _call_claude(system, user_input) or _call_openai(system, user_input) or "No response."
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────
@@ -1246,13 +1487,17 @@ def generate_learning_discussion(user_input: str) -> str:
 PROVIDER_COLORS = {
     "claude_code": "bold green",
     "codex": "bold blue",
-    "openai_mini": "bold yellow",
+    "claude": "bold cyan",
+    "openai_mini": "bold cyan",   # legacy alias → Claude
+    "quant": "bold green",
 }
 
 PROVIDER_LABELS = {
     "claude_code": "Claude Code",
     "codex": "Codex",
-    "openai_mini": "OpenAI Mini",
+    "claude": "Claude",
+    "openai_mini": "Claude",      # legacy alias → Claude
+    "quant": "Quant",
 }
 
 
@@ -1332,7 +1577,7 @@ def _show_header() -> None:
     console.print(
         Panel.fit(
             "[bold cyan]Alfred Console[/bold cyan]  [dim]v2[/dim]\n"
-            "[dim]Multi-Provider AI Router — OpenAI (classify/chat) · Claude Code (execution) · Codex (refactoring)[/dim]",
+            "[dim]AI Command Center — Claude · Codex · Tavily · Excel · Power BI · GitHub · Browser · Office[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
@@ -1369,12 +1614,23 @@ def get_clipboard_text() -> str:
     return result.stdout.strip()
 
 
-def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool:
+def _process_alfred_request(
+    stripped: str,
+    force_learning: bool = False,
+    provider_override: "str | None" = None,
+) -> bool:
     scope = ""
     outcome = ""
 
+    needs_search = False
+
+    # Explicit provider override — skip Brain and learning check
+    if provider_override:
+        category = "CLAUDE_EXECUTION"
+        provider = provider_override
+
     # Dev Portal forces the guarded learning flow even for plain-language notes.
-    if force_learning or is_learning_mode_task(stripped):
+    elif force_learning or is_learning_mode_task(stripped):
         console.print("\n[dim]Learning / Creator Mode - discussing before routing.[/dim]")
         discussion = generate_learning_discussion(stripped)
         _render_general_response(discussion)
@@ -1395,16 +1651,50 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
         console.print("[dim]Confirmed. Proceeding with routing...[/dim]")
         category = "CLAUDE_EXECUTION"
         provider = "codex"
+
     else:
-        category = classify_task(stripped)
-        provider = choose_provider(stripped, category)
+        # ── Alfred Brain: one call to classify, route, and optionally plan ──
+        decision = alfred_brain(stripped)
+        brain_category = decision.get("category", "GENERAL")
+        provider = decision.get("provider", "claude")
+        needs_search = bool(decision.get("needs_search", False))
+
+        # Mid-task clarification: ask before doing anything
+        if decision.get("needs_clarification") and decision.get("clarification_question"):
+            q = decision["clarification_question"]
+            console.print(f"\n[bold cyan]Alfred:[/bold cyan] {q}")
+            try:
+                answer = console.input("[bold yellow]> [/bold yellow]").strip()
+            except EOFError:
+                return False
+            if answer and answer.lower() not in {"back", "skip", "exit", "cancel"}:
+                stripped = f"{stripped}\n\nContext provided: {answer}"
+
+        # Route QUANT directly to the plugin — no scope generation needed
+        if brain_category == "QUANT":
+            console.print("\n[dim]Routing to Quant Intelligence...[/dim]")
+            summary = run_quant_query(stripped)
+            _render_quant_result(summary)
+            append_interaction_log(stripped, "QUANT", "", "quant")
+            append_autosave_entry(stripped, "QUANT", "quant", summary[:200])
+            compress_autosave_if_needed()
+            return True
+
+        # Map Brain categories → pipeline categories (backward-compatible)
+        category = {
+            "GENERAL": "GENERAL",
+            "SEARCH":  "GENERAL",   # search-augmented chat
+            "CODE":    "CLAUDE_EXECUTION",
+            "EXECUTE": "CLAUDE_EXECUTION",
+            "POWERBI": "POWERBI",
+        }.get(brain_category, "GENERAL")
 
     provider_color = PROVIDER_COLORS.get(provider, "bold white")
     provider_label = PROVIDER_LABELS.get(provider, provider)
-    console.print(
-        f"\n[bold green]Category:[/bold green] {category}  "
-        f"[{provider_color}]Provider: {provider_label}[/{provider_color}]"
-    )
+
+    # Keep tools invisible for plain chat — only surface provider for execution tasks
+    if category in ("POWERBI", "CLAUDE_EXECUTION"):
+        console.print(f"\n[dim]Routing to [{provider_color}]{provider_label}[/{provider_color}][/dim]")
 
     if category == "GENERAL":
         response = generate_general_response(stripped)
@@ -1412,15 +1702,49 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
         outcome = response[:200]
 
     elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
-        console.print("\n[bold cyan]Generating scope...[/bold cyan]")
+        # Tavily pre-fetch: grab reference docs before generating the scope
+        search_context = ""
+        if needs_search:
+            search_results = _tavily_search(stripped, max_results=3)
+            if search_results:
+                console.print(f"[dim]Pre-fetched {len(search_results)} reference(s) for context.[/dim]")
+                search_context = "\n\n".join(
+                    f"[{r['title']}]({r['url']})\n{r['content'][:600]}"
+                    for r in search_results
+                )
+
+        console.print("\n[bold cyan]Generating plan...[/bold cyan]")
         skills_context = load_relevant_skills(stripped)
-        scope = generate_claude_scope(stripped, skills_context)
+        scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
         console.print(f"\n[bold magenta]Plan:[/bold magenta]\n{scope}")
         outcome = scope[:200]
 
         if should_send_to_claude(stripped, category, provider):
+            # Pre-dispatch adjustment loop: user can refine the plan before execution
+            try:
+                confirm = console.input(
+                    "\n[bold yellow]Proceed? (Enter = yes, or describe an adjustment) > [/bold yellow]"
+                ).strip()
+            except EOFError:
+                confirm = ""
+
+            if confirm.lower() in {"n", "no", "cancel", "back"}:
+                console.print("[dim]Cancelled.[/dim]")
+                append_interaction_log(stripped, category, scope, provider)
+                append_autosave_entry(stripped, category, provider, "Cancelled by user")
+                compress_autosave_if_needed()
+                return True
+
+            if confirm and confirm.lower() not in {"y", "yes"}:
+                # User typed an adjustment — regenerate scope with their context
+                console.print("[dim]Incorporating adjustment and revising plan...[/dim]")
+                stripped = f"{stripped}\n\nUser adjustment: {confirm}"
+                scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
+                console.print(f"\n[bold magenta]Revised Plan:[/bold magenta]\n{scope}")
+                outcome = scope[:200]
+
             if provider == "codex":
-                console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
+                console.print("\n[bold blue]Dispatching to Codex...[/bold blue]")
                 result = run_codex(scope)
                 _render_provider_result(provider, category, result)
                 _notify("Alfred", "Codex task " + ("complete" if result.returncode == 0 else "failed"))
@@ -1430,7 +1754,7 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
                     else f"Error: {result.stderr[:100]}"
                 )
             else:
-                console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
+                console.print("\n[bold green]Dispatching to Claude Code...[/bold green]")
                 result = run_claude(scope)
                 _render_provider_result(provider, category, result)
                 _notify("Alfred", "Claude Code task " + ("complete" if result.returncode == 0 else "failed"))
@@ -1441,7 +1765,7 @@ def _process_alfred_request(stripped: str, force_learning: bool = False) -> bool
                 )
         else:
             console.print(
-                "\n[bold yellow]Plan ready. Send to provider manually if needed.[/bold yellow]"
+                "\n[bold yellow]Plan ready. Dispatch manually if needed.[/bold yellow]"
             )
 
     append_interaction_log(stripped, category, scope, provider)
@@ -1468,10 +1792,6 @@ def _action_ask_alfred() -> None:
         if stripped.upper() == "HOME" or stripped.lower() in {"back", "menu", "exit"}:
             console.print("[dim]Returning to main menu.[/dim]")
             return
-
-        if stripped.lower() in {"update key", "openai key", "new key", "set key", "update openai key"}:
-            _setup_openai_key()
-            continue
 
         if stripped.lower() in {"pbi connect", "connect pbi", "connect power bi", "power bi connect"}:
             _action_pbi_connect()
@@ -1518,92 +1838,14 @@ def _action_ask_alfred() -> None:
                 continue
             console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
 
-        scope = ""
-        outcome = ""
-
         # Check for explicit provider override ("use claude ...", "use codex ...")
         provider_override = detect_provider_override(stripped)
         if provider_override:
-            task = strip_provider_prefix(stripped)
+            stripped = strip_provider_prefix(stripped)
             console.print(f"[dim]Provider override: {provider_override}[/dim]")
-            category = "CLAUDE_EXECUTION"
-            provider = provider_override
-            stripped = task
 
-        # Learning / Creator Mode: discuss first, then confirm before routing to Codex/Claude
-        elif is_learning_mode_task(stripped):
-            console.print("\n[dim]Learning / Creator Mode — discussing before routing.[/dim]")
-            discussion = generate_learning_discussion(stripped)
-            _render_general_response(discussion)
-            try:
-                confirm = console.input(
-                    "\n[bold yellow]Proceed with this change? (y/n) > [/bold yellow]"
-                )
-            except EOFError:
-                return
-            if confirm.strip().lower() not in {"y", "yes"}:
-                console.print("[dim]Change discarded — nothing written or dispatched.[/dim]")
-                append_interaction_log(stripped, "LEARNING_DECLINED", "", "openai_mini")
-                append_autosave_entry(
-                    stripped, "LEARNING_DECLINED", "openai_mini", "Request declined by user"
-                )
-                compress_autosave_if_needed()
-                continue
-            console.print("[dim]Confirmed. Proceeding with routing...[/dim]")
-            category = "CLAUDE_EXECUTION"
-            provider = "codex"
-        else:
-            category = classify_task(stripped)
-            provider = choose_provider(stripped, category)
-
-        provider_color = PROVIDER_COLORS.get(provider, "bold white")
-        provider_label = PROVIDER_LABELS.get(provider, provider)
-        console.print(
-            f"\n[bold green]Category:[/bold green] {category}  "
-            f"[{provider_color}]Provider: {provider_label}[/{provider_color}]"
-        )
-
-        if category == "GENERAL":
-            response = generate_general_response(stripped)
-            _render_general_response(response)
-            outcome = response[:200]
-
-        elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
-            console.print("\n[bold cyan]Generating scope...[/bold cyan]")
-            skills_context = load_relevant_skills(stripped)
-            scope = generate_claude_scope(stripped, skills_context)
-            console.print(f"\n[bold magenta]Plan:[/bold magenta]\n{scope}")
-            outcome = scope[:200]
-
-            if should_send_to_claude(stripped, category, provider):
-                if provider == "codex":
-                    console.print("\n[bold blue]Auto-dispatching to Codex...[/bold blue]")
-                    result = run_codex(scope)
-                    _render_provider_result(provider, category, result)
-                    _notify("Alfred", "Codex task " + ("complete" if result.returncode == 0 else "failed"))
-                    outcome = (
-                        result.stdout[:200]
-                        if result.returncode == 0
-                        else f"Error: {result.stderr[:100]}"
-                    )
-                else:
-                    console.print("\n[bold green]Auto-dispatching to Claude Code...[/bold green]")
-                    result = run_claude(scope)
-                    _render_provider_result(provider, category, result)
-                    _notify("Alfred", "Claude Code task " + ("complete" if result.returncode == 0 else "failed"))
-                    outcome = (
-                        result.stdout[:200]
-                        if result.returncode == 0
-                        else f"Error: {result.stderr[:100]}"
-                    )
-            else:
-                console.print(
-                    "\n[bold yellow]Plan ready. Send to provider manually if needed.[/bold yellow]"
-                )
-
-        append_interaction_log(stripped, category, scope, provider)
-        append_autosave_entry(stripped, category, provider, outcome)
-        compress_autosave_if_needed()
+        if not _process_alfred_request(stripped, provider_override=provider_override):
+            return
 
 
 def _action_dev_portal() -> None:
@@ -1788,11 +2030,11 @@ def _mcp_runtime_status(name: str, configured_servers: dict) -> tuple[str, str]:
         except ImportError:
             return "attention", "excellm is not importable"
 
-    if name == "brave-search":
+    if name == "tavily":
         return (
-            ("ready", "Live web search available")
-            if svc.get("env", {}).get("BRAVE_API_KEY")
-            else ("attention", "Missing Brave API key")
+            ("ready", "AI web search available")
+            if os.getenv("TAVILY_API_KEY") or svc.get("env", {}).get("TAVILY_API_KEY")
+            else ("attention", "Missing Tavily API key")
         )
 
     if name == "github":
@@ -1819,11 +2061,30 @@ def _status_style(status: str) -> str:
 def _action_control_tower() -> None:
     console.print(Rule("[bold cyan]Control Tower[/bold cyan]"))
     console.print(
-        "[dim]Capability registry for Alfred's providers, Office mastery, MCP stack, and safety posture.[/dim]"
+        "[dim]Live capability readiness — providers, MCP stack, and what Alfred can do right now.[/dim]"
     )
 
     manifest = _load_tool_manifest()
     mcp_servers = _load_mcp_servers()
+
+    # ── Capability Registry ─────────────────────────────────────────────────────
+    cap_table = Table(title="Capabilities", box=box.ROUNDED, border_style="dim", padding=(0, 1))
+    cap_table.add_column("Capability", style="bold cyan", no_wrap=True)
+    cap_table.add_column("Provider", style="bold yellow", no_wrap=True)
+    cap_table.add_column("Status", style="white", no_wrap=True)
+    cap_table.add_column("What Alfred can do", style="white")
+
+    for cap in ALFRED_CAPABILITY_REGISTRY:
+        status, note = _capability_status(cap)
+        prov_label = PROVIDER_LABELS.get(cap["provider"], cap["provider"])
+        prov_color = PROVIDER_COLORS.get(cap["provider"], "white")
+        status_str = _status_style(status)
+        desc = cap["description"]
+        if note:
+            desc = f"{desc} [dim]({note})[/dim]"
+        cap_table.add_row(cap["name"], f"[{prov_color}]{prov_label}[/{prov_color}]", status_str, desc)
+
+    console.print(cap_table)
 
     providers = Table(title="Providers", box=box.ROUNDED, border_style="dim", padding=(0, 1))
     providers.add_column("Provider", style="bold yellow")
@@ -1831,7 +2092,7 @@ def _action_control_tower() -> None:
     providers.add_column("Role", style="white")
     claude_ok = shutil.which("claude.cmd") or shutil.which("claude")
     codex_ok = shutil.which("codex.cmd") or shutil.which("codex")
-    providers.add_row("OpenAI Mini", "[green]configured[/green]" if os.getenv("OPENAI_API_KEY") else "[yellow]fallback only[/yellow]", "Classification and fast chat")
+    providers.add_row("OpenAI Mini", "[green]configured[/green]" if os.getenv("OPENAI_API_KEY") else "[dim]not configured[/dim]", "Optional fallback (not required)")
     providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "Execution, MCP runtime, Office/PC operations")
     providers.add_row("Codex", "[green]installed[/green]" if codex_ok else "[red]missing[/red]", "Code edits, tests, Alfred self-improvement")
     console.print(providers)
@@ -2393,25 +2654,6 @@ def _check_setup() -> None:
         if not os.path.isfile(auth) or os.path.getsize(auth) < 10:
             issues.append("Codex not logged in.\n  Fix: run [bold yellow]codex login[/bold yellow] in a terminal")
 
-    # OpenAI key — optional; Claude handles fallback when missing
-    openai_missing = not os.getenv("OPENAI_API_KEY")
-    claude_logged_in = (
-        claude_installed
-        and os.path.isfile(os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json"))
-        and os.path.getsize(os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")) >= 10
-    )
-    if openai_missing and not claude_logged_in:
-        issues.append(
-            "OpenAI API key missing and Claude not logged in.\n"
-            "  Alfred needs at least one provider to work.\n"
-            "  Option A: add OPENAI_API_KEY to .env\n"
-            "  Option B: run 'claude' in a terminal to authenticate"
-        )
-    elif openai_missing:
-        console.print(
-            "[dim yellow]No OpenAI key — using Claude as fallback for classification and chat.[/dim yellow]"
-        )
-
     # MCP server health checks — verify registered servers are actually available
     settings_path = os.path.join(_ROOT, ".claude", "settings.json")
     mcp_ready = []
@@ -2438,14 +2680,14 @@ def _check_setup() -> None:
                             "Excel MCP: excellm not installed.\n"
                             "  Fix: activate .venv and run: pip install excellm"
                         )
-                elif svc_name == "brave-search":
-                    api_key = svc.get("env", {}).get("BRAVE_API_KEY", "")
+                elif svc_name == "tavily":
+                    api_key = svc.get("env", {}).get("TAVILY_API_KEY", "") or os.getenv("TAVILY_API_KEY", "")
                     if api_key:
                         mcp_ready.append("Web Search")
                     else:
                         issues.append(
-                            "Brave Search MCP: API key missing.\n"
-                            "  Fix: re-run Alfred-Install.exe and enter your Brave Search API key"
+                            "Tavily Search: API key missing.\n"
+                            "  Fix: add TAVILY_API_KEY=tvly-... to your .env file"
                         )
                 elif svc_name == "github":
                     token = svc.get("env", {}).get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
@@ -2476,8 +2718,6 @@ def _check_setup() -> None:
     else:
         console.print("[dim green]Pre-flight check passed.[/dim green]")
 
-    if openai_missing and not claude_logged_in:
-        _setup_openai_key()
 
 
 def main():
