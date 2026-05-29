@@ -21,8 +21,7 @@
 param(
     [string]$InstallPath = "$env:USERPROFILE\Alfred",
     [string]$RepoUrl    = "https://github.com/andrewcornell2000-Work/Alfred.git",
-    [string]$Branch     = "main",
-    [string]$QuantUrl   = "https://alfred-production-8fe8.up.railway.app"
+    [string]$Branch     = "main"
 )
 
 $ErrorActionPreference = "Continue"
@@ -411,9 +410,6 @@ if ($existingTavily) {
         $tavilyKey = ""
     }
 }
-
-Write-EnvVar $EnvFile "QUANT_BASE_URL" $QuantUrl
-Write-OK "Quant plugin URL configured."
 
 # ── Step 7b: Anthropic API Key (10x faster responses) ────────────────────────
 

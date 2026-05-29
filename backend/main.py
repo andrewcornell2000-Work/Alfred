@@ -190,168 +190,6 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
     return ""
 
 
-# ── Quant Intelligence Tool ────────────────────────────────────────────────────
-
-QUANT_PATH = os.getenv("QUANT_PATH", os.path.join(_ROOT, "plugins", "quant"))
-QUANT_PORT = int(os.getenv("QUANT_PORT", "5000"))
-QUANT_BASE = os.getenv("QUANT_BASE_URL", "https://alfred-production-8fe8.up.railway.app")
-
-_quant_proc: "subprocess.Popen | None" = None
-
-QUANT_COMMAND_PROMPT = """
-You are a command parser for the Quant Intelligence System API.
-
-Given a user query about stocks, trading, or market analysis, return ONLY a compact JSON
-object describing the command to execute. No explanation, no code fences.
-
-Available commands:
-{"cmd": "analyze",      "ticker": "AAPL"} — full technical + sentiment + options analysis
-{"cmd": "backtest",     "ticker": "AAPL"} — backtest strategy for a ticker
-{"cmd": "institutional","ticker": "AAPL"} — smart-money / institutional flow
-{"cmd": "opportunities"}                  — scan all tracked stocks for trade signals
-{"cmd": "macro"}                          — current macro environment
-{"cmd": "paper"}                          — paper trading portfolio stats
-{"cmd": "alerts"}                         — recent trade alerts
-{"cmd": "learning"}                       — signal reliability and learning performance
-{"cmd": "refresh"}                        — clear the data cache
-
-Return ONLY the JSON.
-"""
-
-QUANT_SUMMARY_PROMPT = """
-You are Alfred, a precise and unflappable AI assistant.
-
-Summarize the following Quant Intelligence System data in 3-6 bullet points.
-Focus on actionable signals: direction, score, key drivers, risks.
-Be concise and direct. No filler. No "Certainly!".
-"""
-
-
-def _quant_is_running() -> bool:
-    try:
-        urllib.request.urlopen(f"{QUANT_BASE}/api/alerts", timeout=2)
-        return True
-    except Exception:
-        return False
-
-
-def _quant_start_server() -> bool:
-    global _quant_proc
-    python_exe = sys.executable
-    try:
-        _quant_proc = subprocess.Popen(
-            [python_exe, "app.py"],
-            cwd=QUANT_PATH,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        for _ in range(10):
-            time.sleep(0.5)
-            if _quant_is_running():
-                return True
-        return False
-    except Exception as e:
-        console.print(f"[bold red]Failed to start Quant server:[/bold red] {e}")
-        return False
-
-
-def _quant_ensure_running() -> bool:
-    if _quant_is_running():
-        return True
-    console.print("[dim]Starting Quant server...[/dim]")
-    ok = _quant_start_server()
-    if ok:
-        console.print("[bold green]Quant server ready.[/bold green]")
-    else:
-        console.print(
-            f"[bold red]Could not start Quant server.[/bold red] "
-            f"Check that app.py exists at [cyan]{QUANT_PATH}[/cyan]"
-        )
-    return ok
-
-
-def _quant_fetch(endpoint: str) -> dict:
-    url = f"{QUANT_BASE}{endpoint}"
-    try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        try:
-            return json.loads(body)
-        except Exception:
-            return {"error": f"HTTP {e.code}: {body[:200]}"}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def _quant_parse_command(user_input: str) -> dict:
-    raw = _call_claude(QUANT_COMMAND_PROMPT, user_input)
-    try:
-        parsed = extract_structured_response(raw)
-        if "cmd" in parsed:
-            return parsed
-        return json.loads(raw)
-    except Exception:
-        return {"cmd": "opportunities"}
-
-
-def _quant_summarize(data: dict, user_input: str) -> str:
-    payload = json.dumps(data, default=str)[:4000]
-    return (
-        _call_claude(QUANT_SUMMARY_PROMPT, f"User asked: {user_input}\n\nData:\n{payload}", timeout=90)
-        or "No summary available."
-    )
-
-
-def run_quant_query(user_input: str) -> str:
-    if not _quant_ensure_running():
-        return "Quant server unavailable."
-
-    cmd = _quant_parse_command(user_input)
-    console.print(f"[dim]Quant command: {cmd}[/dim]")
-
-    c = cmd.get("cmd", "opportunities")
-    ticker = cmd.get("ticker", "").upper()
-
-    endpoint_map = {
-        "opportunities": "/api/opportunities",
-        "macro":         "/api/macro",
-        "paper":         "/api/paper",
-        "alerts":        "/api/alerts",
-        "learning":      "/api/learning",
-        "refresh":       "/api/refresh",
-    }
-    ticker_map = {
-        "analyze":       "/api/analyze/",
-        "backtest":      "/api/backtest/",
-        "institutional": "/api/institutional/",
-    }
-
-    if c in ticker_map:
-        if not ticker:
-            return "Please specify a ticker — e.g. 'analyze AAPL'."
-        data = _quant_fetch(f"{ticker_map[c]}{ticker}")
-    elif c in endpoint_map:
-        data = _quant_fetch(endpoint_map[c])
-    else:
-        data = _quant_fetch("/api/opportunities")
-
-    if "error" in data and len(data) == 1:
-        return f"Quant error: {data['error']}"
-
-    return _quant_summarize(data, user_input)
-
-
-def _render_quant_result(summary: str) -> None:
-    console.print(
-        Panel(
-            Markdown(summary),
-            title="[bold green]Quant Intelligence[/bold green]",
-            border_style="green",
-            padding=(0, 2),
-        )
-    )
 
 
 def _action_pbi_connect() -> None:
@@ -377,12 +215,6 @@ def _action_pbi_connect() -> None:
         console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
         console.print(f"Run manually in a new terminal (with .venv active): [bold yellow]pbi connect[/bold yellow]")
 
-
-def _action_quant_dashboard() -> None:
-    console.print(Rule("[bold green]Quant Dashboard[/bold green]"))
-    console.print(f"[dim]Opening {QUANT_BASE}[/dim]")
-    webbrowser.open(QUANT_BASE)
-    console.print("[bold green]Dashboard launched in browser.[/bold green]")
 
 # ── Memory system ──────────────────────────────────────────────────────────────
 
@@ -871,14 +703,15 @@ def classify_task(user_input: str) -> str:
     return "GENERAL"
 
 
-def generate_general_response(user_input: str) -> str:
+def generate_general_response(user_input: str, brain_says_search: bool = False) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
 
     # Build search-augmented content
+    # Use Tavily if the brain flagged it OR if our local heuristic agrees
     content = user_input
-    if _should_search(user_input):
+    if brain_says_search or _should_search(user_input):
         results = _tavily_search(user_input)
         if results:
             console.print(f"[dim]Web search: {len(results)} result(s) found.[/dim]")
@@ -1147,19 +980,22 @@ def _resolve_codex_executable() -> str:
 
 
 def run_codex(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
+    """Run a prompt through Codex CLI. Falls back to Claude Code if Codex is unavailable or
+    throws the common TTY error (stdout is not a terminal)."""
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
     args = [_resolve_codex_executable(), full_prompt]
     try:
-        return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        # Codex throws "stdout is not a terminal" when run headless — fall back to Claude Code
+        if result.returncode != 0 and "not a terminal" in result.stderr.lower():
+            console.print("[dim]Codex requires a terminal — using Claude Code instead.[/dim]")
+            return run_claude(prompt, timeout=timeout)
+        return result
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(args, 1, "", f"Codex timed out after {timeout}s.")
     except FileNotFoundError:
-        message = (
-            "Codex CLI was not found. Run Install-Alfred.bat to install @openai/codex, "
-            "then open a new terminal and run 'codex login'. If Codex is installed in a "
-            "custom location, set CODEX_BIN to the full path of codex.cmd."
-        )
-        return subprocess.CompletedProcess(args, 127, "", message)
+        # Codex not installed — silently fall back to Claude Code
+        return run_claude(prompt, timeout=timeout)
 
 
 DANGEROUS_KEYWORDS = [
@@ -1304,24 +1140,16 @@ ALFRED_CAPABILITY_REGISTRY = [
         "description": "Word reports, PowerPoint decks, PDF extraction via python-docx/pptx",
         "requires": "claude_cli",
     },
-    {
-        "name": "Market Intelligence",
-        "provider": "quant",
-        "category": "QUANT",
-        "description": "Trading signals, stock analysis, paper portfolio, institutional flow",
-        "requires": "quant_server",
-    },
 ]
 
 _CAPABILITY_REQUIRES_LABELS = {
-    "claude_cli":   "Claude CLI",
-    "codex_cli":    "Codex CLI",
-    "tavily_key":   "Tavily API key",
-    "mcp_excel":    "Excel MCP",
-    "mcp_powerbi":  "Power BI MCP",
+    "claude_cli":     "Claude CLI",
+    "codex_cli":      "Codex CLI",
+    "tavily_key":     "Tavily API key",
+    "mcp_excel":      "Excel MCP",
+    "mcp_powerbi":    "Power BI MCP",
     "mcp_playwright": "Playwright MCP",
-    "mcp_github":   "GitHub MCP",
-    "quant_server": "Quant plugin",
+    "mcp_github":     "GitHub MCP",
 }
 
 
@@ -1349,9 +1177,6 @@ def _capability_status(cap: dict) -> tuple[str, str]:
     if req == "mcp_github":
         mcp = _load_mcp_servers()
         return ("ready", "") if "github" in mcp else ("planned", "GitHub MCP not configured")
-    if req == "quant_server":
-        ok = os.path.isdir(QUANT_PATH)
-        return ("ready", "") if ok else ("planned", "Quant plugin not installed")
     return ("ready", "")
 
 
@@ -1360,29 +1185,26 @@ def _capability_status(cap: dict) -> tuple[str, str]:
 ALFRED_BRAIN_PROMPT = """
 You are Alfred's routing brain. Given the user's request, return a routing decision as compact JSON.
 
-Alfred is a unified desktop AI command center with these capabilities:
+Alfred is a personal AI assistant with these capabilities:
 - GENERAL: conversation, explanations, definitions, brainstorming — Claude replies directly
-- SEARCH: questions needing live/current data (prices, news, latest releases, current events) — Tavily + Claude
-- CODE: write/fix/refactor/review code, tests, scripts — Codex CLI
+- SEARCH: questions needing live/current data (prices, news, latest versions, current events) — Tavily + Claude
+- CODE: write/fix/refactor/review code, tests, scripts — Claude Code
 - EXECUTE: act on files, PC, apps, external services (Excel, browser, GitHub, Office docs, scripts) — Claude Code + MCP
 - POWERBI: Power BI model, DAX queries, Power Query, visuals — Claude Code + Power BI MCP
-- QUANT: trading signals, stock analysis, paper portfolio, market data — Quant plugin
 
 Provider assignment rules:
-- "claude": GENERAL and SEARCH (conversation only, no tool use)
-- "codex": CODE tasks (repository changes, tests, refactoring)
-- "claude_code": EXECUTE and POWERBI tasks (anything requiring files, MCP tools, or system access)
-- "quant": QUANT tasks only
+- "claude": GENERAL and SEARCH (conversation and research only, no tool use)
+- "claude_code": CODE, EXECUTE, and POWERBI tasks (anything requiring files, MCP tools, or system access)
 
 Return ONLY compact JSON — no markdown fences, no explanation:
-{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI|QUANT","provider":"claude|codex|claude_code|quant","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":"","steps":[]}
+{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI","provider":"claude|claude_code","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":"","steps":[]}
 
 Rules:
-- needs_search=true for SEARCH category, and for CODE/EXECUTE/POWERBI tasks that would benefit from pre-fetching API docs or reference material
-- needs_clarification=true only when a required target (specific file, workbook, ticker, URL, etc.) is genuinely ambiguous and cannot be inferred
+- needs_search=true for SEARCH category, and for GENERAL questions about current events, prices, latest versions, or recent news
+- needs_clarification=true only when a required target (file, workbook, URL, etc.) is genuinely ambiguous and cannot be inferred
 - clarification_question should be a short, specific question — or empty string if needs_clarification is false
-- plan is a one-sentence summary of the execution approach for CODE/EXECUTE/POWERBI, empty for GENERAL/SEARCH/QUANT
-- steps: array of 2–5 short action strings for compound requests with multiple distinct sequential actions (e.g. ["Read workbook structure", "Identify data issues", "Fix formulas", "Summarise changes"]); empty array [] for single-action tasks, GENERAL, SEARCH, or QUANT
+- plan is a one-sentence plain-English summary of what will be done for CODE/EXECUTE/POWERBI, empty for GENERAL/SEARCH
+- steps: array of 2–5 short action strings for compound requests; empty array [] for single-action tasks or GENERAL/SEARCH
 """
 
 
@@ -1406,8 +1228,11 @@ def alfred_brain(user_input: str) -> dict:
         decision = extract_structured_response(raw)
         category = decision.get("category", "").upper()
         provider = decision.get("provider", "")
-        valid_categories = {"GENERAL", "SEARCH", "CODE", "EXECUTE", "POWERBI", "QUANT"}
-        valid_providers = {"claude", "codex", "claude_code", "quant"}
+        valid_categories = {"GENERAL", "SEARCH", "CODE", "EXECUTE", "POWERBI"}
+        valid_providers = {"claude", "claude_code"}
+        # Normalise: brain sometimes returns "codex" — remap to claude_code
+        if provider == "codex":
+            provider = "claude_code"
         if category in valid_categories and provider in valid_providers:
             decision["category"] = category
             return decision
@@ -1600,7 +1425,6 @@ PROVIDER_COLORS = {
     "codex": "bold blue",
     "claude": "bold cyan",
     "openai_mini": "bold cyan",   # legacy alias → Claude
-    "quant": "bold green",
 }
 
 PROVIDER_LABELS = {
@@ -1608,7 +1432,6 @@ PROVIDER_LABELS = {
     "codex": "Codex",
     "claude": "Claude",
     "openai_mini": "Claude",      # legacy alias → Claude
-    "quant": "Quant plugin",
 }
 
 
@@ -1921,14 +1744,9 @@ def _process_alfred_request(
             if answer and answer.lower() not in {"back", "skip", "exit", "cancel"}:
                 stripped = f"{stripped}\n\nContext provided: {answer}"
 
-        # Route QUANT directly to the plugin — no scope generation needed
-        if brain_category == "QUANT":
-            summary = run_quant_query(stripped)
-            _render_quant_result(summary)
-            append_interaction_log(stripped, "QUANT", "", "quant")
-            append_autosave_entry(stripped, "QUANT", "quant", summary[:200])
-            compress_autosave_if_needed()
-            return True
+        # Normalise provider — brain may still return "codex" or "quant" from old sessions
+        if provider in {"codex", "quant"}:
+            provider = "claude_code"
 
         # Map Brain categories → pipeline categories (backward-compatible)
         category = {
@@ -1940,7 +1758,7 @@ def _process_alfred_request(
         }.get(brain_category, "GENERAL")
 
     if category == "GENERAL":
-        response = generate_general_response(stripped)
+        response = generate_general_response(stripped, brain_says_search=needs_search)
         _render_general_response(response)
         outcome = response[:200]
 
@@ -2634,17 +2452,9 @@ def _action_platforms() -> None:
 def _discover_plugins() -> list:
     """Return available plugins as dicts with name, description, action callable."""
     plugins = []
-    if os.path.isdir(QUANT_PATH):
-        plugins.append({
-            "name": "Quant Intelligence",
-            "description": "Live trading analysis — signals, paper trading, alerts",
-            "action": _action_quant_dashboard,
-        })
     plugins_dir = os.path.join(_ROOT, "plugins")
     if os.path.isdir(plugins_dir):
         for entry in sorted(os.listdir(plugins_dir)):
-            if entry == "quant":
-                continue
             entry_path = os.path.join(plugins_dir, entry)
             if os.path.isdir(entry_path) and os.path.isfile(os.path.join(entry_path, "app.py")):
                 plugins.append({
@@ -3017,11 +2827,6 @@ def _action_show_dispatch_rules() -> None:
         "POWERBI — DAX, model, visuals, Power Query",
         "Claude Code",
         "[green]Plan shown → confirm → dispatch to Claude Code[/green]",
-    )
-    t.add_row(
-        "QUANT — trading signals, stock analysis",
-        "Quant plugin",
-        "[green]Routed directly to Quant API[/green]",
     )
     t.add_row(
         "Dangerous keyword detected",
