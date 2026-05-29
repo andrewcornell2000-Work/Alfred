@@ -979,22 +979,56 @@ def _resolve_codex_executable() -> str:
     )
 
 
+def _extract_codex_response(jsonl_output: str) -> str:
+    """Parse Codex --json JSONL output and return the agent response text.
+
+    Codex emits one JSON object per line. We collect every agent_message text
+    from item.completed events, which is the actual response from the model.
+    """
+    texts: list[str] = []
+    for line in jsonl_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            if obj.get("type") == "item.completed":
+                item = obj.get("item", {})
+                if item.get("type") == "agent_message" and item.get("text"):
+                    texts.append(item["text"])
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return "\n".join(texts)
+
+
 def run_codex(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
-    """Run a prompt through Codex CLI. Falls back to Claude Code if Codex is unavailable or
-    throws the common TTY error (stdout is not a terminal)."""
+    """Run a prompt through Codex CLI using non-interactive exec mode.
+
+    Uses `codex exec --json -` which reads the prompt from stdin and emits
+    JSONL events — no TTY required, fully headless. Falls back to Claude Code
+    only if the Codex executable is not found.
+    """
     full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
-    args = [_resolve_codex_executable(), full_prompt]
+    exe = _resolve_codex_executable()
+    args = [exe, "exec", "--json", "-"]
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
-        # Codex throws "stdout is not a terminal" when run headless — fall back to Claude Code
-        if result.returncode != 0 and "not a terminal" in result.stderr.lower():
-            console.print("[dim]Codex requires a terminal — using Claude Code instead.[/dim]")
-            return run_claude(prompt, timeout=timeout)
+        result = subprocess.run(
+            args,
+            input=full_prompt,       # pipe prompt via stdin — no TTY needed
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            # Extract clean response text from JSONL event stream
+            response_text = _extract_codex_response(result.stdout)
+            if response_text:
+                return subprocess.CompletedProcess(args, 0, response_text, result.stderr)
         return result
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(args, 1, "", f"Codex timed out after {timeout}s.")
     except FileNotFoundError:
-        # Codex not installed — silently fall back to Claude Code
+        console.print("[dim]Codex CLI not found — falling back to Claude Code.[/dim]")
         return run_claude(prompt, timeout=timeout)
 
 
