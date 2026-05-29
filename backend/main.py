@@ -69,16 +69,38 @@ Return ONLY the category name.
 """
 
 GENERAL_RESPONSE_PROMPT = """
-You are Alfred, a personal AI assistant — helpful, warm, and quietly capable.
+You are Alfred — a personal AI assistant running on the user's Windows PC.
 
-Respond naturally, like a knowledgeable colleague who gets things done without fuss.
-Be concise but complete. Match the user's tone — casual when they're casual, precise when they need precision.
-When you've done something, briefly explain what you did in plain English.
-If something is unclear, ask one short clarifying question rather than guessing or refusing.
-Never be robotic, overly formal, or use unnecessary jargon.
-Don't start responses with "Certainly!", "Great question!", "Of course!", or similar filler.
+You have real tools on this machine:
+- Files & folders: read, write, organise anything on this PC or OneDrive
+- Excel: live workbook automation (open, read, write, pivot tables, charts, VBA)
+- Power BI: DAX, model editing, relationships, visuals, Power Query
+- Code: write, fix, refactor, test in any language
+- Browser: navigate websites, fill forms, scrape data, take screenshots
+- GitHub: pull requests, issues, code review, commits, branches
+- Office documents: Word reports, PowerPoint decks, PDF extraction
+- Web search: live news, prices, documentation, current events
 
-When asked what you can do: you handle conversation, research, code, file & system tasks, live Excel editing, Power BI work, browser automation, GitHub, and Office documents — all through one chat interface. Tools activate in the background; the user just sees results.
+How to behave:
+- Be direct. If they ask you to find a file, find it. If they want a report checked, check it.
+- Match the user's tone — casual when they're casual, precise when they need it.
+- When you've done something, briefly say what you found or changed.
+- If something's unclear, ask one short question rather than guessing or refusing.
+- Never use filler phrases like "Certainly!", "Great question!", or "Of course!".
+- Don't describe what you're about to do at length — just do it and report back.
+"""
+
+ALFRED_EXECUTOR_PROMPT = """
+You are Alfred's execution engine running on the user's Windows PC.
+
+Complete the task using available tools — file system, MCP servers (Excel, Power BI, GitHub, browser), code execution.
+
+Rules:
+1. Act directly. Use your tools. Don't just plan — complete the task.
+2. Before deleting, overwriting, or publishing anything irreversible, describe exactly what you're about to do and ask for confirmation.
+3. After finishing, give a plain-English summary: what you found, what you changed, what's next if anything.
+4. If a required target (file, workbook, URL) isn't specified and can't be inferred, ask one short question.
+5. Keep your response focused — the user sees everything you output.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -756,6 +778,39 @@ def generate_claude_scope(user_input: str, skills_context: str = "", search_cont
     return _call_claude(system_prompt, user_input) or "Could not generate scope."
 
 
+def _build_execution_prompt(
+    user_input: str,
+    skills_context: str = "",
+    search_context: str = "",
+) -> str:
+    """Build a context-rich execution prompt for Claude Code / Codex.
+
+    Unlike generate_claude_scope(), this is pure string formatting — no extra LLM
+    call required. Alfred's executor prompt sets the agent's behaviour; context
+    blocks give it the information it needs to act accurately.
+    """
+    parts: list[str] = [ALFRED_EXECUTOR_PROMPT, f"\n## Task\n{user_input}"]
+
+    if _memory_context:
+        parts.append(f"\n## User context\n{_memory_context}")
+
+    if search_context:
+        parts.append(f"\n## Reference material (from live search)\n{search_context}")
+
+    if skills_context:
+        parts.append(f"\n## Relevant skills / how-to notes\n{skills_context}")
+
+    if _chat_history:
+        recent = _chat_history[-4:]
+        turns = "\n".join(
+            f"{'User' if m['role'] == 'user' else 'Alfred'}: {m['content'][:200]}"
+            for m in recent
+        )
+        parts.append(f"\n## Recent conversation\n{turns}")
+
+    return "\n".join(parts)
+
+
 CLAUDE_JSON_INSTRUCTION = (
     "Respond ONLY in compact JSON with no markdown, no prose, and no code fences. "
     "Use exactly these keys: summary, root_cause, recommended_next_step, needs_user_approval. "
@@ -800,18 +855,33 @@ def extract_structured_response(raw_response: str) -> dict:
 
 
 def run_claude(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
-    full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
+    """Run a task through Claude Code CLI. Returns plain-text response — no JSON forcing."""
     exe = _resolve_claude_executable()
-    args = [exe, "-p", full_prompt]
-    try:
-        return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(args, 1, "", f"Claude timed out after {timeout}s.")
-    except FileNotFoundError:
-        return subprocess.CompletedProcess(
-            args, 127, "",
-            "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude login",
-        )
+    # Write long prompts to a temp file to avoid Windows CLI length limits
+    if len(prompt) > 6000:
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write(prompt)
+            tmp_path = f.name
+        try:
+            args = ["powershell", "-NoProfile", "-Command",
+                    f"Get-Content -Raw '{tmp_path}' | & '{exe}' -p -"]
+            result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        finally:
+            try: os.unlink(tmp_path)
+            except Exception: pass
+        return result
+    else:
+        args = [exe, "-p", prompt]
+        try:
+            return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(args, 1, "", f"Claude timed out after {timeout}s.")
+        except FileNotFoundError:
+            return subprocess.CompletedProcess(
+                args, 127, "",
+                "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude login",
+            )
 
 
 _openai_disabled = False    # set True on auth failure so we don't retry every call
@@ -1008,13 +1078,12 @@ def run_codex(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
     JSONL events — no TTY required, fully headless. Falls back to Claude Code
     only if the Codex executable is not found.
     """
-    full_prompt = f"{CLAUDE_JSON_INSTRUCTION}\n\n{prompt}"
     exe = _resolve_codex_executable()
     args = [exe, "exec", "--json", "-"]
     try:
         result = subprocess.run(
             args,
-            input=full_prompt,       # pipe prompt via stdin — no TTY needed
+            input=prompt,            # pipe prompt via stdin — no TTY needed
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -1185,6 +1254,139 @@ _CAPABILITY_REQUIRES_LABELS = {
     "mcp_playwright": "Playwright MCP",
     "mcp_github":     "GitHub MCP",
 }
+
+# ── Tool Registry ─────────────────────────────────────────────────────────────
+# Single source of truth for what Alfred can do.
+# Add new tools here or call register_tool() from a plugin.
+# Powers: /tools display, brain prompt context, routing hints.
+
+TOOL_REGISTRY: dict[str, dict] = {
+    "chat": {
+        "name": "Chat & Research",
+        "description": "Conversation, explanations, brainstorming, analysis",
+        "category": "GENERAL",
+        "provider": "claude",
+        "requires": "claude_api",
+        "keywords": [],
+        "examples": ["explain this", "what does X mean", "help me think through"],
+    },
+    "search": {
+        "name": "Web Search",
+        "description": "Live data — news, prices, docs, current events",
+        "category": "SEARCH",
+        "provider": "claude",
+        "requires": "tavily_key",
+        "keywords": ["latest", "current", "news", "price", "version", "today"],
+        "examples": ["what's the latest Python version", "price of", "news about"],
+    },
+    "files": {
+        "name": "Files & System",
+        "description": "Read, write, organise files and folders on this PC",
+        "category": "EXECUTE",
+        "provider": "claude_code",
+        "requires": "claude_cli",
+        "keywords": ["file", "folder", "directory", "read", "write", "organise", "organize", "find file"],
+        "examples": ["find my wages report", "organise this folder", "read this file"],
+    },
+    "code": {
+        "name": "Code",
+        "description": "Write, fix, refactor, test code in any language",
+        "category": "CODE",
+        "provider": "claude_code",
+        "requires": "claude_cli",
+        "keywords": ["code", "function", "bug", "test", "refactor", "script", "write a", "fix this"],
+        "examples": ["fix this bug", "write a Python script to", "refactor this function"],
+    },
+    "excel": {
+        "name": "Excel",
+        "description": "Live workbook automation — formulas, pivot tables, charts, VBA",
+        "category": "EXECUTE",
+        "provider": "claude_code",
+        "requires": "mcp_excel",
+        "keywords": ["excel", "spreadsheet", "workbook", "pivot", "chart", "formula", "vba", "macro"],
+        "examples": ["check my Excel file", "add a pivot table", "update the formula in"],
+    },
+    "powerbi": {
+        "name": "Power BI",
+        "description": "DAX, model editing, relationships, visuals, Power Query",
+        "category": "POWERBI",
+        "provider": "claude_code",
+        "requires": "mcp_powerbi",
+        "keywords": ["power bi", "powerbi", "dax", "power query", "visual", "report", "measure"],
+        "examples": ["check my DAX measure", "why is Derrimut showing wrong", "add a measure for"],
+    },
+    "browser": {
+        "name": "Browser",
+        "description": "Navigate websites, fill forms, scrape data, take screenshots",
+        "category": "EXECUTE",
+        "provider": "claude_code",
+        "requires": "mcp_playwright",
+        "keywords": ["browser", "website", "navigate", "scrape", "screenshot", "open", "go to"],
+        "examples": ["open the website", "screenshot of", "scrape the table from"],
+    },
+    "github": {
+        "name": "GitHub",
+        "description": "PRs, issues, code review, commits, branches",
+        "category": "EXECUTE",
+        "provider": "claude_code",
+        "requires": "mcp_github",
+        "keywords": ["github", "pr", "pull request", "issue", "commit", "branch", "merge"],
+        "examples": ["create a PR", "check my open issues", "review this diff"],
+    },
+    "office": {
+        "name": "Office Documents",
+        "description": "Word reports, PowerPoint decks, PDF extraction",
+        "category": "EXECUTE",
+        "provider": "claude_code",
+        "requires": "claude_cli",
+        "keywords": ["word", "powerpoint", "pdf", "document", "presentation", "report", "docx", "pptx"],
+        "examples": ["create a Word report", "build a PowerPoint from", "extract from this PDF"],
+    },
+}
+
+
+def register_tool(
+    key: str,
+    name: str,
+    description: str,
+    category: str,
+    provider: str,
+    requires: str,
+    keywords: "list[str] | None" = None,
+    examples: "list[str] | None" = None,
+) -> None:
+    """Register a new capability in Alfred's tool registry.
+
+    Call this from a plugin or skill file to make a new tool discoverable.
+    The tool will appear in /tools, Control Tower, and influence routing.
+
+    Args:
+        key:         Unique identifier, e.g. "my_tool"
+        name:        Display name, e.g. "My Custom Tool"
+        description: One-line description of what it does
+        category:    "GENERAL" | "SEARCH" | "EXECUTE" | "CODE" | "POWERBI"
+        provider:    "claude" | "claude_code"
+        requires:    Dependency key: "claude_cli" | "tavily_key" | "mcp_excel" | etc.
+        keywords:    Trigger words for routing hints (optional)
+        examples:    Example phrasings the user might type (optional)
+    """
+    TOOL_REGISTRY[key] = {
+        "name": name,
+        "description": description,
+        "category": category,
+        "provider": provider,
+        "requires": requires,
+        "keywords": keywords or [],
+        "examples": examples or [],
+    }
+
+
+def _tool_registry_status(tool: dict) -> tuple[str, str]:
+    """Return (status, note) for a tool based on what's installed."""
+    req = tool.get("requires", "")
+    # Re-use existing capability check logic
+    dummy_cap = {"requires": req}
+    return _capability_status(dummy_cap)
 
 
 def _capability_status(cap: dict) -> tuple[str, str]:
@@ -1615,7 +1817,11 @@ def _friendly_error(stderr: str) -> str:
 
 
 def _render_execution_result(result: subprocess.CompletedProcess) -> None:
-    """Show execution result as a friendly chat-style message, not a technical panel."""
+    """Show execution result as a friendly chat-style message.
+
+    Renders whatever the model returned — plain text, Markdown, or structured
+    JSON (legacy Codex format). No assumptions about output format.
+    """
     if result.returncode != 0:
         msg = _friendly_error(result.stderr)
         console.print()
@@ -1623,20 +1829,27 @@ def _render_execution_result(result: subprocess.CompletedProcess) -> None:
         console.print()
         return
 
-    structured = extract_structured_response(result.stdout)
-    summary      = structured.get("summary", "").strip()
-    next_step    = structured.get("recommended_next_step", "").strip()
-    needs_approval = structured.get("needs_user_approval", False)
+    output = result.stdout.strip()
+    if not output:
+        console.print("[dim]Done — no output returned.[/dim]")
+        return
 
-    parts: list[str] = []
-    if summary:
-        parts.append(summary)
-    if next_step:
-        parts.append(f"\n**Next:** {next_step}")
-    if needs_approval:
-        parts.append("\n*Just let me know if you want me to go ahead with the next part.*")
+    # Try legacy JSON structure (Codex used to return this) — fall back to raw text
+    structured = extract_structured_response(output)
+    if (
+        isinstance(structured, dict)
+        and structured.get("summary")
+        and not structured.get("summary") == output  # don't loop if summary == raw
+    ):
+        parts: list[str] = [structured["summary"]]
+        if structured.get("recommended_next_step"):
+            parts.append(f"\n**Next:** {structured['recommended_next_step']}")
+        if structured.get("needs_user_approval"):
+            parts.append("\n*Let me know if you want me to continue.*")
+        body = "\n".join(parts)
+    else:
+        body = output
 
-    body = "\n".join(parts) or result.stdout.strip()[:400]
     console.print()
     console.print(Markdown(body))
     console.print()
@@ -1669,7 +1882,7 @@ def _run_step_sequence(
             f"Current step ({i}/{total}): {step}"
             + prior
         )
-        scope = generate_claude_scope(step_prompt, skills_context, search_context=search_context)
+        scope = _build_execution_prompt(step_prompt, skills_context, search_context)
 
         result = run_codex(scope) if provider == "codex" else run_claude(scope)
         _render_execution_result(result)
@@ -1791,13 +2004,15 @@ def _process_alfred_request(
             "POWERBI": "POWERBI",
         }.get(brain_category, "GENERAL")
 
+    _YES_TOKENS = {"y", "yes", "ok", "okay", "sure", "go", "go ahead", "yep", ""}
+
     if category == "GENERAL":
         response = generate_general_response(stripped, brain_says_search=needs_search)
         _render_general_response(response)
         outcome = response[:200]
 
     elif category in ["POWERBI", "CLAUDE_EXECUTION"]:
-        # Tavily pre-fetch — silent
+        # ── Pre-fetch context ────────────────────────────────────────────────
         search_context = ""
         if needs_search:
             search_results = _tavily_search(stripped, max_results=3)
@@ -1806,15 +2021,37 @@ def _process_alfred_request(
                     f"[{r['title']}]({r['url']})\n{r['content'][:600]}"
                     for r in search_results
                 )
-
         skills_context = load_relevant_skills(stripped)
 
-        if steps and should_send_to_claude(stripped, category, provider):
-            # ── Multi-step path ──────────────────────────────────────────────
+        # ── Show what Alfred intends to do ───────────────────────────────────
+        plan_line = decision.get("plan", "").strip() if isinstance(decision, dict) else ""
+
+        if steps:
             _render_step_plan(steps)
+        elif plan_line:
+            console.print(f"\n[dim]→ {plan_line}[/dim]")
+
+        # ── Permission layer: stronger confirmation for destructive operations ─
+        is_destructive = any(kw in stripped.lower() for kw in DANGEROUS_KEYWORDS)
+        if is_destructive:
+            console.print(
+                "[bold yellow]⚠  This may modify or delete something.[/bold yellow] "
+                "Type [bold]yes[/bold] to confirm, anything else to cancel."
+            )
+            try:
+                confirm = console.input("[bold red]Confirm > [/bold red]").strip().lower()
+            except EOFError:
+                confirm = ""
+            if confirm != "yes":
+                console.print("[dim]Cancelled — nothing was changed.[/dim]")
+                append_interaction_log(stripped, category, "", provider)
+                append_autosave_entry(stripped, category, provider, "Cancelled (destructive guard)")
+                compress_autosave_if_needed()
+                return True
+        else:
             try:
                 confirm = console.input(
-                    "[bold yellow]Sound good? Press Enter to go ahead, or describe any changes > [/bold yellow]"
+                    "\n[bold yellow]Sound good? Press Enter to go ahead, or describe any changes > [/bold yellow]"
                 ).strip()
             except EOFError:
                 confirm = ""
@@ -1826,53 +2063,25 @@ def _process_alfred_request(
                 compress_autosave_if_needed()
                 return True
 
-            if confirm and confirm.lower() not in {"y", "yes", "ok", "okay", "sure", "go", "go ahead", "yep", "yep"}:
-                # User described a change — re-plan
+            if confirm and confirm.lower() not in _YES_TOKENS:
+                # User described a change — incorporate it
                 stripped = f"{stripped}\n\nAdjustment: {confirm}"
-                adj_decision = alfred_brain(stripped)
-                adj_steps = adj_decision.get("steps", [])
+                adj = alfred_brain(stripped)
+                adj_steps = adj.get("steps", [])
                 if isinstance(adj_steps, list) and len(adj_steps) >= 2:
                     steps = [str(s) for s in adj_steps if s]
-                _render_step_plan(steps)
+                    _render_step_plan(steps)
+                adj_plan = adj.get("plan", "").strip()
+                if adj_plan and not steps:
+                    console.print(f"\n[dim]→ {adj_plan}[/dim]")
 
-            outcome = _run_step_sequence(
-                stripped, steps, provider, skills_context, search_context
-            )
-
-        elif should_send_to_claude(stripped, category, provider):
-            # ── Single-step path ─────────────────────────────────────────────
-            scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
-            outcome = scope[:200]
-
-            # Show the brain's plain-English plan summary rather than the raw technical scope
-            plan_line = decision.get("plan", "").strip() if isinstance(decision, dict) else ""
-            if plan_line:
-                console.print(f"\n[dim]→ {plan_line}[/dim]")
-
-            try:
-                confirm = console.input(
-                    "\n[bold yellow]Sound good? Press Enter to go ahead, or describe any changes > [/bold yellow]"
-                ).strip()
-            except EOFError:
-                confirm = ""
-
-            if confirm.lower() in {"n", "no", "cancel", "back", "stop"}:
-                console.print("[dim]No problem — let me know if you'd like to try something different.[/dim]")
-                append_interaction_log(stripped, category, scope, provider)
-                append_autosave_entry(stripped, category, provider, "Cancelled by user")
-                compress_autosave_if_needed()
-                return True
-
-            if confirm and confirm.lower() not in {"y", "yes", "ok", "okay", "sure", "go", "go ahead", "yep"}:
-                stripped = f"{stripped}\n\nAdjustment: {confirm}"
-                scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
-                outcome = scope[:200]
-                plan_line = alfred_brain(stripped).get("plan", "").strip()
-                if plan_line:
-                    console.print(f"\n[dim]→ {plan_line}[/dim]")
-
-            console.print("[dim]On it…[/dim]")
-            result = run_codex(scope) if provider == "codex" else run_claude(scope)
+        # ── Execute ──────────────────────────────────────────────────────────
+        console.print("[dim]On it…[/dim]")
+        if steps:
+            outcome = _run_step_sequence(stripped, steps, provider, skills_context, search_context)
+        else:
+            exec_prompt = _build_execution_prompt(stripped, skills_context, search_context)
+            result = run_codex(exec_prompt) if provider == "codex" else run_claude(exec_prompt)
             _render_execution_result(result)
             _notify("Alfred", "Task " + ("complete" if result.returncode == 0 else "failed"))
             outcome = (
@@ -1880,14 +2089,6 @@ def _process_alfred_request(
                 if result.returncode == 0
                 else f"Error: {result.stderr[:100]}"
             )
-
-        else:
-            # ── Plan-only (no dispatch) — show the scope as a readable answer ──
-            scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
-            outcome = scope[:200]
-            console.print()
-            console.print(Markdown(scope))
-            console.print()
 
     append_interaction_log(stripped, category, scope, provider)
     append_autosave_entry(stripped, category, provider, outcome)
@@ -2033,21 +2234,183 @@ def _handle_pq_command(raw: str) -> None:
     )
 
 
-def _action_ask_alfred() -> None:
+def _clear_history() -> None:
+    """Clear the in-session conversation history."""
+    global _chat_history
+    _chat_history = []
+    console.print("[dim]Conversation history cleared.[/dim]")
+
+
+def _save_note(note_text: str) -> None:
+    notes_path = os.path.join(_ROOT, "memory", "notes.md")
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    with open(notes_path, "a", encoding="utf-8") as nf:
+        nf.write(f"- [{ts}] {note_text}\n")
+    reload_memory()
+    console.print("[dim]Noted.[/dim]")
+
+
+def _read_clipboard() -> str:
+    try:
+        text = get_clipboard_text()
+    except Exception as e:
+        console.print(f"[bold red]Clipboard error:[/bold red] {e}")
+        return ""
+    if not text:
+        console.print("[dim]Clipboard is empty.[/dim]")
+        return ""
+    console.print(f"[dim]Read {len(text)} character(s) from clipboard.[/dim]")
+    return text
+
+
+def _read_multiline() -> str:
+    console.print("[dim]Paste your input. Type [bold]done[/bold] on its own line when finished.[/dim]")
+    lines = []
+    while True:
+        try:
+            line = console.input("")
+        except EOFError:
+            break
+        if line.strip().lower() == "done":
+            break
+        lines.append(line)
+    text = "\n".join(lines).strip()
+    if text:
+        console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
+    return text
+
+
+def _show_tools() -> None:
+    """Show available tools in a compact, chat-friendly list."""
+    console.print()
+    console.print("[bold cyan]What I can do:[/bold cyan]")
+    console.print()
+    for _key, tool in TOOL_REGISTRY.items():
+        status, note = _tool_registry_status(tool)
+        icon = "✓" if status == "ready" else "·"
+        color = "green" if status == "ready" else "dim"
+        line = f"  [{color}]{icon}[/{color}]  [bold]{tool['name']}[/bold] — {tool['description']}"
+        if note and status != "ready":
+            line += f" [dim]({note})[/dim]"
+        console.print(line)
+        if tool.get("examples"):
+            eg = tool["examples"][0]
+            console.print(f'     [dim italic]e.g. "{eg}"[/dim italic]')
+    console.print()
+    console.print("[dim]Type [bold]/status[/bold] for full system status and MCP details.[/dim]")
+    console.print()
+
+
+def _show_chat_help() -> None:
+    """Show contextual help inside the chat loop."""
+    console.print()
+    console.print(Markdown("""
+**Alfred — quick reference**
+
+Just talk naturally. Examples:
+- *"Find my wages report and check if Derrimut looks off this week"*
+- *"Fix the bug in backend/main.py where X crashes"*
+- *"What's the latest version of pandas?"*
+- *"Create a PowerPoint summary of last month's financials"*
+
+**Shortcuts:**
+| Command | What it does |
+|---------|-------------|
+| `clip` | Process what's in your clipboard |
+| `paste` | Enter multi-line input |
+| `remember: ...` | Save a note to memory |
+| `pq list` | List Power Query queries |
+| `pbi connect` | Link to open Power BI file |
+
+**Slash commands:**
+`/tools` · `/memory` · `/skills` · `/status` · `/clear` · `/menu` · `/dev` · `/help`
+
+**Provider override:** *"use claude code: ..."* or type `auto` to reset.
+    """))
+
+
+def _handle_slash_command(cmd: str, _sticky_provider: "str | None" = None) -> None:
+    """Dispatch a /command typed in the chat loop."""
+    parts = cmd.strip().split(None, 1)
+    name = parts[0].lower()
+    args = parts[1].strip() if len(parts) > 1 else ""
+
+    if name in {"/help", "/h", "/?"}:
+        _show_chat_help()
+    elif name in {"/tools", "/capabilities", "/what"}:
+        _show_tools()
+    elif name in {"/memory", "/mem", "/context"}:
+        _action_view_memory()
+    elif name in {"/skills", "/skill"}:
+        _action_view_skills()
+    elif name in {"/status", "/tower"}:
+        _action_control_tower()
+    elif name in {"/clear", "/reset"}:
+        _clear_history()
+    elif name in {"/menu"}:
+        _show_menu_interactive()
+    elif name in {"/dev", "/portal"}:
+        _action_dev_portal()
+    elif name in {"/pbi"}:
+        _action_pbi_connect()
+    elif name in {"/note", "/remember"}:
+        if args:
+            _save_note(args)
+        else:
+            console.print("[dim]Usage: /note <text>[/dim]")
+    else:
+        console.print(
+            f"[dim]Unknown command [bold]{name}[/bold]. "
+            "Try [bold]/help[/bold] for a list.[/dim]"
+        )
+
+
+def _show_menu_interactive() -> None:
+    """Show the classic numbered menu and handle a single selection."""
+    console.print()
+    _show_menu()
+    try:
+        raw = console.input("[bold yellow]Select (or Enter to return to chat) > [/bold yellow]")
+    except EOFError:
+        return
+    stripped = raw.strip()
+    if not stripped:
+        return
+    choice = "".join(ch for ch in stripped if ch.isdigit())
+    if choice == "8":
+        raise SystemExit(0)
+    action = _ACTIONS.get(choice)
+    if action:
+        action()
+    else:
+        console.print("[dim]Invalid option.[/dim]")
+
+
+def _chat_loop() -> None:
+    """Alfred's primary interface — a natural conversation loop.
+
+    Replaces the old numbered menu as the first thing the user sees.
+    Supports slash commands (/tools, /help, /memory, etc.) for power users
+    while remaining entirely optional — normal speech always works.
+    """
     console.print(
-        "\n[dim]Just talk naturally. Tips: [bold]clip[/bold] to paste from clipboard · [bold]pbi connect[/bold] for Power BI · [bold]pq list[/bold] for Power Query · [bold]back[/bold] to go back[/dim]"
+        "\n[dim]Just talk naturally. "
+        "Type [bold]/help[/bold] for tips · [bold]/tools[/bold] to see what I can do · "
+        "[bold]/menu[/bold] for the full menu.[/dim]\n"
     )
-    # Sticky provider: set by "use claude" / "use codex", cleared by "auto" / "reset"
+
     sticky_provider: "str | None" = None
 
     while True:
         try:
-            prompt_label = (
-                f"\n[bold yellow]Alfred [{('Claude' if sticky_provider == 'claude_code' else 'Codex')}] > [/bold yellow]"
-                if sticky_provider
-                else "\n[bold yellow]Alfred > [/bold yellow]"
-            )
-            user_input = console.input(prompt_label)
+            if sticky_provider:
+                label = (
+                    f"[bold cyan]Alfred[/bold cyan] "
+                    f"[dim][{PROVIDER_LABELS.get(sticky_provider, sticky_provider)}][/dim] > "
+                )
+            else:
+                label = "[bold cyan]Alfred[/bold cyan] > "
+            user_input = console.input(label)
         except EOFError:
             return
 
@@ -2055,95 +2418,80 @@ def _action_ask_alfred() -> None:
         if not stripped:
             continue
 
-        if stripped.upper() == "HOME" or stripped.lower() in {"back", "menu", "exit"}:
-            console.print("[dim]Returning to main menu.[/dim]")
+        # ── Exit ─────────────────────────────────────────────────────────────
+        if stripped.lower() in {"exit", "quit", "bye", "goodbye", "q"}:
             return
 
+        # ── Slash commands ────────────────────────────────────────────────────
+        if stripped.startswith("/"):
+            _handle_slash_command(stripped, sticky_provider)
+            continue
+
+        # ── Legacy navigation shortcuts (still work) ──────────────────────────
+        if stripped.upper() == "HOME" or stripped.lower() in {"back", "menu"}:
+            _show_menu_interactive()
+            continue
+
+        # ── Connectivity shortcuts ────────────────────────────────────────────
         if stripped.lower() in {"pbi connect", "connect pbi", "connect power bi", "power bi connect"}:
             _action_pbi_connect()
             continue
 
         if "claude login" in stripped.lower() or stripped.lower() in {"login", "claude-login"}:
-            console.print("[dim]Opening a new terminal for Claude authentication — sign in via the browser that opens.[/dim]")
+            console.print("[dim]Opening a terminal for Claude authentication...[/dim]")
             try:
                 subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", _resolve_claude_executable()])
-                console.print("[bold green]New terminal opened. Complete login there, then restart Alfred.[/bold green]")
+                console.print("[bold green]Terminal opened. Complete login there, then restart Alfred.[/bold green]")
             except Exception as e:
-                console.print(
-                    f"[bold red]Could not open terminal:[/bold red] {e}\n"
-                    "Run manually in a new terminal: [bold yellow]claude[/bold yellow]"
-                )
+                console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
             continue
 
+        # ── Input helpers ─────────────────────────────────────────────────────
         if stripped.lower() in {"clip", "clipboard"}:
-            try:
-                clipboard_text = get_clipboard_text()
-            except Exception as e:
-                console.print(f"[bold red]Clipboard error:[/bold red] {e}")
+            stripped = _read_clipboard()
+            if not stripped:
                 continue
-            if not clipboard_text:
-                console.print("[dim]Clipboard is empty — nothing to process.[/dim]")
-                continue
-            console.print(f"[dim]Read {len(clipboard_text)} character(s) from clipboard.[/dim]")
-            stripped = clipboard_text
 
         if stripped.lower() in {"paste", "multiline"}:
-            console.print("[dim]Paste your input. Type 'done' on its own line when finished.[/dim]")
-            lines = []
-            while True:
-                try:
-                    line = console.input("")
-                except EOFError:
-                    break
-                if line.strip().lower() == "done":
-                    break
-                lines.append(line)
-            stripped = "\n".join(lines).strip()
+            stripped = _read_multiline()
             if not stripped:
-                console.print("[dim]No input captured.[/dim]")
                 continue
-            console.print(f"[dim]Captured {len(lines)} line(s).[/dim]")
 
-        # ── Memory shortcuts ────────────────────────────────────────────────
+        # ── Memory shortcuts ──────────────────────────────────────────────────
         if re.match(r"(?i)^(remember|note)\s*:?\s+", stripped):
             note_text = re.sub(r"(?i)^(remember|note)\s*:?\s+", "", stripped).strip()
             if note_text:
-                notes_path = os.path.join(_ROOT, "memory", "notes.md")
-                ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                with open(notes_path, "a", encoding="utf-8") as _nf:
-                    _nf.write(f"- [{ts}] {note_text}\n")
-                reload_memory()
-                console.print("[dim]Noted.[/dim]")
+                _save_note(note_text)
             continue
 
         if stripped.lower() in {"context", "memory", "what do you remember", "what do you know"}:
             _action_view_memory()
             continue
 
-        # ── Power Query shortcuts ────────────────────────────────────────────
+        # ── Power Query shortcuts ─────────────────────────────────────────────
         if re.match(r"(?i)^pq\b", stripped):
             _handle_pq_command(stripped)
             continue
 
-        # Check for explicit provider override ("use claude ...", "use codex ...")
+        # ── Provider override ─────────────────────────────────────────────────
         detected_override = detect_provider_override(stripped)
         if detected_override:
-            # New explicit directive — update sticky and strip the prefix
             sticky_provider = detected_override
             stripped = strip_provider_prefix(stripped)
-            provider_label = "Claude" if sticky_provider == "claude_code" else "Codex"
-            console.print(f"[dim]Provider locked to {provider_label} — say [bold]auto[/bold] to let Alfred decide again.[/dim]")
+            label = "Claude Code" if sticky_provider == "claude_code" else "Codex"
+            console.print(f"[dim]Provider locked to {label} — type [bold]auto[/bold] to let Alfred decide.[/dim]")
         elif stripped.lower() in {"auto", "reset", "reset provider", "auto route", "let alfred decide"}:
             sticky_provider = None
-            console.print("[dim]Provider reset — Alfred will route automatically.[/dim]")
-            continue
-
-        # Apply sticky provider (may be None — auto-route in that case)
-        if sticky_provider and not stripped:
+            console.print("[dim]Back to auto-routing.[/dim]")
             continue
 
         if not _process_alfred_request(stripped, provider_override=sticky_provider):
             return
+
+
+def _action_ask_alfred() -> None:
+    """Legacy entry point — delegates to the unified chat loop."""
+    _chat_loop()
 
 
 def _action_dev_portal() -> None:
@@ -3120,31 +3468,14 @@ def main():
     _show_startup_memory()
     check_github_updates()
 
-    while True:
-        console.print()
-        _show_menu()
+    # Go directly into the chat loop — no menu navigation required.
+    # The menu is still available at any time via /menu or the 'menu' keyword.
+    try:
+        _chat_loop()
+    except SystemExit:
+        pass  # raised by the menu's "8. Exit" option
 
-        try:
-            raw = console.input("[bold yellow]Select > [/bold yellow]")
-        except EOFError:
-            break
-
-        stripped_raw = raw.strip()
-        if stripped_raw.upper() == "HOME":
-            continue
-
-        choice = "".join(ch for ch in stripped_raw if ch.isdigit())
-
-        if choice == "8":
-            console.print("\n[bold cyan]Alfred Console signing off. Goodbye.[/bold cyan]")
-            break
-
-        action = _ACTIONS.get(choice)
-        if action:
-            action()
-        else:
-            console.print("[dim]Invalid option. Enter 1-8.[/dim]")
-
+    console.print("\n[bold cyan]Alfred signing off. Goodbye.[/bold cyan]")
     save_session_exit_summary()
     check_and_offer_git_commit()
 
