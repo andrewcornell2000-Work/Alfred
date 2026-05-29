@@ -23,7 +23,14 @@ import mimetypes
 import power_query as pq_helper
 
 
-load_dotenv()
+# Always load .env from the Alfred project root, regardless of working directory.
+# Computed from __file__ so it works whether Alfred is started from any CWD.
+_ENV_PATH = (
+    os.path.join(os.path.dirname(sys.executable), ".env")
+    if getattr(sys, "frozen", False)
+    else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+)
+load_dotenv(_ENV_PATH, override=True)   # override=True so .env wins over empty system env vars
 
 # On corporate networks with SSL inspection, Python's bundled CA bundle
 # doesn't include the corporate root cert. truststore makes Python use the
@@ -273,12 +280,40 @@ MAX_HISTORY_TURNS = 8
 
 
 def _append_to_history(role: str, content: str) -> None:
-    """Append to conversation history; prune beyond MAX_HISTORY_TURNS turns."""
+    """Append to conversation history, prune to limit, and persist after each exchange."""
     global _chat_history
     _chat_history.append({"role": role, "content": content})
     limit = MAX_HISTORY_TURNS * 2
     if len(_chat_history) > limit:
         _chat_history = _chat_history[-limit:]
+    # Persist to disk after each assistant reply so history survives restarts
+    if role == "assistant":
+        _save_chat_history()
+
+
+def _save_chat_history() -> None:
+    """Write _chat_history to memory/chat-history.json (gitignored)."""
+    path = os.path.join(_ROOT, "memory", "chat-history.json")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(_chat_history[-(MAX_HISTORY_TURNS * 2):], f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _load_chat_history() -> None:
+    """Load persisted chat history from disk on startup."""
+    global _chat_history
+    path = os.path.join(_ROOT, "memory", "chat-history.json")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        if isinstance(saved, list):
+            _chat_history = saved[-(MAX_HISTORY_TURNS * 2):]
+    except Exception:
+        pass
 
 
 # ── Project Memory State ───────────────────────────────────────────────────────
@@ -299,6 +334,7 @@ def _ensure_memory_files() -> None:
         "tool-history.md": f"# Tool History\n*Last updated: {today}*\n\nNo tool history recorded yet.\n",
         "notes.md": "",
         "autosave.md": "",
+        "workspace.md": f"# Workspace\n*Last updated: {today}*\n\nNo workspace configured yet.\n",
     }
     for fname, content in defaults.items():
         path = os.path.join(memory_dir, fname)
@@ -309,11 +345,12 @@ def _ensure_memory_files() -> None:
 
 _MEMORY_SKIP_INJECTION = {"autosave.md"}   # raw logs — excluded from all LLM injection
 _MEMORY_HOT_FILES = (                       # focused context injected into every LLM call
-    "current-focus.md", "recent-context.md", "active-projects.md", "notes.md"
+    "current-focus.md", "recent-context.md", "active-projects.md", "notes.md", "workspace.md"
 )
 _MEMORY_DEFAULT_MARKERS = {                 # placeholder text created by _ensure_memory_files
     "No session data yet.", "No active projects recorded yet.",
     "No recent context yet.", "No tool history recorded yet.",
+    "No workspace configured yet.",
 }
 
 
@@ -369,6 +406,59 @@ def _load_hot_memory() -> str:
 def reload_memory() -> None:
     global _memory_context
     _memory_context = _load_hot_memory()
+
+
+def _setup_workspace_if_needed() -> None:
+    """On first run (or when workspace.md is blank), ask where files live.
+
+    Saves the answer to memory/workspace.md which gets injected into every
+    execution prompt — so Alfred knows where to look for reports and spreadsheets
+    without being told each time.
+    """
+    workspace_path = os.path.join(_ROOT, "memory", "workspace.md")
+    # Skip if already configured
+    if os.path.isfile(workspace_path):
+        try:
+            with open(workspace_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            if content and "No workspace configured yet." not in content:
+                return
+        except OSError:
+            pass
+
+    console.print()
+    console.print(
+        "[bold cyan]Quick setup:[/bold cyan] Where do you keep most of your work files?"
+    )
+    console.print(
+        "[dim]This helps Alfred find reports, spreadsheets, and documents without guessing.[/dim]"
+    )
+    console.print("[dim]Example: C:\\Users\\You\\OneDrive - Company\\Finance[/dim]")
+    try:
+        path = console.input(
+            "[bold yellow]Workspace path (or press Enter to skip) > [/bold yellow]"
+        ).strip()
+    except EOFError:
+        return
+
+    if not path:
+        console.print("[dim]Skipped — you can set this later by saying 'my workspace is ...'[/dim]")
+        return
+
+    _write_workspace(path)
+
+
+def _write_workspace(path: str) -> None:
+    """Save a workspace path to memory/workspace.md and reload memory."""
+    workspace_file = os.path.join(_ROOT, "memory", "workspace.md")
+    today = datetime.date.today().isoformat()
+    with open(workspace_file, "w", encoding="utf-8") as f:
+        f.write(
+            f"# Workspace\n*Configured: {today}*\n\n"
+            f"- Primary files: {path}\n"
+        )
+    reload_memory()
+    console.print(f"[dim]Workspace saved. Alfred will look in [bold]{path}[/bold] first.[/dim]")
 
 
 def read_memory_summary() -> str:
@@ -717,14 +807,6 @@ def load_relevant_skills(user_input: str) -> str:
     return "\n".join(relevant)
 
 
-def classify_task(user_input: str) -> str:
-    raw = _call_claude(CLASSIFIER_PROMPT, user_input) or _call_openai(CLASSIFIER_PROMPT, user_input)
-    for cat in ["POWERBI", "CLAUDE_EXECUTION", "GENERAL"]:
-        if cat in raw.upper():
-            return cat
-    return "GENERAL"
-
-
 def generate_general_response(user_input: str, brain_says_search: bool = False) -> str:
     system = GENERAL_RESPONSE_PROMPT
     if _memory_context:
@@ -767,17 +849,6 @@ def generate_general_response(user_input: str, brain_says_search: bool = False) 
     return response
 
 
-def generate_claude_scope(user_input: str, skills_context: str = "", search_context: str = "") -> str:
-    system_prompt = CLAUDE_SCOPE_PROMPT
-    if _memory_context:
-        system_prompt += f"\n\n## Current project memory\n{_memory_context}"
-    if skills_context:
-        system_prompt += f"\n\nRelevant skills loaded for this task:\n{skills_context}"
-    if search_context:
-        system_prompt += f"\n\n## Pre-fetched reference material (use to inform the plan)\n{search_context}"
-    return _call_claude(system_prompt, user_input) or "Could not generate scope."
-
-
 def _build_execution_prompt(
     user_input: str,
     skills_context: str = "",
@@ -809,13 +880,6 @@ def _build_execution_prompt(
         parts.append(f"\n## Recent conversation\n{turns}")
 
     return "\n".join(parts)
-
-
-CLAUDE_JSON_INSTRUCTION = (
-    "Respond ONLY in compact JSON with no markdown, no prose, and no code fences. "
-    "Use exactly these keys: summary, root_cause, recommended_next_step, needs_user_approval. "
-    "needs_user_approval must be a boolean. All other values must be strings."
-)
 
 
 def extract_structured_response(raw_response: str) -> dict:
@@ -901,7 +965,7 @@ def _call_anthropic(
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         return ""
-    model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
     try:
         import anthropic  # type: ignore
         client = anthropic.Anthropic(api_key=api_key)
@@ -1000,35 +1064,6 @@ def _setup_openai_key() -> bool:
     _openai_disabled = False  # reset so next call tries the new key
     console.print("[bold green]API key saved to .env (stays on this PC only).[/bold green]")
     return True
-
-
-def _call_codex(system_prompt: str, user_content: str, timeout: int = 60) -> str:
-    """Send a prompt to the codex CLI and return the response text.
-    No API key needed — uses credentials from `codex login`."""
-    full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
-    exe = _resolve_codex_executable()
-    try:
-        result = subprocess.run(
-            [exe, full_prompt],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-        if result.stderr.strip():
-            console.print(f"[dim red]Codex CLI: {result.stderr.strip()[:120]}[/dim red]")
-    except FileNotFoundError:
-        msg = (
-            "Codex CLI not found. Run:\n"
-            "  npm install -g @openai/codex\n"
-            "  codex login"
-        )
-        console.print(f"[bold red]Setup required:[/bold red]\n{msg}")
-        return msg
-    except subprocess.TimeoutExpired:
-        console.print("[dim red]Codex CLI timed out.[/dim red]")
-    return ""
 
 
 def _resolve_claude_executable() -> str:
@@ -1585,20 +1620,6 @@ def _tavily_search(query: str, max_results: int = 5) -> list:
         return []
 
 
-def should_send_to_claude(user_input: str, category: str, provider: str = "") -> bool:
-    lowered = user_input.lower()
-    if any(kw in lowered for kw in DANGEROUS_KEYWORDS):
-        return False
-    # Chat-only providers — no auto-dispatch
-    if provider in {"openai_mini", "claude"}:
-        return False
-    if category == "CLAUDE_EXECUTION":
-        return True
-    if category == "POWERBI" and any(kw in lowered for kw in ACTION_KEYWORDS):
-        return True
-    return False
-
-
 PROVIDER_OVERRIDE_RE = re.compile(
     r"(?i)^\s*(?:please\s+)?(?:use|with|via|ask)\s+"
     r"(claude(?:[\s_-]+code)?|codex)\b"
@@ -1622,24 +1643,6 @@ def detect_provider_override(user_input: str) -> "str | None":
 def strip_provider_prefix(user_input: str) -> str:
     """Remove the provider directive from the input before passing to the AI."""
     return PROVIDER_OVERRIDE_RE.sub("", user_input, count=1).strip()
-
-
-def choose_provider(user_input: str, category: str) -> str:
-    """Deterministic provider routing — returns 'openai_mini', 'codex', or 'claude_code'."""
-    if category == "GENERAL":
-        return "openai_mini"
-    if category == "POWERBI":
-        return "claude_code"
-    # CLAUDE_EXECUTION: score keyword matches and pick the stronger signal
-    lowered = user_input.lower()
-    codex_score = sum(1 for kw in CODEX_ROUTING_KEYWORDS if kw in lowered)
-    claude_score = sum(1 for kw in CLAUDE_CODE_ROUTING_KEYWORDS if kw in lowered)
-    # No keyword signal — stay cheap rather than firing a heavy CLI
-    if codex_score == 0 and claude_score == 0:
-        return "openai_mini"
-    if codex_score > claude_score:
-        return "codex"
-    return "claude_code"
 
 
 def is_learning_mode_task(user_input: str) -> bool:
@@ -1884,7 +1887,8 @@ def _run_step_sequence(
         )
         scope = _build_execution_prompt(step_prompt, skills_context, search_context)
 
-        result = run_codex(scope) if provider == "codex" else run_claude(scope)
+        with console.status(f"[dim]Step {i} of {total}…[/dim]", spinner="dots"):
+            result = run_codex(scope) if provider == "codex" else run_claude(scope)
         _render_execution_result(result)
 
         if result.returncode != 0:
@@ -2076,12 +2080,12 @@ def _process_alfred_request(
                     console.print(f"\n[dim]→ {adj_plan}[/dim]")
 
         # ── Execute ──────────────────────────────────────────────────────────
-        console.print("[dim]On it…[/dim]")
         if steps:
             outcome = _run_step_sequence(stripped, steps, provider, skills_context, search_context)
         else:
             exec_prompt = _build_execution_prompt(stripped, skills_context, search_context)
-            result = run_codex(exec_prompt) if provider == "codex" else run_claude(exec_prompt)
+            with console.status("[dim]Working…[/dim]", spinner="dots"):
+                result = run_codex(exec_prompt) if provider == "codex" else run_claude(exec_prompt)
             _render_execution_result(result)
             _notify("Alfred", "Task " + ("complete" if result.returncode == 0 else "failed"))
             outcome = (
@@ -2235,9 +2239,15 @@ def _handle_pq_command(raw: str) -> None:
 
 
 def _clear_history() -> None:
-    """Clear the in-session conversation history."""
+    """Clear the in-session conversation history and delete the persisted file."""
     global _chat_history
     _chat_history = []
+    path = os.path.join(_ROOT, "memory", "chat-history.json")
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+    except Exception:
+        pass
     console.print("[dim]Conversation history cleared.[/dim]")
 
 
@@ -2358,6 +2368,16 @@ def _handle_slash_command(cmd: str, _sticky_provider: "str | None" = None) -> No
             _save_note(args)
         else:
             console.print("[dim]Usage: /note <text>[/dim]")
+    elif name in {"/workspace", "/files"}:
+        if args:
+            _write_workspace(args)
+        else:
+            # Show current workspace then offer to change it
+            ws_path = os.path.join(_ROOT, "memory", "workspace.md")
+            if os.path.isfile(ws_path):
+                with open(ws_path, "r", encoding="utf-8") as wf:
+                    console.print(Markdown(wf.read()))
+            console.print("[dim]Usage: /workspace <path>  to set a new workspace.[/dim]")
     else:
         console.print(
             f"[dim]Unknown command [bold]{name}[/bold]. "
@@ -2466,6 +2486,15 @@ def _chat_loop() -> None:
 
         if stripped.lower() in {"context", "memory", "what do you remember", "what do you know"}:
             _action_view_memory()
+            continue
+
+        # ── Workspace shortcut ("my workspace is ..." / "my files are in ...") ──
+        ws_match = re.match(
+            r"(?i)^my\s+(workspace|files?|work\s+folder|folder)\s+(is\s+in|is|are\s+in|are|=)\s+(.+)$",
+            stripped,
+        )
+        if ws_match:
+            _write_workspace(ws_match.group(3).strip())
             continue
 
         # ── Power Query shortcuts ─────────────────────────────────────────────
@@ -3465,6 +3494,8 @@ def main():
     _ensure_memory_files()
     _check_setup()
     reload_memory()
+    _load_chat_history()          # restore last session's conversation
+    _setup_workspace_if_needed()  # one-time prompt for file location
     _show_startup_memory()
     check_github_updates()
 

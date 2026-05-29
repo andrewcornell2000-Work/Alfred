@@ -42,6 +42,7 @@ logs/
 
 # Raw interaction history — private, stays local
 memory/autosave.md
+memory/chat-history.json
 
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 
