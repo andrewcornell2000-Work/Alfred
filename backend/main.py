@@ -69,23 +69,27 @@ Return ONLY the category name.
 """
 
 GENERAL_RESPONSE_PROMPT = """
-You are Alfred, a desktop AI command center — precise, calm, and quietly indispensable.
+You are Alfred, a personal AI assistant — helpful, warm, and quietly capable.
 
-Speak like a senior operator: concise, confident, with the occasional dry observation. Never fawn. Never say "Certainly!", "Great question!", "Of course!", or any variant.
+Respond naturally, like a knowledgeable colleague who gets things done without fuss.
+Be concise but complete. Match the user's tone — casual when they're casual, precise when they need precision.
+When you've done something, briefly explain what you did in plain English.
+If something is unclear, ask one short clarifying question rather than guessing or refusing.
+Never be robotic, overly formal, or use unnecessary jargon.
+Don't start responses with "Certainly!", "Great question!", "Of course!", or similar filler.
 
-Keep responses to 2–4 sentences unless the question genuinely demands more. When asked what you can do, say you're a unified assistant that handles: natural conversation and reasoning (Claude), live web research (Tavily), code writing and refactoring (Codex), file and system operations, live Excel editing, Power BI model work, browser automation, GitHub operations, Word/PowerPoint/PDF creation, and market intelligence — all through one chat interface. Tools activate invisibly; you only see results.
+When asked what you can do: you handle conversation, research, code, file & system tasks, live Excel editing, Power BI work, browser automation, GitHub, and Office documents — all through one chat interface. Tools activate in the background; the user just sees results.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
-You are Alfred, an AI orchestration assistant — precise, calm, operator-mode.
+You are Alfred, a personal AI assistant helping a user update how you work.
 
-A user wants to add, modify, or teach Alfred a new rule, feature, or behavior. Before any code is written or dispatched, discuss briefly:
+Before writing any code, briefly discuss the proposed change:
+1. Describe what's being proposed in plain English (1 sentence)
+2. Flag any trade-off worth knowing about (1 sentence — skip if it's straightforward)
+3. End with exactly: **Proposed change:** <one-line summary>
 
-1. Identify what is being proposed (1 sentence)
-2. Note any design implication or trade-off worth flagging (1 sentence — skip if obvious)
-3. End with exactly: **Proposed change:** <one-line summary of the specific change>
-
-Max 4 sentences total. No filler. No "Great!" or "Certainly!".
+Keep it to 3–4 sentences max. No filler phrases.
 """
 
 CLAUDE_SCOPE_PROMPT = """
@@ -1626,58 +1630,20 @@ def _notify(title: str, message: str) -> None:
 def _render_provider_result(
     provider: str, category: str, result: subprocess.CompletedProcess
 ) -> None:
-    color = PROVIDER_COLORS.get(provider, "bold white")
-    label = PROVIDER_LABELS.get(provider, provider)
-    if result.returncode == 0:
-        structured = extract_structured_response(result.stdout)
-        t = Table(show_header=False, box=None, padding=(0, 1))
-        t.add_column("Field", style="bold cyan", no_wrap=True)
-        t.add_column("Value", style="white")
-        t.add_row("Provider", f"[{color}]{label}[/{color}]")
-        t.add_row("Category", category)
-        t.add_row("Summary", structured.get("summary", ""))
-        t.add_row("Root Cause", structured.get("root_cause", ""))
-        t.add_row("Next Step", structured.get("recommended_next_step", ""))
-        approval = structured.get("needs_user_approval", False)
-        approval_str = (
-            "[bold yellow]Yes — awaiting approval[/bold yellow]"
-            if approval
-            else "[bold green]No[/bold green]"
-        )
-        t.add_row("Needs Approval", approval_str)
-        console.print(f"\n[{color}]{label} Response[/{color}]")
-        console.print(t)
-    else:
-        console.print(f"\n[bold red]{label} Error:[/bold red]\n{result.stderr}")
+    """Legacy display helper — delegates to the unified execution renderer."""
+    _render_execution_result(result)
 
 
 def _render_claude_result(result: subprocess.CompletedProcess) -> None:
-    if result.returncode == 0:
-        structured = extract_structured_response(result.stdout)
-        t = Table(show_header=False, box=None, padding=(0, 1))
-        t.add_column("Field", style="bold cyan", no_wrap=True)
-        t.add_column("Value", style="white")
-        t.add_row("Summary", structured.get("summary", ""))
-        t.add_row("Root Cause", structured.get("root_cause", ""))
-        t.add_row("Next Step", structured.get("recommended_next_step", ""))
-        approval = structured.get("needs_user_approval", False)
-        approval_str = "[bold yellow]Yes[/bold yellow]" if approval else "[bold green]No[/bold green]"
-        t.add_row("Needs Approval", approval_str)
-        console.print("\n[bold green]Claude Response[/bold green]")
-        console.print(t)
-    else:
-        console.print(f"\n[bold red]Claude Error:[/bold red]\n{result.stderr}")
+    """Legacy display helper — delegates to the unified execution renderer."""
+    _render_execution_result(result)
 
 
 def _render_general_response(response: str) -> None:
-    console.print(
-        Panel(
-            Markdown(response),
-            title="[bold cyan]Alfred[/bold cyan]",
-            border_style="cyan",
-            padding=(0, 2),
-        )
-    )
+    """Render a conversational response — no panel border, just text like a chat assistant."""
+    console.print()
+    console.print(Markdown(response))
+    console.print()
 
 
 def _show_startup_memory() -> None:
@@ -1711,8 +1677,8 @@ def _show_startup_memory() -> None:
 def _show_header() -> None:
     console.print(
         Panel.fit(
-            "[bold cyan]Alfred Console[/bold cyan]  [dim]v2[/dim]\n"
-            "[dim]AI Command Center — Claude · Codex · Tavily · Excel · Power BI · GitHub · Browser · Office[/dim]",
+            "[bold cyan]Alfred[/bold cyan]  [dim]v2[/dim]\n"
+            "[dim]Your personal AI assistant — just talk to me naturally.[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
@@ -1750,50 +1716,73 @@ def get_clipboard_text() -> str:
 
 
 def _render_step_plan(steps: list) -> None:
-    """Show a numbered step list as a unified Plan panel before execution."""
+    """Show a numbered step list conversationally before asking for confirmation."""
     lines = [f"**{i}.** {step}" for i, step in enumerate(steps, 1)]
-    console.print(
-        Panel(
-            Markdown("\n".join(lines)),
-            title=f"[bold cyan]Plan — {len(steps)} steps[/bold cyan]",
-            border_style="dim",
-            padding=(0, 2),
+    console.print()
+    console.print("[bold cyan]Here's what I'll do:[/bold cyan]")
+    console.print(Markdown("\n".join(lines)))
+    console.print()
+
+
+def _friendly_error(stderr: str) -> str:
+    """Translate raw CLI error text into a plain-English explanation with a next step."""
+    raw = stderr.strip()
+    low = raw.lower()
+
+    if "not found" in low and ("claude" in low or "command" in low):
+        return (
+            "I couldn't find the Claude CLI on this machine.\n\n"
+            "**Fix:** Open a terminal and run:\n"
+            "```\nnpm install -g @anthropic-ai/claude-code\nclaude login\n```"
         )
-    )
+    if "timed out" in low:
+        return (
+            "The task took too long and I had to stop it.\n\n"
+            "**Try:** Break it into smaller steps, or check your internet connection."
+        )
+    if "authentication" in low or "login" in low or "401" in low:
+        return (
+            "There's an authentication issue — I'm not signed in to that service.\n\n"
+            "**Fix:** Run `claude login` (or `codex login`) in a terminal, then try again."
+        )
+    if "permission" in low or "access denied" in low:
+        return (
+            "I don't have permission to access that file or folder.\n\n"
+            "**Try:** Check the file isn't locked by another app, or run Alfred as the file's owner."
+        )
+    if raw:
+        # Show a trimmed version of the raw error as a fallback, with context
+        trimmed = raw[:300] + ("…" if len(raw) > 300 else "")
+        return f"Something went wrong:\n\n```\n{trimmed}\n```\n\n**Try:** Rephrase the request or check the file exists."
+    return "Something went wrong, but there was no error message. Try rephrasing the request."
 
 
 def _render_execution_result(result: subprocess.CompletedProcess) -> None:
-    """Show execution result cleanly — no provider/category headers."""
+    """Show execution result as a friendly chat-style message, not a technical panel."""
     if result.returncode != 0:
-        console.print(
-            Panel(
-                result.stderr.strip()[:400] or "No output.",
-                title="[bold red]Failed[/bold red]",
-                border_style="red",
-                padding=(0, 2),
-            )
-        )
+        msg = _friendly_error(result.stderr)
+        console.print()
+        console.print(Markdown(msg))
+        console.print()
         return
+
     structured = extract_structured_response(result.stdout)
-    parts = []
-    summary  = structured.get("summary", "").strip()
-    next_step = structured.get("recommended_next_step", "").strip()
+    summary      = structured.get("summary", "").strip()
+    next_step    = structured.get("recommended_next_step", "").strip()
     needs_approval = structured.get("needs_user_approval", False)
+
+    parts: list[str] = []
     if summary:
         parts.append(summary)
     if next_step:
         parts.append(f"\n**Next:** {next_step}")
     if needs_approval:
-        parts.append("\n*Waiting for your approval to proceed.*")
+        parts.append("\n*Just let me know if you want me to go ahead with the next part.*")
+
     body = "\n".join(parts) or result.stdout.strip()[:400]
-    console.print(
-        Panel(
-            Markdown(body),
-            title="[bold green]Done[/bold green]",
-            border_style="green",
-            padding=(0, 2),
-        )
-    )
+    console.print()
+    console.print(Markdown(body))
+    console.print()
 
 
 def _run_step_sequence(
@@ -1809,8 +1798,7 @@ def _run_step_sequence(
     all_outcomes: list[str] = []
 
     for i, step in enumerate(steps, 1):
-        console.print(Rule(f"[bold cyan]Step {i} / {total}[/bold cyan]"))
-        console.print(f"[dim]{step}[/dim]")
+        console.print(f"\n[dim]Step {i} of {total} — {step}[/dim]")
 
         prior = ""
         if all_outcomes:
@@ -1833,12 +1821,12 @@ def _run_step_sequence(
             if i < total:
                 try:
                     cont = console.input(
-                        f"[bold yellow]Step {i} failed — continue with remaining steps? (y/n) > [/bold yellow]"
+                        f"[bold yellow]That step ran into a problem — want me to keep going? (y/n) > [/bold yellow]"
                     ).strip().lower()
                 except EOFError:
                     cont = "n"
                 if cont not in {"y", "yes"}:
-                    console.print("[dim]Sequence stopped.[/dim]")
+                    console.print("[dim]Stopped. Let me know if you'd like to try a different approach.[/dim]")
                     return f"Stopped at step {i}/{total}"
             all_outcomes.append(f"failed — {result.stderr[:80]}")
         else:
@@ -1849,24 +1837,21 @@ def _run_step_sequence(
             if structured.get("needs_user_approval") and i < total:
                 try:
                     cont = console.input(
-                        "[bold yellow]Step requires approval — continue to next step? (y/n) > [/bold yellow]"
+                        "[bold yellow]Ready for the next step — shall I continue? (y/n) > [/bold yellow]"
                     ).strip().lower()
                 except EOFError:
                     cont = "n"
                 if cont not in {"y", "yes"}:
-                    console.print("[dim]Sequence paused.[/dim]")
+                    console.print("[dim]Paused. Just say 'continue' when you're ready.[/dim]")
                     return f"Paused at step {i}/{total}"
 
+    # All steps done — show a plain summary
+    console.print()
+    console.print("[bold green]All done.[/bold green]")
     summary_lines = [f"**{j}.** {o}" for j, o in enumerate(all_outcomes, 1)]
-    console.print(
-        Panel(
-            Markdown("\n".join(summary_lines)),
-            title="[bold green]All steps complete[/bold green]",
-            border_style="green",
-            padding=(0, 2),
-        )
-    )
-    _notify("Alfred", f"Task complete — {total} steps done")
+    console.print(Markdown("\n".join(summary_lines)))
+    console.print()
+    _notify("Alfred", f"Done — {total} steps completed")
     return f"Completed {total} steps"
 
 
@@ -1879,6 +1864,7 @@ def _process_alfred_request(
     outcome = ""
     steps: list = []
     needs_search = False
+    decision: dict = {}  # brain decision — kept as reference for plan summary display
 
     # Explicit provider override — skip Brain and learning check
     if provider_override:
@@ -1892,12 +1878,12 @@ def _process_alfred_request(
         _render_general_response(discussion)
         try:
             confirm = console.input(
-                "\n[bold yellow]Proceed with this change? (y/n) > [/bold yellow]"
+                "\n[bold yellow]Want me to go ahead with this? (y/n) > [/bold yellow]"
             )
         except EOFError:
             return False
         if confirm.strip().lower() not in {"y", "yes"}:
-            console.print("[dim]Change discarded - nothing written or dispatched.[/dim]")
+            console.print("[dim]No problem — nothing was changed.[/dim]")
             append_interaction_log(stripped, "LEARNING_DECLINED", "", "openai_mini")
             append_autosave_entry(
                 stripped, "LEARNING_DECLINED", "openai_mini", "Request declined by user"
@@ -1976,20 +1962,20 @@ def _process_alfred_request(
             _render_step_plan(steps)
             try:
                 confirm = console.input(
-                    "[bold yellow]Proceed? (Enter = yes, or type an adjustment) > [/bold yellow]"
+                    "[bold yellow]Sound good? Press Enter to go ahead, or describe any changes > [/bold yellow]"
                 ).strip()
             except EOFError:
                 confirm = ""
 
-            if confirm.lower() in {"n", "no", "cancel", "back"}:
-                console.print("[dim]Cancelled.[/dim]")
+            if confirm.lower() in {"n", "no", "cancel", "back", "stop"}:
+                console.print("[dim]No problem — let me know if you'd like to try something different.[/dim]")
                 append_interaction_log(stripped, category, "", provider)
                 append_autosave_entry(stripped, category, provider, "Cancelled by user")
                 compress_autosave_if_needed()
                 return True
 
-            if confirm and confirm.lower() not in {"y", "yes"}:
-                # User typed an adjustment — ask Brain to re-plan the steps
+            if confirm and confirm.lower() not in {"y", "yes", "ok", "okay", "sure", "go", "go ahead", "yep", "yep"}:
+                # User described a change — re-plan
                 stripped = f"{stripped}\n\nAdjustment: {confirm}"
                 adj_decision = alfred_brain(stripped)
                 adj_steps = adj_decision.get("steps", [])
@@ -2005,41 +1991,35 @@ def _process_alfred_request(
             # ── Single-step path ─────────────────────────────────────────────
             scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
             outcome = scope[:200]
-            console.print(
-                Panel(
-                    Markdown(scope),
-                    title="[bold cyan]Plan[/bold cyan]",
-                    border_style="dim",
-                    padding=(0, 2),
-                )
-            )
+
+            # Show the brain's plain-English plan summary rather than the raw technical scope
+            plan_line = decision.get("plan", "").strip() if isinstance(decision, dict) else ""
+            if plan_line:
+                console.print(f"\n[dim]→ {plan_line}[/dim]")
+
             try:
                 confirm = console.input(
-                    "[bold yellow]Proceed? (Enter = yes, or type an adjustment) > [/bold yellow]"
+                    "\n[bold yellow]Sound good? Press Enter to go ahead, or describe any changes > [/bold yellow]"
                 ).strip()
             except EOFError:
                 confirm = ""
 
-            if confirm.lower() in {"n", "no", "cancel", "back"}:
-                console.print("[dim]Cancelled.[/dim]")
+            if confirm.lower() in {"n", "no", "cancel", "back", "stop"}:
+                console.print("[dim]No problem — let me know if you'd like to try something different.[/dim]")
                 append_interaction_log(stripped, category, scope, provider)
                 append_autosave_entry(stripped, category, provider, "Cancelled by user")
                 compress_autosave_if_needed()
                 return True
 
-            if confirm and confirm.lower() not in {"y", "yes"}:
+            if confirm and confirm.lower() not in {"y", "yes", "ok", "okay", "sure", "go", "go ahead", "yep"}:
                 stripped = f"{stripped}\n\nAdjustment: {confirm}"
                 scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
                 outcome = scope[:200]
-                console.print(
-                    Panel(
-                        Markdown(scope),
-                        title="[bold cyan]Revised Plan[/bold cyan]",
-                        border_style="dim",
-                        padding=(0, 2),
-                    )
-                )
+                plan_line = alfred_brain(stripped).get("plan", "").strip()
+                if plan_line:
+                    console.print(f"\n[dim]→ {plan_line}[/dim]")
 
+            console.print("[dim]On it…[/dim]")
             result = run_codex(scope) if provider == "codex" else run_claude(scope)
             _render_execution_result(result)
             _notify("Alfred", "Task " + ("complete" if result.returncode == 0 else "failed"))
@@ -2050,17 +2030,12 @@ def _process_alfred_request(
             )
 
         else:
-            # ── Plan-only (no dispatch) ──────────────────────────────────────
+            # ── Plan-only (no dispatch) — show the scope as a readable answer ──
             scope = generate_claude_scope(stripped, skills_context, search_context=search_context)
             outcome = scope[:200]
-            console.print(
-                Panel(
-                    Markdown(scope),
-                    title="[bold cyan]Plan[/bold cyan]",
-                    border_style="dim",
-                    padding=(0, 2),
-                )
-            )
+            console.print()
+            console.print(Markdown(scope))
+            console.print()
 
     append_interaction_log(stripped, category, scope, provider)
     append_autosave_entry(stripped, category, provider, outcome)
@@ -2208,7 +2183,7 @@ def _handle_pq_command(raw: str) -> None:
 
 def _action_ask_alfred() -> None:
     console.print(
-        "\n[dim][bold]clip[/bold] = clipboard  |  [bold]pbi connect[/bold] = link to Power BI Desktop  |  [bold]pq list[/bold] = Power Query  |  [bold]back[/bold] = menu[/dim]"
+        "\n[dim]Just talk naturally. Tips: [bold]clip[/bold] to paste from clipboard · [bold]pbi connect[/bold] for Power BI · [bold]pq list[/bold] for Power Query · [bold]back[/bold] to go back[/dim]"
     )
     # Sticky provider: set by "use claude" / "use codex", cleared by "auto" / "reset"
     sticky_provider: "str | None" = None
