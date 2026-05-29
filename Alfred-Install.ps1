@@ -415,6 +415,39 @@ if ($existingTavily) {
 Write-EnvVar $EnvFile "QUANT_BASE_URL" $QuantUrl
 Write-OK "Quant plugin URL configured."
 
+# ── Step 7b: Anthropic API Key (10x faster responses) ────────────────────────
+
+Write-Step "Step 7b: Anthropic API Key (recommended — makes Alfred 10x faster)"
+Write-Host ""
+Write-Host "  Without this key Alfred uses the Claude CLI subprocess (~10-20s per response)." -ForegroundColor White
+Write-Host "  With this key Alfred calls the Anthropic API directly (~1-2s per response)." -ForegroundColor White
+Write-Host "  Get a key: https://console.anthropic.com/settings/keys" -ForegroundColor DarkGray
+Write-Host ""
+
+$anthropicKey = ""
+$existingAnthropic = ""
+if (Test-Path $EnvFile) {
+    $existingAnthropic = (Get-Content $EnvFile | Where-Object { $_ -match "^ANTHROPIC_API_KEY=" }) -replace "^ANTHROPIC_API_KEY=",""
+}
+if ($existingAnthropic) {
+    $anthropicKey = $existingAnthropic
+    Write-OK "Anthropic API key already saved — fast response mode active."
+} else {
+    $openAnthropic = Read-Host "  Open console.anthropic.com in browser? (Y/n)"
+    if ($openAnthropic -notmatch "^[Nn]") { Start-Process "https://console.anthropic.com/settings/keys" }
+    $secureInput = Read-Host "  Paste your Anthropic API key (sk-ant-... or press Enter to skip)" -AsSecureString
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput)
+    try { $anthropicKey = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    if ($anthropicKey -match "^sk-ant-") {
+        Write-EnvVar $EnvFile "ANTHROPIC_API_KEY" $anthropicKey
+        Write-Done "Anthropic API key saved — fast response mode enabled."
+    } else {
+        Write-Warn "Anthropic key skipped — Alfred will use Claude CLI (slower). Add later by re-running installer."
+        $anthropicKey = ""
+    }
+}
+
 # ── Step 7c: GitHub Personal Access Token ────────────────────────────────────
 
 Write-Step "Step 7c: GitHub Personal Access Token (create PRs, manage issues, search repos)"

@@ -132,8 +132,17 @@ else:
 
 
 def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> str:
-    """Send a prompt to the claude CLI and return the response text.
-    No API key needed — uses the credentials from `claude login`."""
+    """Send a prompt to Claude and return the response text.
+
+    Fast path (ANTHROPIC_API_KEY in .env): direct Anthropic Python SDK call — ~1-2s.
+    Slow path (no API key): claude CLI subprocess — ~8-12s due to Node.js + MCP init overhead.
+    """
+    # ── Fast path ──────────────────────────────────────────────────────────────
+    result_fast = _call_anthropic(system_prompt, user_content, timeout)
+    if result_fast:
+        return result_fast
+
+    # ── Slow path: claude CLI subprocess ───────────────────────────────────────
     full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
     # Windows command line limit is ~8191 chars — write long prompts to a temp file
     exe = _resolve_claude_executable()
@@ -968,7 +977,46 @@ def run_claude(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
         )
 
 
-_openai_disabled = False  # set True on auth failure so we don't retry every call
+_openai_disabled = False    # set True on auth failure so we don't retry every call
+_anthropic_disabled = False  # same guard for direct Anthropic SDK path
+
+
+def _call_anthropic(
+    system_prompt: str,
+    user_content: str,
+    timeout: int = 60,
+) -> str:
+    """Call Anthropic API directly via Python SDK — no subprocess, no MCP init delay.
+    Only active when ANTHROPIC_API_KEY is in .env. Falls back gracefully to subprocess path."""
+    global _anthropic_disabled
+    if _anthropic_disabled:
+        return ""
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return ""
+    model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+    try:
+        import anthropic  # type: ignore
+        client = anthropic.Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_content}],
+            timeout=timeout,
+        )
+        return msg.content[0].text.strip()
+    except ImportError:
+        _anthropic_disabled = True  # package not installed — fall back silently
+        return ""
+    except Exception as exc:
+        err = str(exc)
+        if any(k in err for k in ("401", "authentication_error", "invalid_x_api_key")):
+            _anthropic_disabled = True
+            console.print("[dim red]Anthropic API key invalid — falling back to Claude CLI.[/dim red]")
+        else:
+            console.print(f"[dim red]Anthropic API: {err[:120]}[/dim red]")
+        return ""
 
 
 def _call_openai(
@@ -1337,7 +1385,19 @@ Rules:
 def alfred_brain(user_input: str) -> dict:
     """Single LLM call: classify intent, select provider, optionally plan.
     Falls back to keyword-based routing if Claude is unavailable or returns bad JSON."""
-    raw = _call_claude(ALFRED_BRAIN_PROMPT, user_input)
+    # Build context block so the brain isn't blind to recent conversation
+    context_block = ""
+    if _memory_context:
+        context_block += f"\n\n## Project context\n{_memory_context}"
+    if _chat_history:
+        recent = _chat_history[-6:]  # last 3 turns (user + assistant pairs)
+        turns = "\n".join(
+            f"{'User' if m['role'] == 'user' else 'Alfred'}: {m['content'][:250]}"
+            for m in recent
+        )
+        context_block += f"\n\n## Recent conversation\n{turns}"
+
+    raw = _call_claude(ALFRED_BRAIN_PROMPT, user_input + context_block)
     if raw:
         decision = extract_structured_response(raw)
         category = decision.get("category", "").upper()

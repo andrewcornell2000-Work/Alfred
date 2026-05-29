@@ -10,3 +10,4 @@ pypdf
 openpyxl
 pandas
 pywin32
+anthropic
