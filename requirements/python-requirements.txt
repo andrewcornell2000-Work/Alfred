@@ -9,3 +9,4 @@ python-pptx
 pypdf
 openpyxl
 pandas
+pywin32

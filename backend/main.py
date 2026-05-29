@@ -20,6 +20,8 @@ import urllib.parse
 import webbrowser
 import mimetypes
 
+import power_query as pq_helper
+
 
 load_dotenv()
 
@@ -2006,9 +2008,147 @@ def _process_alfred_request(
     return True
 
 
+def _handle_pq_command(raw: str) -> None:
+    """Handle `pq` Power Query shortcuts directly from the Alfred prompt.
+
+    Commands:
+      pq                        — list all queries in the active workbook
+      pq list [workbook]        — same, optional workbook name filter
+      pq show <query>           — display M expression for a query
+      pq refresh                — refresh all queries
+      pq refresh <query>        — refresh a single query
+      pq edit <query>           — fetch M expression then prompt for changes via Alfred Brain
+    """
+    parts = raw.strip().split(None, 2)           # ["pq", sub-cmd?, args?]
+    sub = parts[1].lower() if len(parts) >= 2 else "list"
+    arg = parts[2].strip() if len(parts) >= 3 else ""
+
+    # ── pq list ──────────────────────────────────────────────────────────────
+    if sub in {"list", "queries", "ls"}:
+        result = pq_helper.list_queries(arg or None)
+        if not result["success"]:
+            console.print(f"[bold red]Power Query:[/bold red] {result['error']}")
+            return
+        qs = result["queries"]
+        if not qs:
+            console.print(f"[dim]No Power Query queries found in '{result['workbook']}'.[/dim]")
+            return
+        tbl = Table(title=f"Power Query — {result['workbook']}", box=box.SIMPLE_HEAVY, show_lines=False)
+        tbl.add_column("Query", style="bold cyan", no_wrap=True)
+        tbl.add_column("Description", style="dim")
+        for q in qs:
+            tbl.add_row(q["name"], q.get("description", ""))
+        console.print(tbl)
+        console.print("[dim]  pq show <name>  |  pq refresh <name>  |  pq edit <name>[/dim]")
+        return
+
+    # ── pq show ───────────────────────────────────────────────────────────────
+    if sub == "show":
+        if not arg:
+            console.print("[bold red]Usage:[/bold red] pq show <query name>")
+            return
+        result = pq_helper.get_query(arg)
+        if not result["success"]:
+            console.print(f"[bold red]Power Query:[/bold red] {result['error']}")
+            return
+        console.print(
+            Panel(
+                result["formula"],
+                title=f"[bold cyan]{result['name']}[/bold cyan]  [dim]({result['workbook']})[/dim]",
+                border_style="cyan",
+                padding=(0, 2),
+            )
+        )
+        return
+
+    # ── pq refresh ────────────────────────────────────────────────────────────
+    if sub == "refresh":
+        result = pq_helper.refresh_query(arg or None)
+        if not result["success"]:
+            console.print(f"[bold red]Power Query:[/bold red] {result['error']}")
+            return
+        names = ", ".join(result["refreshed"])
+        console.print(f"[dim]Refreshed: {names}[/dim]")
+        if result.get("warnings"):
+            for w in result["warnings"]:
+                console.print(f"[bold yellow]  Warning:[/bold yellow] {w}")
+        return
+
+    # ── pq edit ───────────────────────────────────────────────────────────────
+    if sub == "edit":
+        if not arg:
+            console.print("[bold red]Usage:[/bold red] pq edit <query name>")
+            return
+        result = pq_helper.get_query(arg)
+        if not result["success"]:
+            console.print(f"[bold red]Power Query:[/bold red] {result['error']}")
+            return
+        console.print(
+            Panel(
+                result["formula"],
+                title=f"[bold cyan]{result['name']}[/bold cyan] — current M expression",
+                border_style="cyan",
+                padding=(0, 2),
+            )
+        )
+        console.print("[dim]Describe the change you want, or paste replacement M. Type [bold]cancel[/bold] to abort.[/dim]")
+        try:
+            change_request = console.input("[bold yellow]Edit > [/bold yellow]").strip()
+        except EOFError:
+            return
+        if not change_request or change_request.lower() == "cancel":
+            console.print("[dim]Cancelled.[/dim]")
+            return
+        # If the user pasted a full M expression directly, write it straight back
+        if change_request.startswith("let") or change_request.startswith("="):
+            new_m = change_request
+        else:
+            # Ask Claude to rewrite the M expression
+            console.print("[dim]Asking Claude to rewrite the M expression…[/dim]")
+            prompt = (
+                f"Rewrite the following Power Query M expression to satisfy this change request:\n\n"
+                f"Change: {change_request}\n\n"
+                f"Current M expression for query '{result['name']}':\n\n"
+                f"{result['formula']}\n\n"
+                f"Return ONLY the updated M expression — no explanation, no markdown fences."
+            )
+            new_m = _call_claude("You are a Power Query M expression expert.", prompt, timeout=120)
+            if not new_m:
+                console.print("[bold red]Claude did not return a result. No changes written.[/bold red]")
+                return
+            console.print(
+                Panel(
+                    new_m,
+                    title="[bold cyan]Proposed M expression[/bold cyan]",
+                    border_style="dim",
+                    padding=(0, 2),
+                )
+            )
+            try:
+                confirm = console.input("[bold yellow]Write this to Excel? (y/n) > [/bold yellow]").strip().lower()
+            except EOFError:
+                confirm = "n"
+            if confirm not in {"y", "yes"}:
+                console.print("[dim]Discarded — no changes written.[/dim]")
+                return
+        write_result = pq_helper.set_query(result["name"], new_m)
+        if write_result["success"]:
+            action = write_result.get("action", "updated")
+            console.print(f"[dim]Query '{result['name']}' {action} in {write_result['workbook']}.[/dim]")
+        else:
+            console.print(f"[bold red]Write failed:[/bold red] {write_result['error']}")
+        return
+
+    # ── fallback ──────────────────────────────────────────────────────────────
+    console.print(
+        "[dim]Power Query commands: [bold]pq list[/bold]  |  [bold]pq show <name>[/bold]  "
+        "|  [bold]pq refresh [name][/bold]  |  [bold]pq edit <name>[/bold][/dim]"
+    )
+
+
 def _action_ask_alfred() -> None:
     console.print(
-        "\n[dim][bold]clip[/bold] = clipboard  |  [bold]pbi connect[/bold] = link to Power BI Desktop  |  [bold]back[/bold] = menu[/dim]"
+        "\n[dim][bold]clip[/bold] = clipboard  |  [bold]pbi connect[/bold] = link to Power BI Desktop  |  [bold]pq list[/bold] = Power Query  |  [bold]back[/bold] = menu[/dim]"
     )
     # Sticky provider: set by "use claude" / "use codex", cleared by "auto" / "reset"
     sticky_provider: "str | None" = None
@@ -2091,6 +2231,11 @@ def _action_ask_alfred() -> None:
 
         if stripped.lower() in {"context", "memory", "what do you remember", "what do you know"}:
             _action_view_memory()
+            continue
+
+        # ── Power Query shortcuts ────────────────────────────────────────────
+        if re.match(r"(?i)^pq\b", stripped):
+            _handle_pq_command(stripped)
             continue
 
         # Check for explicit provider override ("use claude ...", "use codex ...")
