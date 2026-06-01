@@ -47,34 +47,6 @@ except ImportError:
 _stdout_utf8 = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 console = Console(file=_stdout_utf8, highlight=False)
 
-CLASSIFIER_PROMPT = """
-You are an AI task router.
-
-Classify requests into ONE category only:
-
-GENERAL
-POWERBI
-CLAUDE_EXECUTION
-
-CLAUDE_EXECUTION: Any request that requires taking direct action on files, systems, or external services.
-This includes:
-- File and code tasks: organise/organize folders, read/edit/create/delete files, run scripts,
-  fix bugs, write code, refactor, inspect files, scan directories, execute commands
-- Browser automation: navigating websites, filling forms, scraping data, taking screenshots
-- GitHub operations: creating PRs, managing issues, reviewing diffs, searching repositories,
-  pushing files, creating branches
-- Excel or Power BI operations: reading/writing spreadsheets, editing charts, building visuals
-
-POWERBI: Questions about Power BI design, architecture, or DAX that can be answered without
-live tool use (no execution needed).
-
-GENERAL: Conversation, factual questions, research, and anything that does not require acting
-on a file or external system — including questions about latest versions, current events,
-prices, people, or anything that benefits from a web search.
-
-Return ONLY the category name.
-"""
-
 GENERAL_RESPONSE_PROMPT = """
 You are Alfred — a personal AI assistant running on the user's Windows PC.
 
@@ -98,18 +70,19 @@ How to behave:
 """
 
 ALFRED_EXECUTOR_PROMPT = """
-You are Alfred's execution engine running on the user's Windows PC.
+You are Alfred — a personal AI assistant running on the user's Windows PC.
 
-Complete the task using available tools — file system, MCP servers (Excel, Power BI, GitHub, browser), code execution.
+Use available tools (file system, MCP servers for Excel, Power BI, GitHub, browser, code execution) to complete the task.
 
-Rules:
-1. Act directly. Use your tools. Complete the task — don't explain what you're about to do.
-2. For Power BI operations, use the powerbi-modeling-mcp MCP tools (not bash pbi commands).
-3. For Excel operations, use the excel MCP tools (not bash/python scripts).
-4. Before deleting or overwriting anything irreversible, describe the action and ask for confirmation.
-5. After finishing, respond in 2-4 sentences maximum: what you did, what you found, what's next.
-6. Never ask the user to approve permission prompts — just run the commands. All tools are pre-approved.
-7. If a required target isn't specified, ask one short question (not multiple paragraphs).
+How to behave:
+1. Just do it. Don't narrate your plan or explain what you're about to do — use your tools and get it done.
+2. For Power BI: use the powerbi-modeling-mcp MCP tools (not bash pbi commands).
+3. For Excel: use the excel MCP tools, not scripts.
+4. Before deleting or overwriting anything irreversible, stop and ask the user first.
+5. When you're done, respond naturally — what you found, what changed, what's worth noting next. Two or three sentences is usually right; use more if the findings warrant it.
+6. Run all tools without asking permission — everything is pre-approved.
+7. If you genuinely can't proceed without a specific detail (e.g. which file, which sheet), ask one short question.
+8. Match the user's tone — direct and casual is fine.
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -121,43 +94,6 @@ Before writing any code, briefly discuss the proposed change:
 3. End with exactly: **Proposed change:** <one-line summary>
 
 Keep it to 3–4 sentences max. No filler phrases.
-"""
-
-CLAUDE_SCOPE_PROMPT = """
-You are an AI orchestration planner.
-
-Your job:
-Generate a SAFE and TOKEN-EFFICIENT Claude Code prompt.
-
-General rules:
-- minimize MCP usage
-- avoid broad scans
-- inspect minimum scope
-- stop after diagnosis unless user asked for fixes
-- prefer targeted inspection
-- always include a hard stop condition
-- never tell Claude to scan all source files
-
-Power BI architecture and design questions:
-If the user asks about architecture, scalability, model design, data model, star schema, fact/dim tables, relationships, or query count strategy, focus the plan on:
-- model architecture and table grain
-- fact/dimension layout and relationship strategy
-- refresh design and incremental refresh scope
-- query dependency structure and fan-out risk
-- maintenance complexity and documentation gaps
-Do NOT mention Transform Sample File, Transform File function, Changed Type, Removed Columns, or Expanded Table Column steps for these questions.
-
-Power Query error debugging (conditional):
-Only apply the following when the user explicitly mentions Power Query combine, schema drift, missing columns, folder combine, or source file errors:
-- inspect query steps before source file contents
-- prefer Transform Sample File, Transform File function, Changed Type, Removed Columns, Expanded Table Column steps
-- only inspect source files after query steps confirm the issue cannot be diagnosed
-
-Return:
-1. likely issue
-2. first inspection target
-3. forbidden scope
-4. optimized Claude prompt
 """
 
 if getattr(sys, "frozen", False):
@@ -803,9 +739,8 @@ def generate_general_response(user_input: str, brain_says_search: bool = False) 
     if _memory_context:
         system += f"\n\n## Project context\n{_memory_context}"
 
-    # Build search-augmented content
-    # Use Tavily if the brain flagged it OR if our local heuristic agrees
-    content = user_input
+    # Build search-augmented content for the current turn
+    current_content = user_input
     if brain_says_search or _should_search(user_input):
         results = _tavily_search(user_input)
         if results:
@@ -814,28 +749,30 @@ def generate_general_response(user_input: str, brain_says_search: bool = False) 
                 f"[{r['title']}]({r['url']})\n{r['content']}"
                 for r in results
             )
-            content = (
+            current_content = (
                 f"{user_input}\n\n"
                 f"---\n"
                 f"Live search results (use these to answer accurately):\n\n"
                 f"{snippets}"
             )
 
-    # Inject prior conversation turns as a transcript so claude -p has context
-    if _chat_history:
-        turns = []
-        for msg in _chat_history:
-            label = "User" if msg["role"] == "user" else "Alfred"
-            turns.append(f"{label}: {msg['content']}")
-        history_block = "\n\n".join(turns)
-        system += f"\n\n## Conversation so far\n{history_block}"
+    # Build a proper multi-turn messages array — history + current turn.
+    # This gives Claude real conversation context (not a text transcript injected
+    # into the system prompt), so follow-up questions and pronoun resolution work
+    # naturally. The Anthropic API requires messages to alternate user/assistant
+    # and end with a user turn.
+    messages: list[dict] = []
+    for msg in _chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": current_content})
 
     response = (
-        _call_claude(system, content)
-        or _call_openai(system, content, history=_chat_history)
+        _call_anthropic(system, current_content, messages=messages)
+        or _call_openai(system, current_content, history=_chat_history)
+        or _call_claude(system, current_content)     # CLI fallback (no history, single-turn)
         or "No response."
     )
-    _append_to_history("user", user_input)
+    _append_to_history("user", user_input)    # store raw (not search-augmented) for clean history
     _append_to_history("assistant", response)
     return response
 
@@ -945,9 +882,14 @@ def _call_anthropic(
     system_prompt: str,
     user_content: str,
     timeout: int = 60,
+    messages: "list[dict] | None" = None,
 ) -> str:
     """Call Anthropic API directly via Python SDK — no subprocess, no MCP init delay.
-    Only active when ANTHROPIC_API_KEY is in .env. Falls back gracefully to subprocess path."""
+
+    Pass `messages` for multi-turn conversation (list of {role, content} dicts ending
+    with the current user turn). When omitted, a single-turn call is made with user_content.
+    Only active when ANTHROPIC_API_KEY is in .env — falls back gracefully to Claude CLI.
+    """
     global _anthropic_disabled
     if _anthropic_disabled:
         return ""
@@ -958,11 +900,12 @@ def _call_anthropic(
     try:
         import anthropic  # type: ignore
         client = anthropic.Anthropic(api_key=api_key)
+        msg_list = messages if messages else [{"role": "user", "content": user_content}]
         msg = client.messages.create(
             model=model,
             max_tokens=4096,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_content}],
+            messages=msg_list,
             timeout=timeout,
         )
         return msg.content[0].text.strip()
@@ -1616,6 +1559,14 @@ PROVIDER_OVERRIDE_RE = re.compile(
     r"\s*(?:(?:to|for)\s+)?[:,\-]?\s*"
 )
 
+# Catches natural-language "connect to my PBIX / Power BI" before it hits Claude Code.
+# pbi connect is interactive — it must run in a real terminal, not headlessly.
+_PBI_CONNECT_RE = re.compile(
+    r"(?i)\b(connect|open|attach|link|load)\b.{0,40}\b(power\s*bi|pbix|pbi)\b"
+    r"|"
+    r"\b(power\s*bi|pbix|pbi)\b.{0,40}\b(connect|open|attach|link|load)\b"
+)
+
 
 def detect_provider_override(user_input: str) -> "str | None":
     """Return an explicit provider override from a leading routing directive."""
@@ -2003,8 +1954,6 @@ def _process_alfred_request(
             "POWERBI": "POWERBI",
         }.get(brain_category, "GENERAL")
 
-    _YES_TOKENS = {"y", "yes", "ok", "okay", "sure", "go", "go ahead", "yep", ""}
-
     if category == "GENERAL":
         response = generate_general_response(stripped, brain_says_search=needs_search)
         _render_general_response(response)
@@ -2030,7 +1979,10 @@ def _process_alfred_request(
         elif plan_line:
             console.print(f"\n[dim]→ {plan_line}[/dim]")
 
-        # ── Permission layer: stronger confirmation for destructive operations ─
+        # ── Permission layer: only gate truly destructive operations ────────────
+        # Non-destructive tasks run immediately after showing the plan.
+        # Alfred shouldn't ask "sound good?" before every file read or report check
+        # — that makes it feel like a command shell, not an assistant.
         is_destructive = any(kw in stripped.lower() for kw in DANGEROUS_KEYWORDS)
         if is_destructive:
             console.print(
@@ -2047,32 +1999,6 @@ def _process_alfred_request(
                 append_autosave_entry(stripped, category, provider, "Cancelled (destructive guard)")
                 compress_autosave_if_needed()
                 return True
-        else:
-            try:
-                confirm = console.input(
-                    "\n[bold yellow]Sound good? Press Enter to go ahead, or describe any changes > [/bold yellow]"
-                ).strip()
-            except EOFError:
-                confirm = ""
-
-            if confirm.lower() in {"n", "no", "cancel", "back", "stop"}:
-                console.print("[dim]No problem — let me know if you'd like to try something different.[/dim]")
-                append_interaction_log(stripped, category, "", provider)
-                append_autosave_entry(stripped, category, provider, "Cancelled by user")
-                compress_autosave_if_needed()
-                return True
-
-            if confirm and confirm.lower() not in _YES_TOKENS:
-                # User described a change — incorporate it
-                stripped = f"{stripped}\n\nAdjustment: {confirm}"
-                adj = alfred_brain(stripped)
-                adj_steps = adj.get("steps", [])
-                if isinstance(adj_steps, list) and len(adj_steps) >= 2:
-                    steps = [str(s) for s in adj_steps if s]
-                    _render_step_plan(steps)
-                adj_plan = adj.get("plan", "").strip()
-                if adj_plan and not steps:
-                    console.print(f"\n[dim]→ {adj_plan}[/dim]")
 
         # ── Execute ──────────────────────────────────────────────────────────
         if steps:
@@ -2450,11 +2376,6 @@ def _chat_loop() -> None:
         # ── Connectivity shortcuts ────────────────────────────────────────────
         # Catch natural-language "connect to PBI / PBIX" before it hits Claude Code
         # (pbi connect is interactive — Claude Code can't run it headlessly)
-        _PBI_CONNECT_RE = re.compile(
-            r"(?i)\b(connect|open|attach|link|load)\b.{0,40}\b(power\s*bi|pbix|pbi)\b"
-            r"|"
-            r"\b(power\s*bi|pbix|pbi)\b.{0,40}\b(connect|open|attach|link|load)\b"
-        )
         if (
             stripped.lower() in {"pbi connect", "connect pbi", "connect power bi", "power bi connect"}
             or (_PBI_CONNECT_RE.search(stripped) and not any(
