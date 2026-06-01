@@ -175,32 +175,21 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
     if result_fast:
         return result_fast
 
-    # ── Slow path: claude CLI subprocess ───────────────────────────────────────
+    # ── Slow path: claude CLI subprocess via stdin ────────────────────────────
+    # Always use stdin (not CLI arg) — claude.cmd is a Windows batch file and
+    # cmd.exe mangles Unicode characters (em dashes, special chars) in arguments.
+    # Stdin is a binary pipe: no encoding mangling, no length limits.
     full_prompt = f"{system_prompt.strip()}\n\n---\n\n{user_content.strip()}"
-    # Windows command line limit is ~8191 chars — write long prompts to a temp file
     exe = _resolve_claude_executable()
     try:
-        if len(full_prompt) > 6000:
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
-                f.write(full_prompt)
-                tmp_path = f.name
-            try:
-                result = subprocess.run(
-                    ["powershell", "-NoProfile", "-Command",
-                     f"Get-Content -Raw '{tmp_path}' | & '{exe}' -p -"],
-                    capture_output=True, text=True, timeout=timeout,
-                )
-            finally:
-                try: os.unlink(tmp_path)
-                except Exception: pass
-        else:
-            result = subprocess.run(
-                [exe, "-p", full_prompt],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+        result = subprocess.run(
+            [exe, "-p", "-"],        # -p = print mode; - = read prompt from stdin
+            input=full_prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+        )
         if result.returncode == 0:
             return result.stdout.strip()
         console.print(f"[dim red]Claude CLI: {result.stderr.strip()[:120]}[/dim red]")
@@ -919,33 +908,31 @@ def extract_structured_response(raw_response: str) -> dict:
 
 
 def run_claude(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
-    """Run a task through Claude Code CLI. Returns plain-text response — no JSON forcing."""
+    """Run a task through Claude Code CLI via stdin.
+
+    Always passes the prompt via stdin (not as a CLI argument) because claude.cmd
+    is a Windows batch file — cmd.exe mangles Unicode characters (em dashes, special
+    symbols) when they appear in command-line arguments. Stdin is a binary pipe and
+    bypasses all of that, with no length limits either.
+    """
     exe = _resolve_claude_executable()
-    # Write long prompts to a temp file to avoid Windows CLI length limits
-    if len(prompt) > 6000:
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
-            f.write(prompt)
-            tmp_path = f.name
-        try:
-            args = ["powershell", "-NoProfile", "-Command",
-                    f"Get-Content -Raw '{tmp_path}' | & '{exe}' -p -"]
-            result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
-        finally:
-            try: os.unlink(tmp_path)
-            except Exception: pass
-        return result
-    else:
-        args = [exe, "-p", prompt]
-        try:
-            return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            return subprocess.CompletedProcess(args, 1, "", f"Claude timed out after {timeout}s.")
-        except FileNotFoundError:
-            return subprocess.CompletedProcess(
-                args, 127, "",
-                "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude login",
-            )
+    args = [exe, "-p", "-"]   # -p = print/non-interactive; - = read prompt from stdin
+    try:
+        return subprocess.run(
+            args,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(args, 1, "", f"Claude timed out after {timeout}s.")
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(
+            args, 127, "",
+            "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude login",
+        )
 
 
 _openai_disabled = False    # set True on auth failure so we don't retry every call
@@ -1118,9 +1105,10 @@ def run_codex(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
     try:
         result = subprocess.run(
             args,
-            input=prompt,            # pipe prompt via stdin — no TTY needed
+            input=prompt,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
         )
         if result.returncode == 0:
