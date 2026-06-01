@@ -121,7 +121,7 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
     exe = _resolve_claude_executable()
     try:
         result = subprocess.run(
-            [exe, "-p", "-"],        # -p = print mode; - = read prompt from stdin
+            [exe, "-p", "--dangerously-skip-permissions", "-"],   # -p = print; skip permission dialogs (headless)
             input=full_prompt,
             capture_output=True,
             text=True,
@@ -852,9 +852,15 @@ def run_claude(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
     is a Windows batch file — cmd.exe mangles Unicode characters (em dashes, special
     symbols) when they appear in command-line arguments. Stdin is a binary pipe and
     bypasses all of that, with no length limits either.
+
+    --dangerously-skip-permissions: Alfred runs headless with capture_output=True,
+    so Claude Code cannot render its permission TUI and cannot receive keystrokes.
+    Alfred's executor prompt already declares "everything is pre-approved" and
+    settings.json allow-lists all standard tools — this flag enforces that contract
+    at the subprocess level so tasks never hang silently waiting for approval.
     """
     exe = _resolve_claude_executable()
-    args = [exe, "-p", "-"]   # -p = print/non-interactive; - = read prompt from stdin
+    args = [exe, "-p", "--dangerously-skip-permissions", "-"]   # -p = print; skip permission dialogs (headless)
     try:
         return subprocess.run(
             args,
