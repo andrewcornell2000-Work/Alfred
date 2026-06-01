@@ -106,12 +106,14 @@
     ]
   },
   "cli": {
-    "note": "System CLIs installed via winget or standalone installer. Not managed by pip/npm. Bash permissions for each are pre-approved in .claude/settings.json.",
+    "note": "System CLIs — all install without admin rights. gh uses portable ZIP (Alfred\\bin\\gh.exe), az via pip, jq and pandoc via winget (no elevation). setup.ps1 handles all of these automatically.",
     "tools": [
       {
         "name": "gh",
         "command": "gh",
-        "install": "winget install GitHub.cli",
+        "install": "portable ZIP — setup.ps1 downloads to Alfred\\bin\\gh.exe (no admin)",
+        "installMethod": "portable-zip",
+        "binaryPath": "Alfred\\bin\\gh.exe",
         "description": "GitHub CLI",
         "purpose": "Create PRs, manage issues, view CI run status, create releases, clone repos. Complements GitHub MCP — MCP for Alfred-driven automation, gh for interactive terminal and scripted workflows.",
         "loginRequired": true,
@@ -123,6 +125,7 @@
         "name": "jq",
         "command": "jq",
         "install": "winget install jqlang.jq",
+        "installMethod": "winget",
         "description": "JSON processor",
         "purpose": "Parse, filter, transform JSON from API responses, config files, Power BI REST API output. Essential when Alfred processes raw JSON in bash pipelines.",
         "destructive": false,
@@ -132,6 +135,7 @@
         "name": "pandoc",
         "command": "pandoc",
         "install": "winget install JohnMacFarlane.Pandoc",
+        "installMethod": "winget",
         "description": "Universal document converter",
         "purpose": "Convert between markdown, docx, PDF, HTML, pptx. Alfred can draft content in markdown then export to Word or PDF without python-docx for simpler document jobs.",
         "destructive": false,
@@ -140,7 +144,8 @@
       {
         "name": "az",
         "command": "az",
-        "install": "winget install Microsoft.AzureCLI",
+        "install": "pip install azure-cli (no admin — installs into Alfred's venv)",
+        "installMethod": "pip",
         "description": "Azure CLI",
         "purpose": "Manage Azure resources — Power BI Service REST API, dataflow refresh status, workspace and dataset access, service principal management. Authenticates via existing Maersk Microsoft login.",
         "loginRequired": true,

@@ -354,6 +354,13 @@ if (-not $hasPython) {
                 Write-Warn "Some optional Python packages failed: $($failedPythonPackages -join ', ')"
                 Write-Info "Alfred will continue; affected specialist features can be repaired from Control Tower."
             }
+
+            # xlwings Excel add-in — register after pip install
+            $xlwingsExe = Join-Path $VenvPath "Scripts\xlwings.exe"
+            if (Test-Path $xlwingsExe) {
+                & $xlwingsExe addin install 2>&1 | Out-Null
+                Write-Done "xlwings Excel add-in registered."
+            }
         } else {
             Write-Host "  Installing Python packages (fallback)..." -ForegroundColor Cyan
             Invoke-PipInstall @("anthropic", "openai", "rich", "python-dotenv", "typer")
@@ -362,6 +369,94 @@ if (-not $hasPython) {
     } else {
         Write-Fail "pip not found in .venv -- package install skipped."
     }
+}
+
+# ── Optional CLI tools (no admin required) ───────────────────────────────────
+
+Write-Step "Optional CLI tools (no admin required)..."
+
+# Bin dir for portable tools — added to user PATH
+$BinDir = Join-Path $Root "bin"
+if (-not (Test-Path $BinDir)) { New-Item -ItemType Directory -Path $BinDir -Force | Out-Null }
+$null = Add-PathEntry $BinDir
+
+# jq — JSON processor (winget, single .exe, no elevation needed)
+if (Find-Command "jq") {
+    $jqVer = & jq --version 2>&1 | Select-Object -First 1
+    Write-OK "jq (JSON processor) -- $jqVer"
+} elseif (Find-Command "winget") {
+    Write-Host "  Installing jq via winget..." -ForegroundColor Cyan
+    winget install jqlang.jq --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    Refresh-Path
+    if (Find-Command "jq") { Write-Done "jq installed." }
+    else { Write-Info "jq: run 'winget install jqlang.jq' manually." }
+} else {
+    Write-Skip "jq: winget not available -- install from https://github.com/jqlang/jq/releases"
+}
+
+# pandoc — document converter (winget, no elevation needed)
+if (Find-Command "pandoc") {
+    $pandocVer = & pandoc --version 2>&1 | Select-Object -First 1
+    Write-OK "pandoc (document converter) -- $pandocVer"
+} elseif (Find-Command "winget") {
+    Write-Host "  Installing pandoc via winget..." -ForegroundColor Cyan
+    winget install JohnMacFarlane.Pandoc --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    Refresh-Path
+    if (Find-Command "pandoc") { Write-Done "pandoc installed." }
+    else { Write-Info "pandoc: run 'winget install JohnMacFarlane.Pandoc' manually." }
+} else {
+    Write-Skip "pandoc: winget not available -- install from https://pandoc.org/installing.html"
+}
+
+# gh — GitHub CLI (portable ZIP into Alfred\bin\, no admin)
+$ghExe = Join-Path $BinDir "gh.exe"
+if ((Find-Command "gh") -or (Test-Path $ghExe)) {
+    $ghBin = if (Test-Path $ghExe) { $ghExe } else { "gh" }
+    $ghVer = & $ghBin --version 2>&1 | Select-Object -First 1
+    Write-OK "gh (GitHub CLI) -- $ghVer"
+} else {
+    Write-Host "  Installing gh CLI (portable, no admin)..." -ForegroundColor Cyan
+    try {
+        $release    = Invoke-RestMethod "https://api.github.com/repos/cli/cli/releases/latest" -UseBasicParsing -ErrorAction Stop
+        $ghVersion  = $release.tag_name -replace '^v', ''
+        $ghUrl      = "https://github.com/cli/cli/releases/download/v$ghVersion/gh_${ghVersion}_windows_amd64.zip"
+        $zipPath    = Join-Path $env:TEMP "gh_portable.zip"
+        $extractDir = Join-Path $env:TEMP "gh_portable_extract"
+
+        Invoke-WebRequest -Uri $ghUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+        if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+        $src = Get-ChildItem -Path $extractDir -Filter "gh.exe" -Recurse | Select-Object -First 1
+        if ($src) {
+            Copy-Item $src.FullName $ghExe -Force
+            $null = Add-PathEntry $BinDir
+            Write-Done "gh CLI $ghVersion installed to Alfred\bin\ (no admin)."
+            Write-Info "Run 'gh auth login' once to connect your GitHub account."
+        } else {
+            Write-Fail "gh.exe not found in downloaded archive."
+        }
+        Remove-Item $zipPath, $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Fail "gh portable install failed: $_"
+        Write-Info "Download manually from https://github.com/cli/cli/releases (extract gh.exe to Alfred\bin\)"
+    }
+}
+
+# az — Azure CLI (pip install into venv, no admin; ~500 MB, may take a few minutes)
+$azCmd = Join-Path $VenvPath "Scripts\az.cmd"
+if ((Find-Command "az") -or (Test-Path $azCmd)) {
+    Write-OK "az (Azure CLI) -- available"
+} elseif (Test-Path $PipExe) {
+    Write-Host "  Installing Azure CLI via pip (no admin, ~500 MB, please wait)..." -ForegroundColor Cyan
+    Invoke-PipInstall @("azure-cli")
+    if ($LASTEXITCODE -eq 0) {
+        Write-Done "Azure CLI installed via pip."
+        Write-Info "Run 'az login' once to connect your Microsoft/Maersk account."
+    } else {
+        Write-Info "az: pip install failed. Alfred works fine without it."
+    }
+} else {
+    Write-Skip "az: pip not available -- skipping."
 }
 
 # ── .env / secrets ────────────────────────────────────────────────────────────
@@ -445,6 +540,14 @@ foreach ($tool in $npmToolList) {
 }
 
 Write-Host "  [i] Auth: run 'claude login' once to authenticate (no API keys needed)" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Optional CLI tools (no admin required):" -ForegroundColor DarkGray
+if (Find-Command "jq")                                         { Write-Host "  [x] jq"     -ForegroundColor Green  } else { Write-Host "  [ ] jq      --  winget install jqlang.jq"              -ForegroundColor DarkGray }
+if (Find-Command "pandoc")                                     { Write-Host "  [x] pandoc" -ForegroundColor Green  } else { Write-Host "  [ ] pandoc  --  winget install JohnMacFarlane.Pandoc"  -ForegroundColor DarkGray }
+$ghReady = (Find-Command "gh") -or (Test-Path (Join-Path $Root "bin\gh.exe"))
+if ($ghReady)                                                  { Write-Host "  [x] gh      --  run 'gh auth login' to connect GitHub" -ForegroundColor Green   } else { Write-Host "  [ ] gh      --  portable ZIP, see setup output above"    -ForegroundColor DarkGray }
+$azReady = (Find-Command "az") -or (Test-Path (Join-Path $VenvPath "Scripts\az.cmd"))
+if ($azReady)                                                  { Write-Host "  [x] az      --  run 'az login' to connect Microsoft account" -ForegroundColor Green } else { Write-Host "  [ ] az      --  pip install azure-cli"                  -ForegroundColor DarkGray }
 
 Write-Host ""
 

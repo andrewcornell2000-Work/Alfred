@@ -45,5 +45,8 @@ memory/autosave.md
 memory/chat-history.json
 memory/mcp-knowledge-graph.json
 
+# Portable CLI binaries (downloaded at install time, not committed)
+bin/
+
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 
