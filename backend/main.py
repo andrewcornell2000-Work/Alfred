@@ -2671,6 +2671,22 @@ def _mcp_runtime_status(name: str, configured_servers: dict) -> tuple[str, str]:
         label = "Web page fetching" if name == "fetch" else "Time and timezone conversion"
         return ("ready", label) if ok else ("attention", "uvx not installed — run: pip install uv")
 
+    if name == "sqlite":
+        db = next((a for a in svc.get("args", []) if a.endswith(".db")), "")
+        return "ready", f"Local SQL database{' — ' + db if db else ''}"
+
+    if name == "duckdb":
+        return "ready", "Fast SQL queries on CSV, Excel exports, Parquet files"
+
+    if name in {"exa", "brave-search"}:
+        env_key = "EXA_API_KEY" if name == "exa" else "BRAVE_API_KEY"
+        has_key = bool(
+            os.getenv(env_key)
+            or svc.get("env", {}).get(env_key)
+        )
+        label = "Neural web search" if name == "exa" else "Brave web search"
+        return ("ready", label) if has_key else ("attention", f"{env_key} not set in .env")
+
     return "ready", "Configured in Claude MCP settings"
 
 

@@ -191,6 +191,62 @@
         "requires": "uvx"
       },
       {
+        "name": "sqlite",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-sqlite",
+        "purpose": "Local SQLite database — create, query, and analyse structured data without a server",
+        "category": "EXECUTE",
+        "destructive": true,
+        "trust": "official",
+        "storage": "data/alfred.db"
+      },
+      {
+        "name": "duckdb",
+        "source": "npx",
+        "package": "@ktanaka101/mcp-server-duckdb",
+        "purpose": "Fast SQL analytics on CSV, Excel exports, and Parquet files — query raw data without loading into Excel",
+        "category": "EXECUTE",
+        "destructive": false,
+        "trust": "community",
+        "storage": "data/analytics.duckdb"
+      },
+      {
+        "name": "exa",
+        "source": "npx",
+        "package": "exa-mcp-server",
+        "purpose": "Neural semantic web search — better than keyword search for research, technical docs, company/people lookup",
+        "category": "EXECUTE",
+        "destructive": false,
+        "trust": "official",
+        "requiresKey": "EXA_API_KEY",
+        "keySource": "https://exa.ai — free tier: 1000 req/month",
+        "status": "needs-key"
+      },
+      {
+        "name": "brave-search",
+        "source": "npx",
+        "package": "@modelcontextprotocol/server-brave-search",
+        "purpose": "Privacy-first web search backup — news, local, image, video. Good Tavily alternative.",
+        "category": "EXECUTE",
+        "destructive": false,
+        "trust": "official",
+        "requiresKey": "BRAVE_API_KEY",
+        "keySource": "https://brave.com/search/api — free tier: 2000 req/month",
+        "status": "needs-key"
+      },
+      {
+        "name": "ms365",
+        "source": "npx",
+        "package": "ms-365-mcp-server",
+        "purpose": "200+ Microsoft 365 tools — Outlook email+calendar, Teams, SharePoint, OneDrive, Word, Excel via Graph API",
+        "category": "EXECUTE",
+        "destructive": true,
+        "trust": "community",
+        "requiresKey": "Microsoft Graph API (Azure AD app registration)",
+        "keySource": "https://entra.microsoft.com — requires Azure app with Mail/Calendar/Files scopes",
+        "status": "needs-key"
+      },
+      {
         "name": "git",
         "source": "uvx",
         "package": "mcp-server-git",
