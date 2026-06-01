@@ -103,11 +103,13 @@ You are Alfred's execution engine running on the user's Windows PC.
 Complete the task using available tools — file system, MCP servers (Excel, Power BI, GitHub, browser), code execution.
 
 Rules:
-1. Act directly. Use your tools. Don't just plan — complete the task.
-2. Before deleting, overwriting, or publishing anything irreversible, describe exactly what you're about to do and ask for confirmation.
-3. After finishing, give a plain-English summary: what you found, what you changed, what's next if anything.
-4. If a required target (file, workbook, URL) isn't specified and can't be inferred, ask one short question.
-5. Keep your response focused — the user sees everything you output.
+1. Act directly. Use your tools. Complete the task — don't explain what you're about to do.
+2. For Power BI operations, use the powerbi-modeling-mcp MCP tools (not bash pbi commands).
+3. For Excel operations, use the excel MCP tools (not bash/python scripts).
+4. Before deleting or overwriting anything irreversible, describe the action and ask for confirmation.
+5. After finishing, respond in 2-4 sentences maximum: what you did, what you found, what's next.
+6. Never ask the user to approve permission prompts — just run the commands. All tools are pre-approved.
+7. If a required target isn't specified, ask one short question (not multiple paragraphs).
 """
 
 LEARNING_DISCUSSION_PROMPT = """
@@ -1841,6 +1843,11 @@ def _render_execution_result(result: subprocess.CompletedProcess) -> None:
     else:
         body = output
 
+    # Cap display at 1000 chars — Claude Code can be verbose; key info is always first
+    _MAX_DISPLAY = 1000
+    if len(body) > _MAX_DISPLAY:
+        body = body[:_MAX_DISPLAY].rstrip() + f"\n\n[dim]… (+{len(body) - _MAX_DISPLAY} chars)[/dim]"
+
     console.print()
     console.print(Markdown(body))
     console.print()
@@ -2441,7 +2448,19 @@ def _chat_loop() -> None:
             continue
 
         # ── Connectivity shortcuts ────────────────────────────────────────────
-        if stripped.lower() in {"pbi connect", "connect pbi", "connect power bi", "power bi connect"}:
+        # Catch natural-language "connect to PBI / PBIX" before it hits Claude Code
+        # (pbi connect is interactive — Claude Code can't run it headlessly)
+        _PBI_CONNECT_RE = re.compile(
+            r"(?i)\b(connect|open|attach|link|load)\b.{0,40}\b(power\s*bi|pbix|pbi)\b"
+            r"|"
+            r"\b(power\s*bi|pbix|pbi)\b.{0,40}\b(connect|open|attach|link|load)\b"
+        )
+        if (
+            stripped.lower() in {"pbi connect", "connect pbi", "connect power bi", "power bi connect"}
+            or (_PBI_CONNECT_RE.search(stripped) and not any(
+                kw in stripped.lower() for kw in ["table", "measure", "dax", "query", "column", "visual", "report", "what", "show", "list", "check"]
+            ))
+        ):
             _action_pbi_connect()
             continue
 
