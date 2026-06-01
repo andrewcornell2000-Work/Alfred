@@ -83,8 +83,10 @@
 - **Weather/web search:** `needs_search` gate not consistently firing for weather/current-event GENERAL queries — Tavily injection not always triggered
 - **POWERBI scope leakage:** Excel/Power Query requests routed to POWERBI/claude_code return Alfred's own self-description instead of executing against the document — scope prompt may be injecting Alfred context rather than the actual task (observed 2026-05-29, appears resolved in 2026-06-01 multi-step executions)
 - **"claude" provider label:** `alfred_brain()` occasionally returns `"claude"` as the provider token instead of `"claude_code"` or `"openai_mini"` — needs normalisation in `choose_provider()`
+- **CLAUDE_EXECUTION errors:** Category mismatch causing execution failures; two consecutive errors logged 2026-06-01 16:17:40 and 16:17:46 with empty outcomes — routing logic may need alignment with capability registry
 
 ## Next Planned Features
 
 - **Unified identity / session management** — single Alfred login managing all provider sessions
 - **Agent workflows** — background tasks, scheduled tasks, persistent workspaces
+- **Excel budget forecasting** — user requested three-month warehouse budget forecast from Desktop\alfred test folder using Adidas weekly activity data; initial attempts errored; needs investigation and retry

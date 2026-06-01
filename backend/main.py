@@ -845,7 +845,7 @@ def extract_structured_response(raw_response: str) -> dict:
     }
 
 
-def run_claude(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
+def run_claude(prompt: str, timeout: int = 600) -> subprocess.CompletedProcess:
     """Run a task through Claude Code CLI via stdin.
 
     Always passes the prompt via stdin (not as a CLI argument) because claude.cmd

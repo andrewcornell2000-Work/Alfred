@@ -48,5 +48,11 @@ memory/mcp-knowledge-graph.json
 # Portable CLI binaries (downloaded at install time, not committed)
 bin/
 
+# Temporary files created by Alfred during task execution
+tmp_*.py
+tmp_*.json
+tmp_*.xlsx
+tmp_*.csv
+
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 
