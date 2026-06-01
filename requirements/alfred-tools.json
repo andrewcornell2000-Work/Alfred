@@ -146,39 +146,30 @@
         "category": "EXECUTE",
         "destructive": false,
         "trust": "official",
-        "status": "planned"
-      },
-      {
-        "name": "git",
-        "source": "uvx",
-        "package": "mcp-server-git",
-        "purpose": "Repository inspection, history, diffs, and local git operations via MCP",
-        "category": "EXECUTE",
-        "destructive": true,
-        "trust": "official",
-        "status": "planned"
+        "requires": "uvx"
       },
       {
         "name": "filesystem",
         "source": "npx",
         "package": "@modelcontextprotocol/server-filesystem",
-        "purpose": "Scoped local file access with explicit allowed-directory controls",
+        "purpose": "Scoped read/write file access — configured for OneDrive finance folder and Alfred project",
         "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
-        "status": "planned",
-        "notes": "Must be launched with explicit allowed directories only."
+        "allowedPaths": [
+          "C:\\Users\\ACO324\\OneDrive - Maersk Group\\MCL Finance - General",
+          "C:\\Users\\ACO324\\Alfred"
+        ]
       },
       {
         "name": "memory",
         "source": "npx",
         "package": "@modelcontextprotocol/server-memory",
-        "purpose": "Persistent knowledge graph memory across Alfred sessions and projects",
+        "purpose": "Persistent knowledge graph for entities, relationships, and facts across sessions",
         "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
-        "status": "planned",
-        "notes": "Store under Alfred memory/, never in committed secrets."
+        "storage": "memory/mcp-knowledge-graph.json"
       },
       {
         "name": "sequential-thinking",
@@ -187,8 +178,7 @@
         "purpose": "Structured multi-step reasoning for complex Power BI, Office, and PC operator tasks",
         "category": "EXECUTE",
         "destructive": false,
-        "trust": "official",
-        "status": "planned"
+        "trust": "official"
       },
       {
         "name": "time",
@@ -198,7 +188,18 @@
         "category": "EXECUTE",
         "destructive": false,
         "trust": "official",
-        "status": "planned"
+        "requires": "uvx"
+      },
+      {
+        "name": "git",
+        "source": "uvx",
+        "package": "mcp-server-git",
+        "purpose": "Structured repository inspection, history, and diffs via MCP (vs direct bash git)",
+        "category": "EXECUTE",
+        "destructive": true,
+        "trust": "official",
+        "status": "planned",
+        "notes": "Useful when targeting a specific repo. Bash git is already pre-approved as fallback."
       }
     ]
   }

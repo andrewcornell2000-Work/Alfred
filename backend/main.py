@@ -2647,6 +2647,30 @@ def _mcp_runtime_status(name: str, configured_servers: dict) -> tuple[str, str]:
     if name == "playwright":
         return "ready", "Browser automation configured"
 
+    if name == "sequential-thinking":
+        return "ready", "Structured multi-step reasoning"
+
+    if name == "memory":
+        storage = svc.get("env", {}).get("MEMORY_FILE_PATH", "")
+        if storage and not os.path.isdir(os.path.dirname(storage)):
+            return "attention", f"Storage directory missing: {os.path.dirname(storage)}"
+        return "ready", "Persistent knowledge graph across sessions"
+
+    if name == "filesystem":
+        dirs = [
+            a for a in svc.get("args", [])
+            if not a.startswith("-") and a not in {"-y", "@modelcontextprotocol/server-filesystem"}
+        ]
+        accessible = [d for d in dirs if os.path.isdir(d)]
+        if not accessible:
+            return "attention", "No accessible directories configured"
+        return "ready", f"{len(accessible)} path(s) accessible"
+
+    if name in {"fetch", "time"}:
+        ok = bool(shutil.which("uvx"))
+        label = "Web page fetching" if name == "fetch" else "Time and timezone conversion"
+        return ("ready", label) if ok else ("attention", "uvx not installed — run: pip install uv")
+
     return "ready", "Configured in Claude MCP settings"
 
 
@@ -3306,6 +3330,25 @@ def _repair_github_token() -> None:
     console.print("[bold green]GitHub token saved.[/bold green]")
 
 
+def _repair_install_uv() -> None:
+    """Install uv so uvx is available for fetch and time MCPs."""
+    console.print("[dim]Running: pip install uv[/dim]")
+    pip = os.path.join(_ROOT, ".venv", "Scripts", "pip.exe")
+    if not os.path.isfile(pip):
+        pip = "pip"
+    r = subprocess.run([pip, "install", "uv"], capture_output=True, text=True)
+    if r.returncode == 0:
+        console.print(
+            "[bold green]uv installed — restart Alfred to activate fetch and time MCPs.[/bold green]"
+        )
+    else:
+        console.print(f"[bold red]Install failed:[/bold red] {r.stderr.strip()[:200]}")
+        console.print(
+            "[dim]Alternative: install from "
+            "[bold]https://docs.astral.sh/uv/getting-started/installation/[/bold][/dim]"
+        )
+
+
 def _repair_excel_mcp() -> None:
     pip = os.path.join(_ROOT, ".venv", "Scripts", "pip.exe")
     if not os.path.isfile(pip):
@@ -3337,6 +3380,15 @@ def _check_setup() -> None:
         issues.append(("Tavily key missing — web research unavailable", _repair_tavily_key))
     if not _get_github_token():
         issues.append(("GitHub token missing — GitHub operations unavailable", _repair_github_token))
+
+    # ── uvx (needed for fetch and time MCPs) ──────────────────────────────────
+    if not shutil.which("uvx"):
+        mcp_servers = _load_mcp_servers()
+        if any(svc.get("command") == "uvx" for svc in mcp_servers.values()):
+            issues.append((
+                "uvx not installed — fetch and time MCPs need it",
+                _repair_install_uv,
+            ))
 
     # ── MCP servers ───────────────────────────────────────────────────────────
     settings_path = os.path.join(_ROOT, ".claude", "settings.json")

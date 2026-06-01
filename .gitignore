@@ -40,9 +40,10 @@ Alfred-Install.exe
 # Logs (runtime only, not synced)
 logs/
 
-# Raw interaction history — private, stays local
+# Raw interaction history and personal knowledge graph — private, stays local
 memory/autosave.md
 memory/chat-history.json
+memory/mcp-knowledge-graph.json
 
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 
