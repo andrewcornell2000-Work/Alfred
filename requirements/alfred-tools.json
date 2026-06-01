@@ -1,21 +1,21 @@
 {
-  "version": "1",
-  "updated": "2026-05-27",
-  "note": "Reference manifest for Alfred tools and plugins. setup.ps1 reads requirements/python-requirements.txt and requirements/npm-tools.txt directly; keep this file in sync when adding tools via learning mode.",
+  "version": "2",
+  "updated": "2026-06-01",
+  "note": "Reference manifest for Alfred tools and MCP stack. setup.ps1 reads requirements/python-requirements.txt and requirements/npm-tools.txt directly; keep this file in sync when adding tools via learning mode.",
   "python": {
     "source": "requirements/python-requirements.txt",
     "packages": [
       "rich",
       "python-dotenv",
       "typer",
-      "openai",
       "truststore",
-      "excellm",
+      "anthropic",
+      "pywin32",
       {
         "package": "pbi-cli-tool",
-        "command": "pbi-cli",
+        "command": "pbi",
         "description": "Power BI CLI for Claude Code",
-        "purpose": "Visual creation/editing in Power BI Desktop — 13 Claude Code skills. Run 'pbi connect' with Desktop open.",
+        "purpose": "Connect pbi-cli to an open Power BI Desktop instance. Run 'pbi connect' with Desktop open, then use Power BI MCP for model editing.",
         "postInstall": "pbi-cli skills install",
         "category": "POWERBI",
         "destructive": true,
@@ -25,7 +25,7 @@
         "package": "winotify",
         "command": null,
         "description": "Windows toast notifications",
-        "purpose": "Show a desktop notification when a long Claude Code or Codex task completes.",
+        "purpose": "Show a desktop notification when a long Claude Code task completes.",
         "category": "UX",
         "destructive": false,
         "trust": "community"
@@ -34,7 +34,7 @@
         "package": "python-docx",
         "command": null,
         "description": "Word document creation and editing",
-        "purpose": "Create and polish DOCX reports, proposals, briefs, and templates.",
+        "purpose": "Create and edit DOCX reports, proposals, briefs, and templates.",
         "category": "OFFICE",
         "destructive": true,
         "trust": "official"
@@ -61,7 +61,7 @@
         "package": "openpyxl",
         "command": null,
         "description": "Offline Excel file editing",
-        "purpose": "Read and write XLSX files when Excel is not open or MCP is not needed.",
+        "purpose": "Read and write XLSX files when Excel is not open or live MCP is not needed.",
         "category": "OFFICE",
         "destructive": true,
         "trust": "official"
@@ -84,15 +84,16 @@
         "package": "@anthropic-ai/claude-code",
         "command": "claude",
         "description": "Claude Code CLI",
-        "purpose": "CLAUDE_EXECUTION routing provider and MCP runtime",
+        "purpose": "Primary execution engine — all EXECUTE, CODE, and POWERBI routing. Also the MCP runtime host for Excel, Power BI, GitHub, and Playwright MCPs.",
         "loginRequired": true
       },
       {
         "package": "@openai/codex",
         "command": "codex",
-        "description": "OpenAI Codex CLI",
-        "purpose": "Codex routing provider for implementation, refactors, tests, and Alfred self-improvement",
-        "loginRequired": true
+        "description": "OpenAI Codex CLI (optional)",
+        "purpose": "Available for interactive terminal use via /platforms. Not used for headless Alfred routing (TTY limitation).",
+        "loginRequired": true,
+        "optional": true
       }
     ]
   },
@@ -103,7 +104,7 @@
         "name": "powerbi-modeling-mcp",
         "source": "vscode-extension",
         "extension": "analysis-services.powerbi-modeling-mcp",
-        "purpose": "Edit Power BI data models — measures, columns, tables, relationships",
+        "purpose": "Edit live Power BI Desktop data models — measures, columns, tables, relationships, DAX queries, hierarchies, security roles, partitions, perspectives, translations, calculation groups",
         "category": "POWERBI",
         "destructive": true,
         "trust": "official"
@@ -112,28 +113,17 @@
         "name": "excel",
         "package": "excellm",
         "command": "python -m excellm",
-        "purpose": "Read/write live open Excel workbooks",
-        "category": "CLAUDE_EXECUTION",
+        "purpose": "Read/write live open Excel workbooks — cells, ranges, sheets, pivot tables, charts, tables, VBA, sorting, formatting",
+        "category": "EXECUTE",
         "destructive": true,
-        "trust": "official"
-      },
-      {
-        "name": "brave-search",
-        "source": "npx",
-        "package": "@modelcontextprotocol/server-brave-search",
-        "purpose": "Live web search — real-time results, latest docs, current versions",
-        "category": "CLAUDE_EXECUTION",
-        "requiresKey": "BRAVE_API_KEY",
-        "keySource": "https://api.search.brave.com/",
-        "destructive": false,
         "trust": "official"
       },
       {
         "name": "github",
         "source": "npx",
         "package": "@modelcontextprotocol/server-github",
-        "purpose": "GitHub operations — create PRs, manage issues, search repos, push files",
-        "category": "CLAUDE_EXECUTION",
+        "purpose": "GitHub operations — create PRs, manage issues, search repos, review diffs, push files, manage branches",
+        "category": "EXECUTE",
         "requiresKey": "GITHUB_PERSONAL_ACCESS_TOKEN",
         "keySource": "https://github.com/settings/tokens",
         "destructive": true,
@@ -143,17 +133,37 @@
         "name": "playwright",
         "source": "npx",
         "package": "@playwright/mcp",
-        "purpose": "Browser automation — navigate pages, fill forms, scrape data, take screenshots",
-        "category": "CLAUDE_EXECUTION",
+        "purpose": "Browser automation — navigate pages, click, fill forms, scrape data, take screenshots (Chromium)",
+        "category": "EXECUTE",
         "destructive": false,
         "trust": "official"
+      },
+      {
+        "name": "fetch",
+        "source": "uvx",
+        "package": "mcp-server-fetch",
+        "purpose": "Clean web page fetching and HTML-to-Markdown conversion for docs and research",
+        "category": "EXECUTE",
+        "destructive": false,
+        "trust": "official",
+        "status": "planned"
+      },
+      {
+        "name": "git",
+        "source": "uvx",
+        "package": "mcp-server-git",
+        "purpose": "Repository inspection, history, diffs, and local git operations via MCP",
+        "category": "EXECUTE",
+        "destructive": true,
+        "trust": "official",
+        "status": "planned"
       },
       {
         "name": "filesystem",
         "source": "npx",
         "package": "@modelcontextprotocol/server-filesystem",
-        "purpose": "Scoped local file access for controlled PC operator workflows",
-        "category": "CONTROL_TOWER",
+        "purpose": "Scoped local file access with explicit allowed-directory controls",
+        "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
         "status": "planned",
@@ -164,38 +174,18 @@
         "source": "npx",
         "package": "@modelcontextprotocol/server-memory",
         "purpose": "Persistent knowledge graph memory across Alfred sessions and projects",
-        "category": "CONTROL_TOWER",
+        "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
         "status": "planned",
         "notes": "Store under Alfred memory/, never in committed secrets."
       },
       {
-        "name": "fetch",
-        "source": "uvx",
-        "package": "mcp-server-fetch",
-        "purpose": "Clean web page fetching and HTML-to-Markdown conversion for docs and research",
-        "category": "CLAUDE_EXECUTION",
-        "destructive": false,
-        "trust": "official",
-        "status": "planned"
-      },
-      {
-        "name": "git",
-        "source": "uvx",
-        "package": "mcp-server-git",
-        "purpose": "Repository inspection, history, diffs, and local git operations",
-        "category": "CLAUDE_EXECUTION",
-        "destructive": true,
-        "trust": "official",
-        "status": "planned"
-      },
-      {
         "name": "sequential-thinking",
         "source": "npx",
         "package": "@modelcontextprotocol/server-sequential-thinking",
-        "purpose": "Structured multi-step reasoning for complex Office, BI, and PC operator tasks",
-        "category": "CONTROL_TOWER",
+        "purpose": "Structured multi-step reasoning for complex Power BI, Office, and PC operator tasks",
+        "category": "EXECUTE",
         "destructive": false,
         "trust": "official",
         "status": "planned"
@@ -205,25 +195,11 @@
         "source": "uvx",
         "package": "mcp-server-time",
         "purpose": "Time and timezone conversion for scheduling and automation context",
-        "category": "CONTROL_TOWER",
+        "category": "EXECUTE",
         "destructive": false,
         "trust": "official",
         "status": "planned"
       }
     ]
-  },
-  "plugins": {
-    "quant_intelligence": {
-      "path": "plugins/quant",
-      "entry": "app.py",
-      "port": 5000,
-      "category": "QUANT",
-      "description": "Live trading analysis engine: 8-signal edge model, paper trading, institutional flow, alerts, and learning feedback",
-      "skill": "skills/quant-intelligence.md",
-      "requirements": "plugins/quant/requirements.txt",
-      "baseUrlEnv": "QUANT_BASE_URL",
-      "localBaseUrl": "http://127.0.0.1:5000",
-      "autoStart": true
-    }
   }
 }

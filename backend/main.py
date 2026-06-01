@@ -782,11 +782,10 @@ def _build_execution_prompt(
     skills_context: str = "",
     search_context: str = "",
 ) -> str:
-    """Build a context-rich execution prompt for Claude Code / Codex.
+    """Build a context-rich execution prompt for Claude Code.
 
-    Unlike generate_claude_scope(), this is pure string formatting — no extra LLM
-    call required. Alfred's executor prompt sets the agent's behaviour; context
-    blocks give it the information it needs to act accurately.
+    Pure string formatting — no extra LLM call. Alfred's executor prompt sets
+    the agent's behaviour; context blocks give it the information it needs to act.
     """
     parts: list[str] = [ALFRED_EXECUTOR_PROMPT, f"\n## Task\n{user_input}"]
 
@@ -1164,10 +1163,10 @@ ALFRED_CAPABILITY_REGISTRY = [
     },
     {
         "name": "Code & Refactoring",
-        "provider": "codex",
+        "provider": "claude_code",
         "category": "CODE",
         "description": "Write, fix, refactor, test code in any language",
-        "requires": "codex_cli",
+        "requires": "claude_cli",
     },
     {
         "name": "File & System Operations",
@@ -1363,9 +1362,6 @@ def _capability_status(cap: dict) -> tuple[str, str]:
     if req == "claude_cli":
         ok = bool(shutil.which("claude.cmd") or shutil.which("claude"))
         return ("ready", "") if ok else ("attention", "claude not installed")
-    if req == "codex_cli":
-        ok = bool(shutil.which("codex.cmd") or shutil.which("codex"))
-        return ("ready", "") if ok else ("attention", "codex not installed")
     if req == "tavily_key":
         ok = bool(_get_tavily_api_key())
         return ("ready", "") if ok else ("attention", "TAVILY_API_KEY missing")
@@ -1452,10 +1448,11 @@ def alfred_brain(user_input: str) -> dict:
     codex_score = sum(1 for kw in CODEX_ROUTING_KEYWORDS if kw in lowered)
     claude_score = sum(1 for kw in CLAUDE_CODE_ROUTING_KEYWORDS if kw in lowered)
     if codex_score > 0 or claude_score > 0:
-        prov = "codex" if codex_score >= claude_score else "claude_code"
-        cat = "CODE" if prov == "codex" else "EXECUTE"
+        # Category distinction kept (CODE vs EXECUTE) for brain context;
+        # both always route to claude_code — Codex has a TTY issue in headless mode.
+        cat = "CODE" if codex_score >= claude_score else "EXECUTE"
         return {
-            "category": cat, "provider": prov,
+            "category": cat, "provider": "claude_code",
             "needs_search": False, "needs_clarification": False,
             "clarification_question": "", "plan": "",
         }
@@ -1746,7 +1743,7 @@ def _friendly_error(stderr: str) -> str:
     if "authentication" in low or "login" in low or "401" in low:
         return (
             "There's an authentication issue — I'm not signed in to that service.\n\n"
-            "**Fix:** Run `claude login` (or `codex login`) in a terminal, then try again."
+            "**Fix:** Run `claude login` in a terminal, then try again."
         )
     if "permission" in low or "access denied" in low:
         return (
@@ -1912,7 +1909,7 @@ def _process_alfred_request(
             return True
         console.print("[dim]Confirmed. Proceeding with routing...[/dim]")
         category = "CLAUDE_EXECUTION"
-        provider = "codex"
+        provider = "claude_code"
 
     else:
         # ── Alfred Brain: one call to classify, route, and optionally plan ──
@@ -1941,8 +1938,8 @@ def _process_alfred_request(
             if answer and answer.lower() not in {"back", "skip", "exit", "cancel"}:
                 stripped = f"{stripped}\n\nContext provided: {answer}"
 
-        # Normalise provider — brain may still return "codex" or "quant" from old sessions
-        if provider in {"codex", "quant"}:
+        # Normalise any stale provider tokens from old sessions
+        if provider not in {"claude", "claude_code"}:
             provider = "claude_code"
 
         # Map Brain categories → pipeline categories (backward-compatible)
@@ -2695,8 +2692,8 @@ def _action_control_tower() -> None:
     providers.add_column("Role", style="white")
     claude_ok = shutil.which("claude.cmd") or shutil.which("claude")
     codex_ok = shutil.which("codex.cmd") or shutil.which("codex")
-    providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "Chat, execution, MCP tools, Office/PC operations")
-    providers.add_row("Codex", "[green]installed[/green]" if codex_ok else "[red]missing[/red]", "Code edits, tests, Alfred self-improvement")
+    providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "All routing — chat, execution, MCP tools, code, Office/PC operations")
+    providers.add_row("Codex", ("[green]available[/green]" if codex_ok else "[dim]not installed[/dim]") + " [dim](optional)[/dim]", "Terminal use only — open from /platforms")
     console.print(providers)
 
     office = Table(title="Office Mastery", box=box.ROUNDED, border_style="dim", padding=(0, 1))
@@ -3154,41 +3151,41 @@ def _action_show_dispatch_rules() -> None:
     )
     t.add_row(
         "CODE — write / fix / refactor / test code",
-        "Codex",
-        "[blue]Plan shown → confirm → dispatch to Codex[/blue]",
+        "Claude Code",
+        "[green]Plan shown → executes immediately[/green]",
     )
     t.add_row(
         "EXECUTE — files, Excel, browser, GitHub, Office",
         "Claude Code",
-        "[green]Plan shown → confirm → dispatch to Claude Code[/green]",
+        "[green]Plan shown → executes immediately[/green]",
     )
     t.add_row(
         "POWERBI — DAX, model, visuals, Power Query",
         "Claude Code",
-        "[green]Plan shown → confirm → dispatch to Claude Code[/green]",
+        "[green]Plan shown → executes immediately[/green]",
     )
     t.add_row(
         "Dangerous keyword detected",
         "—",
-        "[red]Blocked — no dispatch[/red]",
+        "[red]Requires explicit 'yes' confirmation[/red]",
     )
     t.add_row(
         "Learning / Creator Mode (confirmed)",
-        "Codex",
-        "[blue]Discuss → confirm → dispatch to Codex[/blue]",
+        "Claude Code",
+        "[green]Discuss → confirm → dispatch[/green]",
     )
     console.print(t)
 
-    console.print("\n[bold yellow]Learning / Creator Mode[/bold yellow] [dim](triggers confirmation flow)[/dim]")
+    console.print("\n[bold yellow]Learning / Creator Mode[/bold yellow] [dim](triggers discussion flow)[/dim]")
     console.print("  " + "  ".join(f"[cyan]{k}[/cyan]" for k in sorted(LEARNING_MODE_KEYWORDS)))
 
     kw_table = Table(
-        title="Routing Keywords", box=box.ROUNDED, border_style="dim", padding=(0, 1)
+        title="Routing Keywords → Claude Code", box=box.ROUNDED, border_style="dim", padding=(0, 1)
     )
-    kw_table.add_column("Provider", style="bold yellow", no_wrap=True)
+    kw_table.add_column("Category", style="bold yellow", no_wrap=True)
     kw_table.add_column("Trigger Keywords", style="white")
-    kw_table.add_row("codex", ", ".join(sorted(CODEX_ROUTING_KEYWORDS)))
-    kw_table.add_row("claude_code", ", ".join(sorted(CLAUDE_CODE_ROUTING_KEYWORDS)))
+    kw_table.add_row("CODE", ", ".join(sorted(CODEX_ROUTING_KEYWORDS)))
+    kw_table.add_row("EXECUTE", ", ".join(sorted(CLAUDE_CODE_ROUTING_KEYWORDS)))
     console.print(kw_table)
 
     console.print("\n[bold yellow]Dangerous Keywords[/bold yellow] [dim](block dispatch)[/dim]")
@@ -3334,16 +3331,8 @@ def _check_setup() -> None:
         if not os.path.isfile(creds) or os.path.getsize(creds) < 10:
             issues.append(("Claude not logged in", _repair_claude_login))
 
-    # ── Codex ─────────────────────────────────────────────────────────────────
-    codex_installed = bool(shutil.which("codex.cmd") or shutil.which("codex"))
-    if not codex_installed:
-        issues.append(("Codex CLI not installed", _repair_install_codex))
-    else:
-        auth = os.path.join(os.path.expanduser("~"), ".codex", "auth.json")
-        if not os.path.isfile(auth) or os.path.getsize(auth) < 10:
-            issues.append(("Codex not logged in", _repair_codex_login))
-
     # ── Optional capabilities ─────────────────────────────────────────────────
+    # Codex is optional (terminal use only — not used for headless routing).
     if not _get_tavily_api_key():
         issues.append(("Tavily key missing — web research unavailable", _repair_tavily_key))
     if not _get_github_token():
