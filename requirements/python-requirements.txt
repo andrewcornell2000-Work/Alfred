@@ -11,3 +11,6 @@ openpyxl
 pandas
 pywin32
 anthropic
+xlwings
+csvkit
+visidata

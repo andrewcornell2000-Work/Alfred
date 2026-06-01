@@ -1,5 +1,5 @@
 {
-  "version": "2",
+  "version": "3",
   "updated": "2026-06-01",
   "note": "Reference manifest for Alfred tools and MCP stack. setup.ps1 reads requirements/python-requirements.txt and requirements/npm-tools.txt directly; keep this file in sync when adding tools via learning mode.",
   "python": {
@@ -73,6 +73,79 @@
         "purpose": "Clean, reshape, join, summarize, and export tabular data for Excel, Power BI, and reports.",
         "category": "OFFICE",
         "destructive": false,
+        "trust": "official"
+      },
+      {
+        "package": "xlwings",
+        "command": "xlwings",
+        "description": "Excel↔Python bridge with CLI",
+        "purpose": "Two-way live Excel automation via COM — run Python from Excel buttons/macros, install add-in, call Python functions as Excel formulas. Complements excellm MCP for deeper automation.",
+        "postInstall": "xlwings addin install",
+        "category": "OFFICE",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "package": "csvkit",
+        "command": "in2csv,csvsql,csvstat,csvjoin,csvcut",
+        "description": "Excel/CSV SQL toolkit",
+        "purpose": "Convert .xlsx to CSV (in2csv), run SQL on Excel files without opening them (csvsql), instant column stats (csvstat), join and slice CSV exports. Pairs with DuckDB for fast finance data queries.",
+        "category": "OFFICE",
+        "destructive": false,
+        "trust": "official"
+      },
+      {
+        "package": "visidata",
+        "command": "vd",
+        "description": "Terminal spreadsheet viewer",
+        "purpose": "Open, inspect, filter, reshape, and export Excel/CSV/JSON/Parquet files in the terminal without needing Excel open. Fast exploration before committing to a full script.",
+        "category": "OFFICE",
+        "destructive": false,
+        "trust": "official"
+      }
+    ]
+  },
+  "cli": {
+    "note": "System CLIs installed via winget or standalone installer. Not managed by pip/npm. Bash permissions for each are pre-approved in .claude/settings.json.",
+    "tools": [
+      {
+        "name": "gh",
+        "command": "gh",
+        "install": "winget install GitHub.cli",
+        "description": "GitHub CLI",
+        "purpose": "Create PRs, manage issues, view CI run status, create releases, clone repos. Complements GitHub MCP — MCP for Alfred-driven automation, gh for interactive terminal and scripted workflows.",
+        "loginRequired": true,
+        "loginCommand": "gh auth login",
+        "destructive": true,
+        "trust": "official"
+      },
+      {
+        "name": "jq",
+        "command": "jq",
+        "install": "winget install jqlang.jq",
+        "description": "JSON processor",
+        "purpose": "Parse, filter, transform JSON from API responses, config files, Power BI REST API output. Essential when Alfred processes raw JSON in bash pipelines.",
+        "destructive": false,
+        "trust": "official"
+      },
+      {
+        "name": "pandoc",
+        "command": "pandoc",
+        "install": "winget install JohnMacFarlane.Pandoc",
+        "description": "Universal document converter",
+        "purpose": "Convert between markdown, docx, PDF, HTML, pptx. Alfred can draft content in markdown then export to Word or PDF without python-docx for simpler document jobs.",
+        "destructive": false,
+        "trust": "official"
+      },
+      {
+        "name": "az",
+        "command": "az",
+        "install": "winget install Microsoft.AzureCLI",
+        "description": "Azure CLI",
+        "purpose": "Manage Azure resources — Power BI Service REST API, dataflow refresh status, workspace and dataset access, service principal management. Authenticates via existing Maersk Microsoft login.",
+        "loginRequired": true,
+        "loginCommand": "az login",
+        "destructive": true,
         "trust": "official"
       }
     ]
