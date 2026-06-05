@@ -1,0 +1,43 @@
+name: Alfred Growth Loop
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'  # Every 4 hours
+  workflow_dispatch:        # Manual trigger anytime
+
+jobs:
+  alfred-loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Alfred
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install anthropic requests
+
+      - name: Run Alfred Growth Loop
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: python .github/scripts/alfred_loop.py
+
+      - name: Commit and push improvements
+        run: |
+          git config user.name "Alfred"
+          git config user.email "alfredTCP2000@gmail.com"
+          git add -A
+          git diff --staged --quiet && echo "Nothing to commit" || \
+            git commit -m "Alfred loop: autonomous improvement [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+          git push
