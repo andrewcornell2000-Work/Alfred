@@ -115,12 +115,12 @@ TOOLS = [
     },
     {
         "name": "send_email",
-        "description": "Send an email update to the owner (andrewcornell2000@gmail.com). Use this at the END of your loop to summarise what you discovered and built this iteration.",
+        "description": "Send a plain-English update email to Andrew (andrewcornell2000@gmail.com) at the END of your loop. Write like a smart colleague giving a quick debrief — no code, no markdown, no jargon. Just clear sentences.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "subject": {"type": "string", "description": "Email subject line — include what you built, e.g. 'Alfred Update — Built Labour Planning Skill'"},
-                "body": {"type": "string", "description": "Full email body — what you researched, what you built, what files changed, what's next"}
+                "subject": {"type": "string", "description": "Short subject line, e.g. 'Alfred update — built a labour forecasting tool'"},
+                "body": {"type": "string", "description": "Plain English email. Use this structure: 1) What you worked on this iteration and why. 2) What you actually built and what it does for the team in practical terms. 3) One interesting thing you learned. 4) What you plan to do next. Sign off as Alfred. NO markdown, NO code blocks, NO file paths, NO technical jargon — write it so anyone can understand it."}
             },
             "required": ["subject", "body"]
         }
@@ -265,7 +265,9 @@ Existing skills: {skills_list}
 2. Do 1-2 targeted web searches on that topic
 3. WRITE at least one file using write_file (skill, memory update, or brief)
 4. Update memory/learning-log.md with what you did
-5. Call send_email with a summary for Andrew (andrewcornell2000@gmail.com)
+5. Call send_email with a plain-English update for Andrew — write it like a colleague,
+   not a computer. No markdown, no file paths, no jargon. Tell him what you built,
+   why it matters for the team, what you learned, and what you'll do next.
 
 RULES:
 - You MUST use write_file at least once — no writes = wasted run
@@ -316,25 +318,25 @@ Start immediately. Pick your mission and begin.
 
         time.sleep(1)
 
-    # Fallback: auto-send email summary based on git log if Alfred didn't send one
-    git_summary = subprocess.run(
-        ["git", "log", "--oneline", "-5"], capture_output=True, text=True
-    ).stdout
-    git_diff_stat = subprocess.run(
-        ["git", "diff", "HEAD~1", "--stat"], capture_output=True, text=True
-    ).stdout or "No new changes committed this iteration."
+    # Fallback email — sent if Alfred didn't call send_email himself
+    # Parse what Alfred actually built from git diff
+    diff_stat = subprocess.run(
+        ["git", "diff", "HEAD~1", "--name-only"], capture_output=True, text=True
+    ).stdout.strip() or "No new files committed."
+
+    files_changed = [f for f in diff_stat.splitlines() if not f.startswith(".github")]
+    files_summary = "\n".join(f"  - {f}" for f in files_changed) if files_changed else "  No changes this iteration."
 
     send_update_email(
-        subject=f"Alfred Loop Complete — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
+        subject=f"Alfred update — {datetime.utcnow().strftime('%d %b %Y, %H:%M')} AEST",
         body=(
             f"Hi Andrew,\n\n"
-            f"Alfred has completed an autonomous growth loop iteration.\n\n"
-            f"=== RECENT COMMITS ===\n{git_summary}\n"
-            f"=== FILES CHANGED THIS ITERATION ===\n{git_diff_stat}\n"
-            f"=== ALFRED'S REPO ===\n"
+            f"Just finished my latest growth loop. Here's what I got done:\n\n"
+            f"Files I built or updated:\n{files_summary}\n\n"
+            f"You can see everything at:\n"
             f"https://github.com/andrewcornell2000-Work/Alfred\n\n"
-            f"— Alfred\n"
-            f"alfredTCP2000@gmail.com"
+            f"I'll run again in 8 hours.\n\n"
+            f"— Alfred"
         )
     )
 
