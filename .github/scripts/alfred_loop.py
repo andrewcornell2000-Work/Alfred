@@ -9,35 +9,37 @@ import os
 import json
 import subprocess
 import requests
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 TAVILY_KEY = os.environ.get("TAVILY_API_KEY", "")
-ALFRED_EMAIL = os.environ.get("ALFRED_EMAIL", "alfredTCP2000@gmail.com")
-ALFRED_EMAIL_PASS = os.environ.get("ALFRED_GMAIL_APP_PASSWORD", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 OWNER_EMAIL = "andrewcornell2000@gmail.com"
 
 
 def send_update_email(subject, body):
-    """Send Alfred's loop summary to the owner."""
-    if not ALFRED_EMAIL_PASS:
-        print("ALFRED_GMAIL_APP_PASSWORD not set — skipping email")
+    """Send Alfred's loop summary via Resend API."""
+    if not RESEND_API_KEY:
+        print("RESEND_API_KEY not set — skipping email")
         return
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"Alfred <{ALFRED_EMAIL}>"
-        msg["To"] = OWNER_EMAIL
-        msg.attach(MIMEText(body, "plain"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(ALFRED_EMAIL, ALFRED_EMAIL_PASS)
-            server.sendmail(ALFRED_EMAIL, OWNER_EMAIL, msg.as_string())
-        print(f"Update email sent to {OWNER_EMAIL}")
+        r = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "from": "Alfred <onboarding@resend.dev>",
+                "to": [OWNER_EMAIL],
+                "subject": subject,
+                "text": body
+            },
+            timeout=15
+        )
+        if r.ok:
+            print(f"Email sent to {OWNER_EMAIL}")
+        else:
+            print(f"Email failed: {r.status_code} {r.text}")
     except Exception as e:
-        print(f"Email failed: {e}")
+        print(f"Email error: {e}")
 
 # Tools Alfred can use inside GitHub Actions
 TOOLS = [
