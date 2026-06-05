@@ -91,10 +91,7 @@ def handle_tool(name, inp):
             if not os.path.exists(p):
                 return f"File not found: {p}"
             with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-            if len(content) > 6000:
-                content = content[:6000] + "\n... [truncated — use run_command with head/tail for specific sections]"
-            return content
+                return f.read()
 
         elif name == "write_file":
             p = inp["path"]
@@ -117,20 +114,20 @@ def handle_tool(name, inp):
                 return "TAVILY_API_KEY not configured"
             r = requests.post(
                 "https://api.tavily.com/search",
-                json={"api_key": TAVILY_KEY, "query": inp["query"], "max_results": 5},
+                json={"api_key": TAVILY_KEY, "query": inp["query"], "max_results": 7},
                 timeout=30
             )
             if r.ok:
                 results = r.json().get("results", [])
                 return "\n\n---\n\n".join([
-                    f"**{res['title']}**\n{res['url']}\n{res.get('content', '')[:800]}"
+                    f"**{res['title']}**\n{res['url']}\n{res.get('content', '')[:2000]}"
                     for res in results
                 ])
             return f"Search error {r.status_code}: {r.text[:200]}"
 
         elif name == "fetch_url":
             r = requests.get(inp["url"], timeout=20, headers={"User-Agent": "Alfred/1.0"})
-            return r.text[:4000]
+            return r.text[:10000]
 
         elif name == "run_command":
             result = subprocess.run(
@@ -220,10 +217,7 @@ def run():
         for t in tool_uses:
             print(f"\n[{t.name}] {json.dumps(t.input)[:120]}")
             result = handle_tool(t.name, t.input)
-            # Truncate very large results
             result_str = str(result)
-            if len(result_str) > 6000:
-                result_str = result_str[:6000] + "\n... [truncated]"
             print(f"  → {result_str[:200]}")
             results.append({
                 "type": "tool_result",
@@ -233,12 +227,11 @@ def run():
 
         messages.append({"role": "user", "content": results})
 
-        # Prune conversation: keep first message + last 18 exchanges
-        if len(messages) > 20:
-            messages = messages[:1] + messages[-18:]
+        # Only prune if conversation gets extremely long
+        if len(messages) > 40:
+            messages = messages[:1] + messages[-36:]
 
-        # Short pause between rounds
-        time.sleep(3)
+        time.sleep(1)
 
 
 if __name__ == "__main__":
