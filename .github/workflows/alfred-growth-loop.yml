@@ -41,8 +41,8 @@ jobs:
         run: |
           git config user.name "Alfred"
           git config user.email "alfredTCP2000@gmail.com"
-          git pull --rebase origin main
           git add -A
           git diff --staged --quiet && echo "Nothing to commit" || \
             git commit -m "Alfred loop: autonomous improvement [$(date -u '+%Y-%m-%d %H:%M UTC')]"
-          git push
+          git pull --rebase origin main
+          git push origin main
