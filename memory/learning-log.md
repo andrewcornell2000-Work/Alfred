@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-06-05 (Iteration #10) — Cash Flow Forecasting Skill
+
+**Category:** Skills / Finance
+**Mode:** Direct implementation
+
+**Change summary:**
+- Created `skills/cash-flow-forecasting.md` — operational cash flow forecasting skill for Maersk finance & working capital management teams
+- Covers: baseline data gathering (invoices, deposits, payroll, supplier payments, fuel), 13-week rolling forecast Excel template structure, scenario modeling (Base/Upside/Downside), daily management ritual (Monday reviews, red flag triggers), key assumptions with sensitivity, and weekly reporting checklist
+- Includes practical templates: weekly cash flow forecast structure, cash inflow/outflow categorization by operational source, real-world 4-week example with $5M+ balances, working capital assumptions table with DSO/DPO sensitivity
+- Adapted for shipping/logistics context: container deposits, freight revenue collection lag, seasonal patterns (Q4 peak → Q1 collections), integrated reporting with P&L forecast
+- Triggers: weekly cash position forecasting, working capital optimization, stress-testing under demand/fuel shocks, 13-week rolling updates, DSO/DPO improvement initiatives
+
+**Use case:** Enable Maersk MCL finance teams to forecast liquidity 13 weeks out with weekly granularity, identify cash shortfalls 8-10 weeks in advance, optimize working capital, and stress-test under market downturns
+
+**Research insights:** 
+- 13-week rolling forecasts are industry standard for operational cash management (Datarails, Intuit, Dryrun research)
+- Finance teams using rolling forecasts can identify shortfalls 8-10 weeks in advance vs. real-time crisis
+- Working capital optimization: every 1 day improvement in DSO or DPO can free up $20K-$50K+ depending on monthly run-rate
+- Shipping industry specific: collections lag (freight invoices 30-45 days out), seasonal swings, fuel volatility create high cash sensitivity
+
+**Files modified:** `skills/cash-flow-forecasting.md` (created), `memory/learning-log.md`
+
+---
+
 ## 2026-05-24 (Iteration #10) — Labour Cost Forecasting Skill
 
 **Category:** Skills / Finance
@@ -66,8 +90,4 @@
 
 **Change summary:**
 - Added main menu option `8. Dev Portal`
-- Dev Portal lets the user teach Alfred skills, routing rules, tool requirements, and self-improvements from a dedicated prompt
-- Dev Portal forces the existing Learning / Creator confirmation flow before routing confirmed changes to Codex
-- Added quick portal commands for `paste`, `clip`, `skills`, `rules`, and `back`
-
-**Files modified:** `backend/main.py`, `README.md`, `memory/learning-log.md`
+- Dev Portal lets the user teach Alfred skills, routing rules, tool requirements, and self-improvements 
