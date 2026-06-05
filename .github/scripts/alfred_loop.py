@@ -19,27 +19,31 @@ OWNER_EMAIL = "andrewcornell2000@gmail.com"
 
 def send_update_email(subject, body):
     """Send Alfred's loop summary via Resend API."""
+    print(f"[Email] RESEND_API_KEY present: {bool(RESEND_API_KEY)}")
     if not RESEND_API_KEY:
-        print("RESEND_API_KEY not set — skipping email")
+        print("[Email] RESEND_API_KEY not set in GitHub Secrets — skipping")
         return
     try:
+        payload = {
+            "from": "Alfred <onboarding@resend.dev>",
+            "to": [OWNER_EMAIL],
+            "subject": subject,
+            "text": body
+        }
+        print(f"[Email] Sending to {OWNER_EMAIL} via Resend...")
         r = requests.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "from": "Alfred <onboarding@resend.dev>",
-                "to": [OWNER_EMAIL],
-                "subject": subject,
-                "text": body
-            },
+            json=payload,
             timeout=15
         )
+        print(f"[Email] Response: {r.status_code} — {r.text}")
         if r.ok:
-            print(f"Email sent to {OWNER_EMAIL}")
+            print(f"[Email] SUCCESS — sent to {OWNER_EMAIL}")
         else:
-            print(f"Email failed: {r.status_code} {r.text}")
+            print(f"[Email] FAILED: {r.status_code} {r.text}")
     except Exception as e:
-        print(f"Email error: {e}")
+        print(f"[Email] ERROR: {e}")
 
 # Tools Alfred can use inside GitHub Actions
 TOOLS = [
