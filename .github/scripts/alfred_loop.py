@@ -144,42 +144,61 @@ def handle_tool(name, inp):
     return f"Unknown tool: {name}"
 
 
+def api_call_with_retry(messages, system):
+    """Call Claude API with exponential backoff on rate limits."""
+    import time
+    for attempt in range(5):
+        try:
+            return client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                system=system,
+                tools=TOOLS,
+                messages=messages
+            )
+        except anthropic.RateLimitError:
+            wait = 60 * (attempt + 1)
+            print(f"Rate limit hit — waiting {wait}s before retry {attempt + 1}/5...")
+            time.sleep(wait)
+        except anthropic.APIError as e:
+            print(f"API error: {e}")
+            raise
+    raise RuntimeError("Max retries exceeded on rate limit")
+
+
 def run():
-    loop_prompt = open("ALFRED_LOOP_PROMPT.md", encoding="utf-8").read()
+    import time
+
     git_log = subprocess.run(
-        ["git", "log", "--oneline", "-10"], capture_output=True, text=True
+        ["git", "log", "--oneline", "-5"], capture_output=True, text=True
     ).stdout
 
+    # Keep initial message small — Alfred reads his own files via tools
     system = (
         "You are Alfred — an autonomous AI agent running inside GitHub Actions on ubuntu-latest. "
         "You have tools to read/write files, search the web, and run shell commands. "
         "You cannot access Windows-local files or run the Claude CLI. "
-        "Focus your loop iteration on: research, writing/improving skills, updating memory, "
-        "improving routing logic, finding new MCPs, and writing team briefs. "
-        "Any file you write is automatically committed to the repository when the loop ends."
+        "Focus on: research, writing/improving skills, updating memory, "
+        "improving routing logic, finding new MCPs, writing team briefs. "
+        "Files you write are committed to the repo automatically."
     )
 
     messages = [
         {
             "role": "user",
             "content": (
-                f"{loop_prompt}\n\n"
-                f"=== RECENT GIT HISTORY ===\n{git_log}\n\n"
-                "Begin the loop now. Start by reading your memory files to know where you left off."
+                "You are Alfred. Read ALFRED_LOOP_PROMPT.md for your full instructions, "
+                "then read memory/brain.md, memory/learning-log.md, and memory/active-projects.md "
+                "to know where you left off. Then execute your loop.\n\n"
+                f"Recent git history:\n{git_log}"
             )
         }
     ]
 
     print("=== Alfred Growth Loop starting ===\n")
 
-    for iteration in range(30):  # Max 30 tool rounds per run
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=8096,
-            system=system,
-            tools=TOOLS,
-            messages=messages
-        )
+    for iteration in range(25):
+        response = api_call_with_retry(messages, system)
 
         tool_uses = []
         for block in response.content:
@@ -198,14 +217,21 @@ def run():
         for t in tool_uses:
             print(f"\n[{t.name}] {json.dumps(t.input)[:120]}")
             result = handle_tool(t.name, t.input)
-            print(f"  → {str(result)[:300]}")
+            # Truncate large results to keep context manageable
+            result_str = str(result)
+            if len(result_str) > 3000:
+                result_str = result_str[:3000] + "\n... [truncated]"
+            print(f"  → {result_str[:200]}")
             results.append({
                 "type": "tool_result",
                 "tool_use_id": t.id,
-                "content": str(result)
+                "content": result_str
             })
 
         messages.append({"role": "user", "content": results})
+
+        # Brief pause between rounds to stay under TPM limits
+        time.sleep(3)
 
 
 if __name__ == "__main__":
