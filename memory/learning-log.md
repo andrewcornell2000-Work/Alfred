@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-05-24 (Iteration #10) — Labour Cost Forecasting Skill
+
+**Category:** Skills / Finance
+**Mode:** Direct implementation
+
+**Change summary:**
+- Created `skills/labour-cost-forecasting.md` — comprehensive labour cost forecasting skill for Maersk finance & labour planning teams
+- Covers: baseline data gathering, forecast model structure with Excel templates, 3-month rolling forecast example, scenario analysis (Base/Upside/Downside), variance bridge methodology, assumptions documentation, and sign-off checklist
+- Includes practical templates: headcount forecast structure, cost calculation formulas, monthly forecast table example, scenario sensitivity framework, variance bridge, and assumption risk register
+- Designed for regulated industries (Australia-based on-cost rates 29–31%, statutory obligations)
+- Triggers: quarter-end planning, budget validation, headcount scenario analysis, cost driver identification
+
+**Use case:** Enable Maersk MCL finance & labour planning teams to build rapid, repeatable labour cost forecasts with clear variance tracking and scenario sensitivity
+
+**Files modified:** `skills/labour-cost-forecasting.md` (created), `memory/learning-log.md`
+
+---
+
 ## 2026-05-24 — Karpathy Coding Guidelines Skill
 
 **Category:** Skills / Coding Standards  
