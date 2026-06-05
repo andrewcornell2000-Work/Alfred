@@ -91,7 +91,10 @@ def handle_tool(name, inp):
             if not os.path.exists(p):
                 return f"File not found: {p}"
             with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read()
+                content = f.read()
+            if len(content) > 2000:
+                content = content[:2000] + "\n... [truncated — use run_command with head/tail for specific sections]"
+            return content
 
         elif name == "write_file":
             p = inp["path"]
@@ -114,20 +117,20 @@ def handle_tool(name, inp):
                 return "TAVILY_API_KEY not configured"
             r = requests.post(
                 "https://api.tavily.com/search",
-                json={"api_key": TAVILY_KEY, "query": inp["query"], "max_results": 5},
+                json={"api_key": TAVILY_KEY, "query": inp["query"], "max_results": 3},
                 timeout=30
             )
             if r.ok:
                 results = r.json().get("results", [])
                 return "\n\n---\n\n".join([
-                    f"**{res['title']}**\n{res['url']}\n{res.get('content', '')[:800]}"
+                    f"**{res['title']}**\n{res['url']}\n{res.get('content', '')[:400]}"
                     for res in results
                 ])
             return f"Search error {r.status_code}: {r.text[:200]}"
 
         elif name == "fetch_url":
             r = requests.get(inp["url"], timeout=20, headers={"User-Agent": "Alfred/1.0"})
-            return r.text[:4000]
+            return r.text[:2000]
 
         elif name == "run_command":
             result = subprocess.run(
@@ -230,8 +233,13 @@ def run():
 
         messages.append({"role": "user", "content": results})
 
-        # Brief pause between rounds to stay under TPM limits
-        time.sleep(3)
+        # Prune conversation: keep system + first message + last 6 exchanges
+        # Prevents context ballooning over 30k tokens across many tool rounds
+        if len(messages) > 14:
+            messages = messages[:1] + messages[-12:]
+
+        # Pause between rounds to let the TPM window breathe
+        time.sleep(8)
 
 
 if __name__ == "__main__":
