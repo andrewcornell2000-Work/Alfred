@@ -131,7 +131,10 @@ def handle_tool(name, inp):
             if not os.path.exists(p):
                 return f"File not found: {p}"
             with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read()
+                content = f.read()
+            if len(content) > 4000:
+                content = content[:4000] + "\n...[truncated]"
+            return content
 
         elif name == "write_file":
             p = inp["path"]
@@ -154,20 +157,20 @@ def handle_tool(name, inp):
                 return "TAVILY_API_KEY not configured"
             r = requests.post(
                 "https://api.tavily.com/search",
-                json={"api_key": TAVILY_KEY, "query": inp["query"], "max_results": 7},
+                json={"api_key": TAVILY_KEY, "query": inp["query"], "max_results": 4},
                 timeout=30
             )
             if r.ok:
                 results = r.json().get("results", [])
                 return "\n\n---\n\n".join([
-                    f"**{res['title']}**\n{res['url']}\n{res.get('content', '')[:2000]}"
+                    f"**{res['title']}**\n{res['url']}\n{res.get('content', '')[:600]}"
                     for res in results
                 ])
             return f"Search error {r.status_code}: {r.text[:200]}"
 
         elif name == "fetch_url":
             r = requests.get(inp["url"], timeout=20, headers={"User-Agent": "Alfred/1.0"})
-            return r.text[:10000]
+            return r.text[:3000]
 
         elif name == "run_command":
             result = subprocess.run(
@@ -195,7 +198,7 @@ def api_call_with_retry(messages, system):
         try:
             return client.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=8096,
+                max_tokens=3000,
                 system=system,
                 tools=TOOLS,
                 messages=messages
@@ -241,7 +244,7 @@ def run():
 
     print("=== Alfred Growth Loop starting ===\n")
 
-    for iteration in range(25):
+    for iteration in range(12):
         response = api_call_with_retry(messages, system)
 
         tool_uses = []
@@ -271,9 +274,9 @@ def run():
 
         messages.append({"role": "user", "content": results})
 
-        # Only prune if conversation gets extremely long
-        if len(messages) > 40:
-            messages = messages[:1] + messages[-36:]
+        # Prune conversation to keep costs controlled
+        if len(messages) > 16:
+            messages = messages[:1] + messages[-14:]
 
         time.sleep(1)
 
