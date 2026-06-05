@@ -9,9 +9,35 @@ import os
 import json
 import subprocess
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 TAVILY_KEY = os.environ.get("TAVILY_API_KEY", "")
+ALFRED_EMAIL = os.environ.get("ALFRED_EMAIL", "alfredTCP2000@gmail.com")
+ALFRED_EMAIL_PASS = os.environ.get("ALFRED_GMAIL_APP_PASSWORD", "")
+OWNER_EMAIL = "andrewcornell2000@gmail.com"
+
+
+def send_update_email(subject, body):
+    """Send Alfred's loop summary to the owner."""
+    if not ALFRED_EMAIL_PASS:
+        print("ALFRED_GMAIL_APP_PASSWORD not set — skipping email")
+        return
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"Alfred <{ALFRED_EMAIL}>"
+        msg["To"] = OWNER_EMAIL
+        msg.attach(MIMEText(body, "plain"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(ALFRED_EMAIL, ALFRED_EMAIL_PASS)
+            server.sendmail(ALFRED_EMAIL, OWNER_EMAIL, msg.as_string())
+        print(f"Update email sent to {OWNER_EMAIL}")
+    except Exception as e:
+        print(f"Email failed: {e}")
 
 # Tools Alfred can use inside GitHub Actions
 TOOLS = [
@@ -80,6 +106,18 @@ TOOLS = [
             },
             "required": ["command"]
         }
+    },
+    {
+        "name": "send_email",
+        "description": "Send an email update to the owner (andrewcornell2000@gmail.com). Use this at the END of your loop to summarise what you discovered and built this iteration.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string", "description": "Email subject line — include what you built, e.g. 'Alfred Update — Built Labour Planning Skill'"},
+                "body": {"type": "string", "description": "Full email body — what you researched, what you built, what files changed, what's next"}
+            },
+            "required": ["subject", "body"]
+        }
     }
 ]
 
@@ -137,6 +175,10 @@ def handle_tool(name, inp):
             if result.stderr:
                 out += f"\n[stderr]: {result.stderr[:500]}"
             return out or "(no output)"
+
+        elif name == "send_email":
+            send_update_email(inp["subject"], inp["body"])
+            return f"Email sent to {OWNER_EMAIL}"
 
     except Exception as e:
         return f"Tool error: {e}"
@@ -232,6 +274,28 @@ def run():
             messages = messages[:1] + messages[-36:]
 
         time.sleep(1)
+
+    # Fallback: auto-send email summary based on git log if Alfred didn't send one
+    git_summary = subprocess.run(
+        ["git", "log", "--oneline", "-5"], capture_output=True, text=True
+    ).stdout
+    git_diff_stat = subprocess.run(
+        ["git", "diff", "HEAD~1", "--stat"], capture_output=True, text=True
+    ).stdout or "No new changes committed this iteration."
+
+    send_update_email(
+        subject=f"Alfred Loop Complete — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
+        body=(
+            f"Hi Andrew,\n\n"
+            f"Alfred has completed an autonomous growth loop iteration.\n\n"
+            f"=== RECENT COMMITS ===\n{git_summary}\n"
+            f"=== FILES CHANGED THIS ITERATION ===\n{git_diff_stat}\n"
+            f"=== ALFRED'S REPO ===\n"
+            f"https://github.com/andrewcornell2000-Work/Alfred\n\n"
+            f"— Alfred\n"
+            f"alfredTCP2000@gmail.com"
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -134,7 +134,22 @@ memory/discoveries.md — if this was a genuine breakthrough, log it:
 
 memory/active-projects.md — update mission status, add next mission
 
-══ STEP 5: COMMIT AND PUSH ═══════════════════════════════
+══ STEP 5: EMAIL YOUR OWNER ══════════════════════════════
+
+Before committing, call send_email with:
+  Subject: "Alfred Update — [what you built] — [date]"
+  Body must include:
+    - What mission you worked on
+    - What you discovered (key insight or finding)
+    - What you built (file names, what it does)
+    - What this unlocks for the team
+    - What your next mission is
+    - A link to the repo: https://github.com/andrewcornell2000-Work/Alfred
+
+Write it like a smart colleague giving a quick debrief — not a log dump.
+The owner's email is andrewcornell2000@gmail.com.
+
+══ STEP 6: COMMIT AND PUSH ═══════════════════════════════
 
 Stage only the files you changed (not secrets):
   git add [specific files only — never git add -A blindly]
@@ -151,7 +166,7 @@ Push to GitHub:
 This is how your team gets the update. Every push makes
 every teammate's next pull smarter.
 
-══ STEP 6: SET NEXT MISSION ══════════════════════════════
+══ STEP 7: SET NEXT MISSION ══════════════════════════════
 
 Write to memory/active-projects.md:
   - What the next mission should be
