@@ -5,6 +5,9 @@ on:
     - cron: '0 */4 * * *'  # Every 4 hours
   workflow_dispatch:        # Manual trigger anytime
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   alfred-loop:
     runs-on: ubuntu-latest
