@@ -2,7 +2,7 @@ name: Alfred Growth Loop
 
 on:
   schedule:
-    - cron: '0 */8 * * *'  # Every 8 hours (3x per day)
+    - cron: '0 20,4,12 * * *'  # 06:00, 14:00, 22:00 AEST (UTC+10)
   workflow_dispatch:        # Manual trigger anytime
 
 env:
