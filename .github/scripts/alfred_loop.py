@@ -213,38 +213,70 @@ def api_call_with_retry(messages, system):
     raise RuntimeError("Max retries exceeded on rate limit")
 
 
+def read_file_safe(path, limit=1500):
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        return content[:limit] if len(content) > limit else content
+    except Exception:
+        return f"(not found: {path})"
+
+
 def run():
     import time
 
-    git_log = subprocess.run(
-        ["git", "log", "--oneline", "-5"], capture_output=True, text=True
-    ).stdout
+    # Pre-load critical context so Alfred starts working immediately
+    git_log = subprocess.run(["git", "log", "--oneline", "-5"], capture_output=True, text=True).stdout
+    iteration_num = subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
+    active_projects = read_file_safe("memory/active-projects.md")
+    recent_log = read_file_safe("memory/learning-log.md", limit=800)
+    skills_list = ", ".join(sorted(os.listdir("skills"))) if os.path.exists("skills") else "none"
 
-    # Keep initial message small — Alfred reads his own files via tools
     system = (
-        "You are Alfred — an autonomous AI agent running inside GitHub Actions on ubuntu-latest. "
-        "You have tools to read/write files, search the web, and run shell commands. "
-        "You cannot access Windows-local files or run the Claude CLI. "
-        "Focus on: research, writing/improving skills, updating memory, "
-        "improving routing logic, finding new MCPs, writing team briefs. "
-        "Files you write are committed to the repo automatically."
+        "You are Alfred — an autonomous AI agent running in GitHub Actions (ubuntu-latest). "
+        "You have tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
+        "You MUST call write_file at least once per run or the iteration is wasted. "
+        "Files you write are automatically committed to https://github.com/andrewcornell2000-Work/Alfred"
     )
 
     messages = [
         {
             "role": "user",
-            "content": (
-                "You are Alfred. Read ALFRED_LOOP_PROMPT.md for your full instructions, "
-                "then read memory/brain.md, memory/learning-log.md, and memory/active-projects.md "
-                "to know where you left off. Then execute your loop.\n\n"
-                f"Recent git history:\n{git_log}"
-            )
+            "content": f"""You are Alfred. Iteration #{iteration_num}. Running in GitHub Actions.
+
+=== YOUR CURRENT STATE ===
+Recent commits:
+{git_log}
+
+Active projects:
+{active_projects}
+
+Recent learning log (last entry):
+{recent_log}
+
+Existing skills: {skills_list}
+
+=== YOUR TASK THIS ITERATION ===
+1. Pick ONE focused mission (new skill, routing improvement, research brief, memory update)
+2. Do 1-2 targeted web searches on that topic
+3. WRITE at least one file using write_file (skill, memory update, or brief)
+4. Update memory/learning-log.md with what you did
+5. Call send_email with a summary for Andrew (andrewcornell2000@gmail.com)
+
+RULES:
+- You MUST use write_file at least once — no writes = wasted run
+- Be efficient — do not re-read files already shown above
+- Focus on what's most useful for a finance & labour planning team at Maersk
+- Skills go in skills/, briefs go in memory/briefs/, memory updates go in memory/
+
+Start immediately. Pick your mission and begin.
+"""
         }
     ]
 
     print("=== Alfred Growth Loop starting ===\n")
 
-    for iteration in range(12):
+    for iteration in range(15):
         response = api_call_with_retry(messages, system)
 
         tool_uses = []
