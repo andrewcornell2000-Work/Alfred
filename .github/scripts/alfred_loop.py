@@ -208,7 +208,11 @@ def api_call_with_retry(messages, system):
         try:
             return client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=2000,
+                # Was 2000 — too low. A full skill file is ~1.5-2k tokens of
+                # write_file JSON plus reasoning, so writes hit the cap and got
+                # truncated mid-tool-call, producing empty/partial files. 8000
+                # gives ample headroom for a complete file in one turn.
+                max_tokens=8000,
                 system=system,
                 tools=TOOLS,
                 messages=messages
@@ -326,6 +330,10 @@ Start immediately. Pick your mission and begin.
 
     for iteration in range(15):
         response = api_call_with_retry(messages, system)
+
+        if response.stop_reason == "max_tokens":
+            print("[WARN] Response hit max_tokens — output truncated. "
+                  "A file write this turn may be incomplete; consider raising max_tokens.")
 
         tool_uses = []
         for block in response.content:
