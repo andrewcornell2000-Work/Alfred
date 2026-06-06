@@ -16,9 +16,14 @@ TAVILY_KEY = os.environ.get("TAVILY_API_KEY", "")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 OWNER_EMAIL = "andrewcornell2000@gmail.com"
 
+# Set once an email actually goes out, so the end-of-run fallback never
+# double-sends when Alfred already emailed via the send_email tool.
+_email_sent = False
+
 
 def send_update_email(subject, body):
     """Send Alfred's loop summary via Resend API."""
+    global _email_sent
     print(f"[Email] RESEND_API_KEY present: {bool(RESEND_API_KEY)}")
     if not RESEND_API_KEY:
         print("[Email] RESEND_API_KEY not set in GitHub Secrets — skipping")
@@ -39,6 +44,7 @@ def send_update_email(subject, body):
         )
         print(f"[Email] Response: {r.status_code} — {r.text}")
         if r.ok:
+            _email_sent = True
             print(f"[Email] SUCCESS — sent to {OWNER_EMAIL}")
         else:
             print(f"[Email] FAILED: {r.status_code} {r.text}")
@@ -236,10 +242,32 @@ def run():
     recent_log = read_file_safe("memory/learning-log.md", limit=800)
     skills_list = ", ".join(sorted(os.listdir("skills"))) if os.path.exists("skills") else "none"
 
+    # Rotate the mission so Alfred alternates between DEEPENING the finance/data
+    # skills that already pay off and BROADENING into genuinely new territory,
+    # instead of grinding out near-duplicate finance docs every run.
+    DOMAIN_ROTATION = [
+        "DEEPEN an existing high-value skill: pick ONE skill that already exists and make it "
+        "materially better (add a worked example, fix gaps, sharpen triggers). Do NOT create a new file.",
+        "NEW MCP TOOL: research one promising MCP server that would extend Alfred (look at the "
+        "official modelcontextprotocol servers and well-regarded community ones). Document it as a "
+        "CANDIDATE following the 'Learning Mode: Adding MCP Tools' process in requirements/mcp-tools.md — "
+        "add the entry there AND to the mcp.tools array in requirements/alfred-tools.json as a PLANNED tool.",
+        "BROADEN into a NEW domain Alfred can't yet help with — something outside Maersk finance "
+        "(e.g. coding/automation, writing, research workflows, a tool Andrew uses). Create one solid new skill.",
+        "NEW CLI TOOL: research one useful CLI tool Alfred should be able to drive. Add it to the "
+        "right manifest (requirements/npm-tools.txt or requirements/python-requirements.txt) in the "
+        "documented format AND mirror it into requirements/alfred-tools.json. Document the purpose and "
+        "which routing category it serves.",
+        "Excel / Power BI / Power Query power-user techniques the team would actually use.",
+        "CONSOLIDATE: if two existing skills overlap, merge them into one stronger file and delete the weaker.",
+    ]
+    focus = DOMAIN_ROTATION[int(iteration_num) % len(DOMAIN_ROTATION)] if iteration_num.isdigit() else DOMAIN_ROTATION[0]
+
     system = (
         "You are Alfred — an autonomous AI agent running in GitHub Actions (ubuntu-latest). "
         "You have tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
-        "You MUST call write_file at least once per run or the iteration is wasted. "
+        "Each run must leave the repo genuinely better — either a complete new skill or a real improvement "
+        "to an existing one. An empty or stub file counts as a FAILED run, not a completed one. "
         "Files you write are automatically committed to https://github.com/andrewcornell2000-Work/Alfred"
     )
 
@@ -260,20 +288,34 @@ Recent learning log (last entry):
 
 Existing skills: {skills_list}
 
-=== YOUR TASK THIS ITERATION ===
-1. Pick ONE focused mission (new skill, routing improvement, research brief, memory update)
-2. Do 1-2 targeted web searches on that topic
-3. WRITE at least one file using write_file (skill, memory update, or brief)
-4. Update memory/learning-log.md with what you did
-5. Call send_email with a plain-English update for Andrew — write it like a colleague,
-   not a computer. No markdown, no file paths, no jargon. Tell him what you built,
-   why it matters for the team, what you learned, and what you'll do next.
+=== YOUR MISSION THIS ITERATION ===
+{focus}
 
-RULES:
-- You MUST use write_file at least once — no writes = wasted run
-- Be efficient — do not re-read files already shown above
-- Focus on what's most useful for a finance & labour planning team at Maersk
-- Skills go in skills/, briefs go in memory/briefs/, memory updates go in memory/
+Steps:
+1. Read the existing skills list above. If your mission touches a topic that already has a
+   skill, IMPROVE or MERGE that file — do NOT create a near-duplicate with a slightly different name.
+2. Do 1-2 targeted web searches if the topic needs current facts.
+3. Write a COMPLETE file with write_file. Then read_file it back to confirm it is non-empty and
+   genuinely useful before you move on.
+4. Update memory/learning-log.md with what you did.
+5. Call send_email with a plain-English update for Andrew — like a colleague, not a computer.
+   No markdown, no file paths, no jargon. Only claim you built something if the file is real and complete.
+
+QUALITY BAR (this is the whole point of the loop):
+- NEVER leave an empty or stub file. An empty file is worse than no file — it is noise. If you cannot
+  write a complete, useful file this run, improve an existing one instead.
+- NO near-duplicates. Six overlapping finance docs help no one. Prefer one excellent file over three thin ones.
+- A run that consolidates or sharpens an existing skill is MORE valuable than a shallow new file.
+- Be efficient — do not re-read files already shown above.
+- Skills go in skills/, briefs go in memory/briefs/, memory updates go in memory/.
+
+TOOLING MISSIONS (MCP / CLI) — extra rules:
+- DOCUMENT only. Add the tool to the manifests as a CANDIDATE/PLANNED entry. NEVER auto-install it,
+  never edit setup.ps1, and never claim it is installed — Andrew approves installs separately.
+- NEVER write an API key, token, or credential into any file.
+- If a tool is destructive (can write/delete/modify live data), say so in its entry and note it must be
+  added to the safety gate (DANGEROUS_KEYWORDS in backend/main.py) before it is ever allowed to dispatch.
+- Don't duplicate a tool that's already listed in requirements/ — extend or skip it instead.
 
 Start immediately. Pick your mission and begin.
 """
@@ -318,27 +360,53 @@ Start immediately. Pick your mission and begin.
 
         time.sleep(1)
 
-    # Fallback email — sent if Alfred didn't call send_email himself
-    # Parse what Alfred actually built from git diff
-    diff_stat = subprocess.run(
-        ["git", "diff", "HEAD~1", "--name-only"], capture_output=True, text=True
-    ).stdout.strip() or "No new files committed."
+    # --- Quality gate ---------------------------------------------------
+    # Look only at what THIS run changed (working tree vs HEAD + untracked),
+    # delete any empty/stub markdown the model failed to fill, and report
+    # honestly. This is what stops empty files and inflated "success" emails.
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], capture_output=True, text=True
+    ).stdout
 
-    files_changed = [f for f in diff_stat.splitlines() if not f.startswith(".github")]
-    files_summary = "\n".join(f"  - {f}" for f in files_changed) if files_changed else "  No changes this iteration."
+    changed = [line[3:].strip() for line in status.splitlines() if line[3:].strip()]
+    substantive = []
+    for p in changed:
+        if p.startswith(".github"):
+            continue
+        if p.endswith(".md") and os.path.exists(p) and os.path.getsize(p) < 50:
+            os.remove(p)  # `git add -A` in the workflow will stage the removal
+            print(f"[QualityGate] Removed empty/stub file: {p}")
+            continue
+        substantive.append(p)
 
-    send_update_email(
-        subject=f"Alfred update — {datetime.utcnow().strftime('%d %b %Y, %H:%M')} AEST",
-        body=(
-            f"Hi Andrew,\n\n"
-            f"Just finished my latest growth loop. Here's what I got done:\n\n"
-            f"Files I built or updated:\n{files_summary}\n\n"
-            f"You can see everything at:\n"
-            f"https://github.com/andrewcornell2000-Work/Alfred\n\n"
-            f"I'll run again in 8 hours.\n\n"
-            f"— Alfred"
+    if _email_sent:
+        print("[Email] Alfred already emailed this run — skipping fallback")
+    elif substantive:
+        files_summary = "\n".join(f"  - {f}" for f in substantive)
+        send_update_email(
+            subject=f"Alfred update — {datetime.utcnow().strftime('%d %b %Y, %H:%M')} AEST",
+            body=(
+                f"Hi Andrew,\n\n"
+                f"Just finished my latest growth loop. Here's what I got done:\n\n"
+                f"Files I built or updated:\n{files_summary}\n\n"
+                f"You can see everything at:\n"
+                f"https://github.com/andrewcornell2000-Work/Alfred\n\n"
+                f"I'll run again in 8 hours.\n\n"
+                f"— Alfred"
+            )
         )
-    )
+    else:
+        print("[QualityGate] No substantive output this run — sending honest note")
+        send_update_email(
+            subject="Alfred update — quiet run, nothing worth shipping",
+            body=(
+                "Hi Andrew,\n\n"
+                "I ran my growth loop but didn't produce anything solid enough to keep this time, "
+                "so I'm not padding the repo with busywork. Just a heads-up that I'm alive — "
+                "I'll try again in 8 hours.\n\n"
+                "— Alfred"
+            )
+        )
 
 
 if __name__ == "__main__":
