@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-06-07 (Iteration #12) — Power Query Error Diagnostic Playbook (rewrite)
+
+**Category:** Skills / Power Query & Data Engineering
+**Mode:** Rewrite of broken/stub file
+
+**Change summary:**
+- Rewrote `skills/powerquery-column-errors.md` from a thin, escaped-character-corrupted stub into a complete, structured error diagnostic playbook
+- Positioned explicitly as the *companion* to `power-query-transformations.md`: transformations skill = building queries, this skill = fixing broken queries. No content overlap.
+- Covers a structured 6-step diagnostic workflow (read error → find failing step → check last good state → inspect formula → compare to source → fix at right layer)
+- Error catalogue with cause + fix recipe for the 8 most common Power Query errors:
+  1. `Expression.Error: column not found`
+  2. `Column1/Column18 not found` (CSV column drift)
+  3. `DataFormat.Error` (type coercion failures)
+  4. `Cannot apply field access to type Table/Record/List` (missed expansion)
+  5. `Token Eof/Then/Comma expected` (M syntax)
+  6. `Formula.Firewall` (privacy engine blocking combine)
+  7. `DataSource.Error: key didn't match any rows` (sheet/table renamed)
+  8. Folder combine returning fewer rows (silent sample file drift)
+- Plus: refresh-fails-in-Service-but-works-in-Desktop diagnosis (gateway, credentials, hardcoded paths, dynamic sources)
+- Includes inspection-order cheat sheet for "column not found" — directs the user away from opening source files first and into walking query steps in priority order
+- Pre-commit checklist for fixes (root cause vs symptom, schema documentation, error handling, end-to-end refresh test)
+
+**Use case:** When a finance/data team query breaks (typically the morning after a refresh failure or after a source system changed), this playbook gives them the diagnostic order, the literal interpretation of the error message, and the M code fix for the most common cases. Cuts typical debug time from hours of poking around to ~10-15 minutes following the recipes.
+
+**Key learning:**
+- The single most common Power Query production bug is folder-combine sample file drift — the sample file memorizes one schema and silently fails on others. Documented detection and the dynamic-column-expansion fix.
+- Formula.Firewall errors confuse people because the fix is at the *query architecture* level (combine queries vs convert helper to function) not at the privacy setting level. Documented both fixes in preference order.
+- "Changed Type" auto-generated steps are landmines — they hardcode every column name in the M code, so any source rename cascades into "column not found" errors downstream.
+
+**Files modified:** `skills/powerquery-column-errors.md` (full rewrite), `memory/learning-log.md`
+
+**Complementary skills:** `skills/power-query-transformations.md` (build), `skills/powerbi-model-editing.md` (model errors), `skills/excel-live-editing.md` (Excel-side equivalents)
+
+---
+
 ## 2026-06-06 (Iteration #11) — Power Query Data Transformations Skill
 
 **Category:** Skills / Power Query & Data Engineering
