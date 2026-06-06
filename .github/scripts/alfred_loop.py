@@ -207,7 +207,10 @@ def api_call_with_retry(messages, system):
     for attempt in range(5):
         try:
             return client.messages.create(
-                model="claude-haiku-4-5-20251001",
+                # Opus 4.7: runs once daily (noon AEST), so we use the most
+                # capable model for best judgment on tool vetting + precise
+                # manifest edits, rather than a cheap high-frequency split.
+                model="claude-opus-4-7",
                 # Was 2000 — too low. A full skill file is ~1.5-2k tokens of
                 # write_file JSON plus reasoning, so writes hit the cap and got
                 # truncated mid-tool-call, producing empty/partial files. 8000
@@ -305,6 +308,9 @@ Steps:
 5. Call send_email with a plain-English update for Andrew — like a colleague, not a computer.
    No markdown, no file paths, no jargon. Only claim you built something if the file is real and complete.
 
+This is your ONE run today. Don't rush and don't pad — go deep and ship a single excellent,
+complete deliverable. Depth and correctness matter far more than covering extra ground.
+
 QUALITY BAR (this is the whole point of the loop):
 - NEVER leave an empty or stub file. An empty file is worse than no file — it is noise. If you cannot
   write a complete, useful file this run, improve an existing one instead.
@@ -399,7 +405,7 @@ Start immediately. Pick your mission and begin.
                 f"Files I built or updated:\n{files_summary}\n\n"
                 f"You can see everything at:\n"
                 f"https://github.com/andrewcornell2000-Work/Alfred\n\n"
-                f"I'll run again in 8 hours.\n\n"
+                f"I'll run again tomorrow at noon.\n\n"
                 f"— Alfred"
             )
         )
@@ -411,7 +417,7 @@ Start immediately. Pick your mission and begin.
                 "Hi Andrew,\n\n"
                 "I ran my growth loop but didn't produce anything solid enough to keep this time, "
                 "so I'm not padding the repo with busywork. Just a heads-up that I'm alive — "
-                "I'll try again in 8 hours.\n\n"
+                "I'll try again tomorrow at noon.\n\n"
                 "— Alfred"
             )
         )
