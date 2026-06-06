@@ -121,12 +121,12 @@ TOOLS = [
     },
     {
         "name": "send_email",
-        "description": "Send a plain-English update email to Andrew (andrewcornell2000@gmail.com) at the END of your loop. Write like a smart colleague giving a quick debrief — no code, no markdown, no jargon. Just clear sentences.",
+        "description": "Send an update email to Andrew (andrewcornell2000@gmail.com) at the END of your loop. Use plain-English DOT POINTS, not paragraphs — Andrew wants a scannable list of exactly what you added and how it works.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "subject": {"type": "string", "description": "Short subject line, e.g. 'Alfred update — built a labour forecasting tool'"},
-                "body": {"type": "string", "description": "Plain English email. Use this structure: 1) What you worked on this iteration and why. 2) What you actually built and what it does for the team in practical terms. 3) One interesting thing you learned. 4) What you plan to do next. Sign off as Alfred. NO markdown, NO code blocks, NO file paths, NO technical jargon — write it so anyone can understand it."}
+                "subject": {"type": "string", "description": "Short subject line, e.g. 'Alfred update — added a Power Query transformations skill'"},
+                "body": {"type": "string", "description": "Email in plain English using dot points (use '- ' for each bullet, no other markdown). Structure:\n\nOne short opening line of context.\n\nWhat I added:\n- one bullet per concrete thing you added or changed (name it plainly)\n\nHow it works:\n- 2-4 bullets explaining, in everyday language, what it does and how Andrew/the team would actually use it\n\nWhat's next:\n- 1-2 bullets on what you'll tackle next time\n\nSign off as Alfred. Keep each bullet to one clear sentence. No code blocks, no file paths, no jargon — but DO be specific about what the thing actually does."}
             },
             "required": ["subject", "body"]
         }
@@ -305,8 +305,10 @@ Steps:
 3. Write a COMPLETE file with write_file. Then read_file it back to confirm it is non-empty and
    genuinely useful before you move on.
 4. Update memory/learning-log.md with what you did.
-5. Call send_email with a plain-English update for Andrew — like a colleague, not a computer.
-   No markdown, no file paths, no jargon. Only claim you built something if the file is real and complete.
+5. Call send_email with an update for Andrew. Use plain-English DOT POINTS (not paragraphs):
+   a "What I added" list, a "How it works" list (everyday language — what it does and how he'd
+   use it), and a short "What's next". Be specific. No file paths or jargon. Only claim you built
+   something if the file is real and complete.
 
 This is your ONE run today. Don't rush and don't pad — go deep and ship a single excellent,
 complete deliverable. Depth and correctness matter far more than covering extra ground.
