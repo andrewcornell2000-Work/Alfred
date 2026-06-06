@@ -2,6 +2,37 @@
 
 ---
 
+## 2026-06-06 (Iteration #11) — Power Query Data Transformations Skill
+
+**Category:** Skills / Power Query & Data Engineering
+**Mode:** Direct implementation
+
+**Change summary:**
+- Created `skills/power-query-transformations.md` — comprehensive Power Query skill covering data transformation best practices, performance optimization, folder connectors, incremental refresh, and common patterns
+- Covers five non-negotiable standards: (1) query folding awareness and performance testing, (2) folder connectors for multi-file combines with schema contracts, (3) error handling and tolerant transformations, (4) incremental refresh setup with RangeStart/RangeEnd parameters, (5) pre-load performance audit checklist
+- Includes five practical transformation patterns: date component splitting (year-month hierarchy prep), deduplication on latest date (snapshot management), programmatic column renaming (folder combines), text cleaning with quality flags, unpivot-repivot workflows
+- Added debugging workflow for timeouts, missing columns, and CSV format errors
+- Includes comprehensive pre-publication checklist: column naming, row count validation, data types, null handling, source schema documentation, folder schema contracts, folding verification, parameter reusability, and error audit trails
+
+**Use case:** Enable finance, supply chain, and data teams to build production-grade Power Query pipelines that handle multi-file data integration, maintain performance at scale (query folding), and support incremental refresh workflows without breaking. Teams can move away from manual CSV concatenation and build self-service, auditable data preparation.
+
+**Research basis:**
+- Microsoft Learn Power Query best practices (2025 update, July 2025)
+- Query folding performance optimization community patterns (Power BI Tips, Mahsha DN, Virtual Forge)
+- Incremental refresh architecture with RangeStart/RangeEnd parameters (Power BI service requirements)
+- Folder connector schema management (common root cause of production failures)
+
+**Key learning:**
+- Query folding is non-obvious: same operation (e.g., filter) is folding-safe at row 5 but folding-breaking at row 20. This is the single biggest performance lever in Power Query.
+- Folder combines fail silently when schema drifts (new column, removed column, different name). Pre-publication schema contracts prevent this.
+- Incremental refresh requires both query folding AND RangeStart/RangeEnd parameters to be set up correctly. One without the other gives zero benefit.
+
+**Complementary skills:** `skills/powerbi-model-editing.md` (DAX, measures, relationships), `skills/powerquery-column-errors.md` (error diagnostics), `skills/excel-financial-models.md` (formula standards)
+
+**Files modified:** `skills/power-query-transformations.md` (created), `memory/learning-log.md`
+
+---
+
 ## 2026-06-05 (Iteration #10) — Cash Flow Forecasting Skill
 
 **Category:** Skills / Finance
@@ -55,39 +86,8 @@
 - Updated `CLAUDE.md` — added "Coding Guidelines" section pointing to both new files
 - Updated `README.md` — added AGENTS.md reference under project layout
 
-**Source:** https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md  
-**Files modified:** `skills/karpathy-coding-guidelines.md` (created), `AGENTS.md` (created), `CLAUDE.md`, `README.md`, `memory/learning-log.md`
+**Source:** https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CODE_REVIEW.md
+
+**Files modified:** `skills/karpathy-coding-guidelines.md` (created), `AGENTS.md` (created), `CLAUDE.md` (updated), `README.md` (updated), `memory/learning-log.md`
 
 ---
-
-## 2026-05-24 — Cost-Aware Worker Routing Rule
-
-**Category:** Routing / Architecture
-**Mode:** Direct implementation (initiated via Claude Code)
-
-**Change summary:**
-- Added `LEARNING_MODE_KEYWORDS` set for Learning / Creator Mode detection
-- Added `LEARNING_DISCUSSION_PROMPT` system prompt for conversational pre-confirmation
-- Added `is_learning_mode_task()` function
-- Added `generate_learning_discussion()` function (uses openai_mini + memory context)
-- Expanded `CODEX_ROUTING_KEYWORDS`: Alfred self-modification (`alfred code`, `alfred update`, `update alfred`), UI/app/website/dashboard design, code cleanup keywords
-- Expanded `CLAUDE_CODE_ROUTING_KEYWORDS`: `power query`, `explore`, `file exploration`, `repository exploration`, `deep tool`
-- Updated `choose_provider()` — returns `openai_mini` for CLAUDE_EXECUTION with zero keyword signal (avoids unnecessary heavy CLI dispatch)
-- Updated `should_send_to_claude()` — added `provider` param; blocks auto-dispatch when provider is `openai_mini`
-- Updated `_action_ask_alfred()` — Learning / Creator Mode intercept: discuss → confirm → force `CLAUDE_EXECUTION + codex`; declined path logs as `LEARNING_DECLINED` and continues
-- Updated `_action_show_dispatch_rules()` — added rows for cost-aware fallback and Learning Mode; added Learning Mode keyword display
-- Created `memory/routing-rules.md` as reusable routing rule reference
-- Created `memory/learning-log.md` (this file)
-
-**Files modified:** `backend/main.py`, `memory/routing-rules.md` (created), `memory/learning-log.md` (created)
-
----
-
-## 2026-05-24 - Dev Portal menu option
-
-**Category:** Learning / Creator UX
-**Mode:** Direct implementation (initiated via Codex)
-
-**Change summary:**
-- Added main menu option `8. Dev Portal`
-- Dev Portal lets the user teach Alfred skills, routing rules, tool requirements, and self-improvements 
