@@ -9,13 +9,6 @@
       "_aliases": { "GITHUB_PERSONAL_ACCESS_TOKEN": ["GITHUB_TOKEN"] },
       "_note": "GitHub repos, PRs, issues, code search. Token read from GITHUB_PERSONAL_ACCESS_TOKEN or, as a fallback, GITHUB_TOKEN (what Alfred's installer writes to .env)."
     },
-    "brave-search": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-      "env": { "BRAVE_API_KEY": "${env:BRAVE_API_KEY}" },
-      "_requires": ["BRAVE_API_KEY"],
-      "_note": "Live web search for current docs, versions, news. Needs a Brave Search API key."
-    },
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp", "--browser", "chromium"],
