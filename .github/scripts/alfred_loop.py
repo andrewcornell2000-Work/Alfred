@@ -249,32 +249,38 @@ def run():
     recent_log = read_file_safe("memory/learning-log.md", limit=800)
     skills_list = ", ".join(sorted(os.listdir("skills"))) if os.path.exists("skills") else "none"
 
-    # Rotate the mission so Alfred alternates between DEEPENING the finance/data
-    # skills that already pay off and BROADENING into genuinely new territory,
-    # instead of grinding out near-duplicate finance docs every run.
+    # Alfred's growth loop is about UPGRADING HIMSELF: the tools he can use
+    # (MCP servers, CLIs) and the skills for driving those tools well.
+    # It must NOT touch the finance/domain skills (cash flow, labour, Excel,
+    # Power BI, data-*) — those are owned by Andrew, not the loop.
     DOMAIN_ROTATION = [
-        "DEEPEN an existing high-value skill: pick ONE skill that already exists and make it "
-        "materially better (add a worked example, fix gaps, sharpen triggers). Do NOT create a new file.",
-        "NEW MCP TOOL: research one promising MCP server that would extend Alfred (look at the "
-        "official modelcontextprotocol servers and well-regarded community ones). Document it as a "
-        "CANDIDATE following the 'Learning Mode: Adding MCP Tools' process in requirements/mcp-tools.md — "
-        "add the entry there AND to the mcp.tools array in requirements/alfred-tools.json as a PLANNED tool.",
-        "BROADEN into a NEW domain Alfred can't yet help with — something outside Maersk finance "
-        "(e.g. coding/automation, writing, research workflows, a tool Andrew uses). Create one solid new skill.",
-        "NEW CLI TOOL: research one useful CLI tool Alfred should be able to drive. Add it to the "
-        "right manifest (requirements/npm-tools.txt or requirements/python-requirements.txt) in the "
-        "documented format AND mirror it into requirements/alfred-tools.json. Document the purpose and "
-        "which routing category it serves.",
-        "Excel / Power BI / Power Query power-user techniques the team would actually use.",
-        "CONSOLIDATE: if two existing skills overlap, merge them into one stronger file and delete the weaker.",
+        "NEW MCP TOOL: research one promising MCP server that would give Alfred a genuinely new "
+        "capability (browse the official modelcontextprotocol servers and well-regarded community ones). "
+        "Document it as a CANDIDATE following the 'Learning Mode: Adding MCP Tools' process in "
+        "requirements/mcp-tools.md — add the entry there AND to the mcp.tools array in "
+        "requirements/alfred-tools.json as a PLANNED tool.",
+        "TOOL SKILL: write a how-to skill for driving ONE tool Alfred already has (e.g. the GitHub MCP, "
+        "Playwright MCP, Power BI MCP, Excel MCP, or the claude/codex CLI) — concrete commands, common "
+        "workflows, gotchas, and when to reach for it. Skills go in skills/.",
+        "NEW CLI TOOL: research one useful CLI tool Alfred should be able to drive. Add it to the right "
+        "manifest (requirements/npm-tools.txt or requirements/python-requirements.txt) in the documented "
+        "format AND mirror it into requirements/alfred-tools.json, with purpose and routing category.",
+        "DEEPEN a TOOL skill: pick an existing tool/how-to skill and make it materially better "
+        "(add a worked example, fix gaps, sharpen triggers). Do NOT touch finance/domain skills.",
+        "ROUTING: review backend/main.py routing keywords for the tools Alfred has and propose/document "
+        "improvements so the right tool is picked for the right request. Keep destructive tools behind the safety gate.",
+        "CONSOLIDATE: if two existing TOOL skills overlap, merge them into one stronger file and delete the weaker.",
     ]
     focus = DOMAIN_ROTATION[int(iteration_num) % len(DOMAIN_ROTATION)] if iteration_num.isdigit() else DOMAIN_ROTATION[0]
 
     system = (
         "You are Alfred — an autonomous AI agent running in GitHub Actions (ubuntu-latest). "
+        "Your growth loop is for UPGRADING YOURSELF: the tools you can use (MCP servers, CLIs) and the "
+        "how-to skills for driving those tools well. Do NOT edit the finance/domain skills "
+        "(cash flow, labour, working capital, Excel, Power BI, data-*) — those belong to Andrew, not you. "
         "You have tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
-        "Each run must leave the repo genuinely better — either a complete new skill or a real improvement "
-        "to an existing one. An empty or stub file counts as a FAILED run, not a completed one. "
+        "Each run must leave the repo genuinely better — a new tool documented or a tool how-to improved. "
+        "An empty or stub file counts as a FAILED run, not a completed one. "
         "Files you write are automatically committed to https://github.com/andrewcornell2000-Work/Alfred"
     )
 
@@ -314,12 +320,15 @@ This is your ONE run today. Don't rush and don't pad — go deep and ship a sing
 complete deliverable. Depth and correctness matter far more than covering extra ground.
 
 QUALITY BAR (this is the whole point of the loop):
+- SCOPE: this loop only upgrades Alfred's TOOLS and tool how-to skills. NEVER edit the finance/domain
+  skills (cash-flow-forecasting, labour-cost-forecasting, working-capital-metrics, excel-*, powerbi-*,
+  powerquery-*, data-*). If your mission would touch one of those, pick a different tool-focused mission.
 - NEVER leave an empty or stub file. An empty file is worse than no file — it is noise. If you cannot
-  write a complete, useful file this run, improve an existing one instead.
-- NO near-duplicates. Six overlapping finance docs help no one. Prefer one excellent file over three thin ones.
-- A run that consolidates or sharpens an existing skill is MORE valuable than a shallow new file.
+  write a complete, useful file this run, improve an existing tool skill instead.
+- NO near-duplicates. Prefer one excellent tool guide over three thin ones.
+- A run that consolidates or sharpens an existing tool skill is MORE valuable than a shallow new file.
 - Be efficient — do not re-read files already shown above.
-- Skills go in skills/, briefs go in memory/briefs/, memory updates go in memory/.
+- Tool how-to skills go in skills/, tool manifests in requirements/, memory updates in memory/.
 
 TOOLING MISSIONS (MCP / CLI) — extra rules:
 - DOCUMENT only. Add the tool to the manifests as a CANDIDATE/PLANNED entry. NEVER auto-install it,
