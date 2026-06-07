@@ -477,6 +477,22 @@ if ($hasEnv) {
     }
 }
 
+# ── Cursor + Claude Code provisioning (shared MCPs + skills) ──────────────────
+
+Write-Step "Provisioning MCP servers + skills for Cursor and Claude Code..."
+
+$provisionScript = Join-Path $Root "Provision-Cursor.ps1"
+if (Test-Path $provisionScript) {
+    try {
+        & $provisionScript
+    } catch {
+        Write-Warn "Cursor/Claude provisioning step failed: $_"
+        Write-Info "Re-run manually: powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1"
+    }
+} else {
+    Write-Skip "Provision-Cursor.ps1 not found -- skipping cross-tool provisioning."
+}
+
 # ── login instructions ────────────────────────────────────────────────────────
 
 Write-Host ""

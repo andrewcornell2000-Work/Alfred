@@ -1,0 +1,40 @@
+{
+  "$comment": "Alfred -> Cursor/Claude MCP source of truth. Template only: ${env:VAR} placeholders are resolved from Alfred's .env (or machine env) by Provision-Cursor.ps1. Keys starting with _ are metadata used by the provisioner and are stripped before anything is written. NEVER put real tokens in this file.",
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}" },
+      "_requires": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+      "_note": "GitHub repos, PRs, issues, code search. Needs a Personal Access Token in Alfred .env."
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": { "BRAVE_API_KEY": "${env:BRAVE_API_KEY}" },
+      "_requires": ["BRAVE_API_KEY"],
+      "_note": "Live web search for current docs, versions, news. Needs a Brave Search API key."
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp", "--browser", "chromium"],
+      "_requires": [],
+      "_note": "Browser automation - navigate, fill forms, screenshot, reproduce UI bugs. No key needed."
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "env": { "CONTEXT7_API_KEY": "${env:CONTEXT7_API_KEY}" },
+      "_requires": [],
+      "_optionalEnv": ["CONTEXT7_API_KEY"],
+      "_note": "Up-to-date, version-specific library docs injected into context. Works without a key; a key raises rate limits."
+    },
+    "excel": {
+      "command": "python",
+      "args": ["-m", "excellm"],
+      "_requires": [],
+      "_requiresCommand": "python",
+      "_note": "Read/write live open Excel workbooks. Auto-skipped if python (with excellm) is not on PATH."
+    }
+  }
+}

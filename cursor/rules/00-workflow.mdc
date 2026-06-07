@@ -1,0 +1,26 @@
+---
+description: Core working agreement for any code change in this repo - inspect before editing, make the smallest safe change, verify it.
+alwaysApply: true
+---
+
+# Working agreement
+
+Provisioned by Alfred. Applies to every code change unless a more specific rule overrides it.
+
+## Before coding
+- Inspect existing patterns first. Reuse what's there before introducing a new abstraction.
+- State assumptions explicitly. If the request has multiple reasonable interpretations, ask instead of guessing.
+- For non-trivial work, propose the smallest plan that solves the actual problem, then implement.
+
+## While coding
+- Make the smallest change that fully solves the task. No drive-by refactors or speculative options.
+- Match the surrounding code's style, naming, and structure.
+- Fix the root cause, not the symptom.
+
+## After coding
+1. Run typecheck.
+2. Run the relevant tests (add or update a regression test when fixing a bug).
+3. Run lint/format if the repo has it.
+4. Summarize the files you changed and any risks.
+
+Don't report something as done until it has actually been run and verified.

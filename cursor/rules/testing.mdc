@@ -1,0 +1,12 @@
+---
+description: Testing standards - what to test and when.
+alwaysApply: false
+---
+
+# Testing standards
+
+- When fixing a bug, add or update a regression test that fails before the fix and passes after.
+- Test behavior and edge cases, not implementation details.
+- Keep tests deterministic - no reliance on real network, wall-clock time, or test order.
+- Run the relevant test suite after changes and report the actual result. If tests fail, say so with the output.
+- New features land with at least the core happy-path test plus the most important failure case.

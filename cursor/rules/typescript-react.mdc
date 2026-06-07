@@ -1,0 +1,16 @@
+---
+description: TypeScript and React standards.
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: false
+---
+
+# TypeScript & React standards
+
+- Use TypeScript strict mode. Don't weaken it to make an error go away.
+- Never use `any` unless explicitly justified with a comment; prefer `unknown` + narrowing.
+- Prefer small, composable, pure functions over large stateful ones.
+- Reuse existing project types and utilities before adding new ones.
+- Keep components focused; lift shared logic into hooks or helpers rather than duplicating.
+- Handle the error and loading states, not just the happy path.
