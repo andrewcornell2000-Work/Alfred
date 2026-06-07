@@ -2,6 +2,37 @@
 
 ---
 
+## 2026-06-08 (Iteration #13) — Routing & Safety-Gate Audit Skill
+
+**Category:** Tools / Self-upgrade (routing + safety)
+**Mode:** New skill — audit & improvement spec
+
+**Change summary:**
+- Created `skills/alfred-routing-keywords.md` — a full audit of how `backend/main.py` picks a tool for a request, what's brittle, and what to change.
+- Documents the 6-stage routing pipeline: provider override → learning-mode → Alfred Brain (JSON classifier) → keyword fallback → safety gate → dispatch.
+- Maps the six keyword sets that drive routing (`DANGEROUS_KEYWORDS`, `ACTION_KEYWORDS`, `LEARNING_MODE_KEYWORDS`, `CODEX_ROUTING_KEYWORDS`, `CLAUDE_CODE_ROUTING_KEYWORDS`, `SEARCH_TRIGGER_KEYWORDS`) plus `TOOL_REGISTRY[*].keywords`.
+- Identifies 13 missing destructive verbs that should sit behind the safety gate (drop table, force push, merge pr, rm -rf, submit the form, refresh dataset, publish report, pip install, send email, etc.) — currently destructive ops via Git/GitHub MCP, Excel MCP, Power BI MCP, Playwright MCP and shell can dispatch without the typed-yes confirmation.
+- Identifies routing keyword problems: bare `document`, `report`, `open`, `code` over-trigger; Power Query is only correctly routed because of a hard short-circuit (made explicit); fallback sets have drifted from the Tool Registry.
+- Provides a target **routing decision matrix** — for each request shape, the right category, provider, MCP, and whether the safety gate fires (pattern: read+draft = no gate; send/delete/overwrite/publish/refresh = gate).
+- Concrete proposed diff to `backend/main.py` (documented only — Andrew approves before applying): expanded `DANGEROUS_KEYWORDS_V2`, tightened fallback sets, generation of fallback sets from the Tool Registry (single source of truth), Tool Registry summary injected into `ALFRED_BRAIN_PROMPT`.
+- Adds a "How to add a new tool without breaking routing" 5-step procedure so future MCP/CLI additions wire keywords + safety gate consistently.
+
+**Use case:** Reference for any future change that touches routing — Andrew (or Alfred in a later iteration) can look up exactly which keyword set governs which behaviour, which destructive verbs are still ungated, and the standard procedure for adding a new tool without creating dead keywords or unsafe paths.
+
+**Key findings worth flagging:**
+- The safety gate is currently *too narrow* — 9 of Alfred's installed tools have destructive verbs that the gate doesn't catch. This is the highest-priority follow-up.
+- The Tool Registry should be the single source of truth for keywords; today the fallback sets are hand-maintained in a second place and have already drifted.
+- The brain prompt doesn't list the actual tools — it routes by category alone. A small change to inject the registry summary improves tool-name accuracy in user-visible plans.
+
+**Files modified:** `skills/alfred-routing-keywords.md` (new, 16k chars), `memory/learning-log.md`
+
+**Complementary skills:** `skills/github.md`, `skills/browser-automation.md`, `skills/office-mastery.md` (per-tool how-tos that should match the routing matrix).
+
+---
+
+
+---
+
 ## 2026-06-07 (Iteration #12) — Power Query Error Diagnostic Playbook (rewrite)
 
 **Category:** Skills / Power Query & Data Engineering
