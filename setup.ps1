@@ -31,10 +31,10 @@ function Find-Command([string]$Name) {
 }
 
 function Get-PythonExe {
-    $candidates = @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")
-    $candidatePaths = foreach ($candidate in $candidates) {
+    $candidatePaths = @()
+    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
         $cmd = Find-Command $candidate
-        if ($cmd) { $cmd }
+        if ($cmd) { $candidatePaths += $cmd }
     }
     foreach ($root in @(
         "$env:LOCALAPPDATA\Programs\Python",
@@ -52,13 +52,36 @@ function Get-PythonExe {
             )
         }
     }
+    foreach ($regRoot in @(
+        "HKCU:\Software\Python\PythonCore",
+        "HKLM:\Software\Python\PythonCore",
+        "HKLM:\Software\WOW6432Node\Python\PythonCore"
+    )) {
+        if (Test-Path $regRoot) {
+            $candidatePaths += @(
+                Get-ChildItem $regRoot -ErrorAction SilentlyContinue |
+                    Sort-Object PSChildName -Descending |
+                    ForEach-Object {
+                        $install = Get-ItemProperty "$($_.PSPath)\InstallPath" -ErrorAction SilentlyContinue
+                        $exes = @()
+                        if ($install.ExecutablePath) { $exes += $install.ExecutablePath }
+                        if ($install.'(default)') { $exes += (Join-Path $install.'(default)' "python.exe") }
+                        foreach ($exe in $exes) {
+                            if ($exe -and (Test-Path $exe)) { $exe }
+                        }
+                    }
+            )
+        }
+    }
 
-    foreach ($cmd in @($candidatePaths | Select-Object -Unique)) {
+    $orderedCandidates = @($candidatePaths | Where-Object { $_ -notlike "*\Microsoft\WindowsApps\*" } | Select-Object -Unique)
+    $orderedCandidates += @($candidatePaths | Where-Object { $_ -like "*\Microsoft\WindowsApps\*" } | Select-Object -Unique)
+    foreach ($cmd in $orderedCandidates) {
         if (-not $cmd) { continue }
         $isLauncher = [IO.Path]::GetFileNameWithoutExtension($cmd) -eq "py"
         $args = if ($isLauncher) { @("-3", "--version") } else { @("--version") }
         $output = & $cmd @args 2>&1 | Select-Object -First 1
-        if ($LASTEXITCODE -eq 0 -and "$output" -match "^Python\s+3\.(1[0-9])\.") {
+        if ("$output" -match "^Python\s+3\.(1[0-9])\.") {
             return [PSCustomObject]@{
                 Exe      = $cmd
                 VenvArgs = if ($isLauncher) { @("-3", "-m", "venv") } else { @("-m", "venv") }
