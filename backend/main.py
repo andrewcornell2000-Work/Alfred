@@ -136,7 +136,7 @@ def _call_claude(system_prompt: str, user_content: str, timeout: int = 60) -> st
             "Claude Code CLI is not installed.\n"
             "Fix it now:\n"
             "  1. npm install -g @anthropic-ai/claude-code\n"
-            "  2. claude login\n"
+            "  2. claude auth login\n"
             "Then restart Alfred."
         )
         console.print(f"[bold red]Setup required:[/bold red]\n{msg}")
@@ -875,7 +875,7 @@ def run_claude(prompt: str, timeout: int = 600) -> subprocess.CompletedProcess:
     except FileNotFoundError:
         return subprocess.CompletedProcess(
             args, 127, "",
-            "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude login",
+            "Claude Code CLI not found. Run: npm install -g @anthropic-ai/claude-code && claude auth login",
         )
 
 
@@ -1021,6 +1021,59 @@ def _resolve_codex_executable() -> str:
     )
 
 
+def _resolve_npm_executable() -> str:
+    return (
+        os.getenv("NPM_BIN")
+        or shutil.which("npm.cmd")
+        or shutil.which("npm")
+        or "npm.cmd"
+    )
+
+
+def _resolve_pip_executable() -> str:
+    venv_pip = os.path.join(_ROOT, ".venv", "Scripts", "pip.exe")
+    if os.path.isfile(venv_pip):
+        return venv_pip
+    return shutil.which("pip.exe") or shutil.which("pip") or "pip"
+
+
+def _claude_auth_ready() -> bool:
+    exe = _resolve_claude_executable()
+    try:
+        result = subprocess.run(
+            [exe, "auth", "status"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=8,
+        )
+    except Exception:
+        return False
+    if result.returncode != 0:
+        return False
+    try:
+        data = json.loads(result.stdout)
+        return bool(data.get("loggedIn"))
+    except json.JSONDecodeError:
+        return "logged in" in result.stdout.lower()
+
+
+def _codex_auth_ready() -> bool:
+    exe = _resolve_codex_executable()
+    try:
+        result = subprocess.run(
+            [exe, "login", "status"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=8,
+        )
+    except Exception:
+        return False
+    text = (result.stdout + "\n" + result.stderr).lower()
+    return result.returncode == 0 and "logged in" in text
+
+
 def _extract_codex_response(jsonl_output: str) -> str:
     """Parse Codex --json JSONL output and return the agent response text.
 
@@ -1046,12 +1099,15 @@ def _extract_codex_response(jsonl_output: str) -> str:
 def run_codex(prompt: str, timeout: int = 300) -> subprocess.CompletedProcess:
     """Run a prompt through Codex CLI using non-interactive exec mode.
 
-    Uses `codex exec --json -` which reads the prompt from stdin and emits
+    Uses `codex exec --json ... -` which reads the prompt from stdin and emits
     JSONL events — no TTY required, fully headless. Falls back to Claude Code
     only if the Codex executable is not found.
     """
     exe = _resolve_codex_executable()
-    args = [exe, "exec", "--json", "-"]
+    args = [
+        exe, "exec", "--json", "--skip-git-repo-check",
+        "--dangerously-bypass-approvals-and-sandbox", "-",
+    ]
     try:
         result = subprocess.run(
             args,
@@ -1169,10 +1225,10 @@ ALFRED_CAPABILITY_REGISTRY = [
     },
     {
         "name": "Code & Refactoring",
-        "provider": "claude_code",
+        "provider": "codex",
         "category": "CODE",
         "description": "Write, fix, refactor, test code in any language",
-        "requires": "claude_cli",
+        "requires": "codex_cli",
     },
     {
         "name": "File & System Operations",
@@ -1239,7 +1295,7 @@ TOOL_REGISTRY: dict[str, dict] = {
         "description": "Conversation, explanations, brainstorming, analysis",
         "category": "GENERAL",
         "provider": "claude",
-        "requires": "claude_api",
+        "requires": "claude_cli",
         "keywords": [],
         "examples": ["explain this", "what does X mean", "help me think through"],
     },
@@ -1265,8 +1321,8 @@ TOOL_REGISTRY: dict[str, dict] = {
         "name": "Code",
         "description": "Write, fix, refactor, test code in any language",
         "category": "CODE",
-        "provider": "claude_code",
-        "requires": "claude_cli",
+        "provider": "codex",
+        "requires": "codex_cli",
         "keywords": ["code", "function", "bug", "test", "refactor", "script", "write a", "fix this"],
         "examples": ["fix this bug", "write a Python script to", "refactor this function"],
     },
@@ -1366,8 +1422,15 @@ def _capability_status(cap: dict) -> tuple[str, str]:
     """Return (status, note) for a capability based on what's installed/configured."""
     req = cap.get("requires", "")
     if req == "claude_cli":
-        ok = bool(shutil.which("claude.cmd") or shutil.which("claude"))
-        return ("ready", "") if ok else ("attention", "claude not installed")
+        installed = bool(shutil.which("claude.cmd") or shutil.which("claude"))
+        if not installed:
+            return "attention", "claude not installed"
+        return ("ready", "") if _claude_auth_ready() else ("attention", "Claude login required")
+    if req == "codex_cli":
+        installed = bool(shutil.which("codex.cmd") or shutil.which("codex"))
+        if not installed:
+            return "attention", "codex not installed"
+        return ("ready", "") if _codex_auth_ready() else ("attention", "Codex login required")
     if req == "tavily_key":
         ok = bool(_get_tavily_api_key())
         return ("ready", "") if ok else ("attention", "TAVILY_API_KEY missing")
@@ -1394,16 +1457,17 @@ You are Alfred's routing brain. Given the user's request, return a routing decis
 Alfred is a personal AI assistant with these capabilities:
 - GENERAL: conversation, explanations, definitions, brainstorming — Claude replies directly
 - SEARCH: questions needing live/current data (prices, news, latest versions, current events) — Tavily + Claude
-- CODE: write/fix/refactor/review code, tests, scripts — Claude Code
+- CODE: write/fix/refactor/review code, tests, scripts — Codex
 - EXECUTE: act on files, PC, apps, external services (Excel, browser, GitHub, Office docs, scripts) — Claude Code + MCP
 - POWERBI: Power BI model, DAX queries, Power Query, visuals — Claude Code + Power BI MCP
 
 Provider assignment rules:
 - "claude": GENERAL and SEARCH (conversation and research only, no tool use)
-- "claude_code": CODE, EXECUTE, and POWERBI tasks (anything requiring files, MCP tools, or system access)
+- "codex": CODE tasks inside repositories or code projects
+- "claude_code": EXECUTE and POWERBI tasks (anything requiring files, MCP tools, apps, or system access)
 
 Return ONLY compact JSON — no markdown fences, no explanation:
-{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI","provider":"claude|claude_code","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":"","steps":[]}
+{"category":"GENERAL|SEARCH|CODE|EXECUTE|POWERBI","provider":"claude|claude_code|codex","needs_search":false,"needs_clarification":false,"clarification_question":"","plan":"","steps":[]}
 
 Rules:
 - needs_search=true for SEARCH category, and for GENERAL questions about current events, prices, latest versions, or recent news
@@ -1435,10 +1499,7 @@ def alfred_brain(user_input: str) -> dict:
         category = decision.get("category", "").upper()
         provider = decision.get("provider", "")
         valid_categories = {"GENERAL", "SEARCH", "CODE", "EXECUTE", "POWERBI"}
-        valid_providers = {"claude", "claude_code"}
-        # Normalise: brain sometimes returns "codex" — remap to claude_code
-        if provider == "codex":
-            provider = "claude_code"
+        valid_providers = {"claude", "claude_code", "codex"}
         if category in valid_categories and provider in valid_providers:
             decision["category"] = category
             return decision
@@ -1454,11 +1515,10 @@ def alfred_brain(user_input: str) -> dict:
     codex_score = sum(1 for kw in CODEX_ROUTING_KEYWORDS if kw in lowered)
     claude_score = sum(1 for kw in CLAUDE_CODE_ROUTING_KEYWORDS if kw in lowered)
     if codex_score > 0 or claude_score > 0:
-        # Category distinction kept (CODE vs EXECUTE) for brain context;
-        # both always route to claude_code — Codex has a TTY issue in headless mode.
         cat = "CODE" if codex_score >= claude_score else "EXECUTE"
+        provider = "codex" if cat == "CODE" else "claude_code"
         return {
-            "category": cat, "provider": "claude_code",
+            "category": cat, "provider": provider,
             "needs_search": False, "needs_clarification": False,
             "clarification_question": "", "plan": "",
         }
@@ -1478,18 +1538,22 @@ def _should_search(query: str) -> bool:
         return False
     if len(lowered) < 8:
         return False
-    # Question-pattern prefix → almost always an informational request
+    # Current-data or explicit lookup phrasing should use web context.
+    if any(kw in lowered for kw in SEARCH_TRIGGER_KEYWORDS):
+        return True
+
+    # Question-pattern prefix for factual lookup. Avoid "explain"/"tell me"
+    # here; those are often timeless chat questions and should stay fast.
     if any(lowered.startswith(w) for w in (
         "what ", "who ", "when ", "where ", "why ", "how ", "is ", "are ",
-        "was ", "were ", "tell me", "explain", "describe", "show me",
+        "was ", "were ",
         "find ", "search ", "look up",
     )):
         return True
     # Explicit question mark → user is asking something
     if "?" in lowered:
         return True
-    # Original keyword safety-net
-    return any(kw in lowered for kw in SEARCH_TRIGGER_KEYWORDS)
+    return False
 
 
 def _get_tavily_api_key() -> str:
@@ -1739,7 +1803,7 @@ def _friendly_error(stderr: str) -> str:
         return (
             "I couldn't find the Claude CLI on this machine.\n\n"
             "**Fix:** Open a terminal and run:\n"
-            "```\nnpm install -g @anthropic-ai/claude-code\nclaude login\n```"
+            "```\nnpm install -g @anthropic-ai/claude-code\nclaude auth login\n```"
         )
     if "timed out" in low:
         return (
@@ -1749,7 +1813,7 @@ def _friendly_error(stderr: str) -> str:
     if "authentication" in low or "login" in low or "401" in low:
         return (
             "There's an authentication issue — I'm not signed in to that service.\n\n"
-            "**Fix:** Run `claude login` in a terminal, then try again."
+            "**Fix:** Run `claude auth login` in a terminal, then try again."
         )
     if "permission" in low or "access denied" in low:
         return (
@@ -1945,7 +2009,7 @@ def _process_alfred_request(
                 stripped = f"{stripped}\n\nContext provided: {answer}"
 
         # Normalise any stale provider tokens from old sessions
-        if provider not in {"claude", "claude_code"}:
+        if provider not in {"claude", "claude_code", "codex"}:
             provider = "claude_code"
 
         # Map Brain categories → pipeline categories (backward-compatible)
@@ -2388,10 +2452,14 @@ def _chat_loop() -> None:
             _action_pbi_connect()
             continue
 
-        if "claude login" in stripped.lower() or stripped.lower() in {"login", "claude-login"}:
+        if (
+            "claude login" in stripped.lower()
+            or "claude auth login" in stripped.lower()
+            or stripped.lower() in {"login", "claude-login", "claude auth"}
+        ):
             console.print("[dim]Opening a terminal for Claude authentication...[/dim]")
             try:
-                subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", _resolve_claude_executable()])
+                subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", _resolve_claude_executable(), "auth", "login"])
                 console.print("[bold green]Terminal opened. Complete login there, then restart Alfred.[/bold green]")
             except Exception as e:
                 console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
@@ -2738,8 +2806,10 @@ def _action_control_tower() -> None:
     providers.add_column("Role", style="white")
     claude_ok = shutil.which("claude.cmd") or shutil.which("claude")
     codex_ok = shutil.which("codex.cmd") or shutil.which("codex")
-    providers.add_row("Claude Code", "[green]installed[/green]" if claude_ok else "[red]missing[/red]", "All routing — chat, execution, MCP tools, code, Office/PC operations")
-    providers.add_row("Codex", ("[green]available[/green]" if codex_ok else "[dim]not installed[/dim]") + " [dim](optional)[/dim]", "Terminal use only — open from /platforms")
+    claude_status = "[green]ready[/green]" if claude_ok and _claude_auth_ready() else ("[yellow]login needed[/yellow]" if claude_ok else "[red]missing[/red]")
+    codex_status = "[green]ready[/green]" if codex_ok and _codex_auth_ready() else ("[yellow]login needed[/yellow]" if codex_ok else "[red]missing[/red]")
+    providers.add_row("Claude Code", claude_status, "PC operations, MCP tools, Office, browser, Power BI, and app/file work")
+    providers.add_row("Codex", codex_status, "Repository coding: implement, refactor, test, review")
     console.print(providers)
 
     office = Table(title="Office Mastery", box=box.ROUNDED, border_style="dim", padding=(0, 1))
@@ -3197,7 +3267,7 @@ def _action_show_dispatch_rules() -> None:
     )
     t.add_row(
         "CODE — write / fix / refactor / test code",
-        "Claude Code",
+        "Codex",
         "[green]Plan shown → executes immediately[/green]",
     )
     t.add_row(
@@ -3226,7 +3296,7 @@ def _action_show_dispatch_rules() -> None:
     console.print("  " + "  ".join(f"[cyan]{k}[/cyan]" for k in sorted(LEARNING_MODE_KEYWORDS)))
 
     kw_table = Table(
-        title="Routing Keywords → Claude Code", box=box.ROUNDED, border_style="dim", padding=(0, 1)
+        title="Routing Keywords → Providers", box=box.ROUNDED, border_style="dim", padding=(0, 1)
     )
     kw_table.add_column("Category", style="bold yellow", no_wrap=True)
     kw_table.add_column("Trigger Keywords", style="white")
@@ -3285,10 +3355,10 @@ def _write_env_var(env_path: str, key: str, value: str) -> None:
 
 def _repair_install_claude() -> None:
     console.print("[dim]Running: npm install -g @anthropic-ai/claude-code[/dim]")
-    r = subprocess.run(["npm", "install", "-g", "@anthropic-ai/claude-code"],
+    r = subprocess.run([_resolve_npm_executable(), "install", "-g", "@anthropic-ai/claude-code"],
                        capture_output=True, text=True)
     if r.returncode == 0:
-        console.print("[bold green]Installed. Restart Alfred, then authenticate with: claude login[/bold green]")
+        console.print("[bold green]Installed. Restart Alfred, then authenticate with: claude auth login[/bold green]")
     else:
         console.print(f"[bold red]Install failed:[/bold red] {r.stderr.strip()[:200]}")
 
@@ -3296,7 +3366,7 @@ def _repair_install_claude() -> None:
 def _repair_claude_login() -> None:
     exe = _resolve_claude_executable()
     try:
-        subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", exe])
+        subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", exe, "auth", "login"])
         console.print("[bold green]Terminal opened — sign in, then restart Alfred.[/bold green]")
     except Exception as e:
         console.print(f"[bold red]Could not open terminal:[/bold red] {e}")
@@ -3304,7 +3374,7 @@ def _repair_claude_login() -> None:
 
 def _repair_install_codex() -> None:
     console.print("[dim]Running: npm install -g @openai/codex[/dim]")
-    r = subprocess.run(["npm", "install", "-g", "@openai/codex"],
+    r = subprocess.run([_resolve_npm_executable(), "install", "-g", "@openai/codex"],
                        capture_output=True, text=True)
     if r.returncode == 0:
         console.print("[bold green]Installed. Restart Alfred, then authenticate with: codex login[/bold green]")
@@ -3355,9 +3425,7 @@ def _repair_github_token() -> None:
 def _repair_install_uv() -> None:
     """Install uv so uvx is available for fetch and time MCPs."""
     console.print("[dim]Running: pip install uv[/dim]")
-    pip = os.path.join(_ROOT, ".venv", "Scripts", "pip.exe")
-    if not os.path.isfile(pip):
-        pip = "pip"
+    pip = _resolve_pip_executable()
     r = subprocess.run([pip, "install", "uv"], capture_output=True, text=True)
     if r.returncode == 0:
         console.print(
@@ -3372,9 +3440,7 @@ def _repair_install_uv() -> None:
 
 
 def _repair_excel_mcp() -> None:
-    pip = os.path.join(_ROOT, ".venv", "Scripts", "pip.exe")
-    if not os.path.isfile(pip):
-        pip = "pip"
+    pip = _resolve_pip_executable()
     console.print("[dim]Running: pip install excellm[/dim]")
     r = subprocess.run([pip, "install", "excellm"], capture_output=True, text=True)
     if r.returncode == 0:
@@ -3386,28 +3452,34 @@ def _repair_excel_mcp() -> None:
 def _check_setup() -> None:
     # Each issue is (description, repair_fn | None)
     issues: list[tuple[str, object]] = []
+    optional_issues: list[tuple[str, object]] = []
 
     # ── Claude ────────────────────────────────────────────────────────────────
     claude_installed = bool(shutil.which("claude.cmd") or shutil.which("claude"))
     if not claude_installed:
         issues.append(("Claude Code CLI not installed", _repair_install_claude))
-    else:
-        creds = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
-        if not os.path.isfile(creds) or os.path.getsize(creds) < 10:
-            issues.append(("Claude not logged in", _repair_claude_login))
+    elif not _claude_auth_ready():
+        issues.append(("Claude not logged in", _repair_claude_login))
+
+    # ── Codex ─────────────────────────────────────────────────────────────────
+    # Codex handles repository coding tasks, so it is part of the core smooth flow.
+    codex_installed = bool(shutil.which("codex.cmd") or shutil.which("codex"))
+    if not codex_installed:
+        issues.append(("Codex CLI not installed", _repair_install_codex))
+    elif not _codex_auth_ready():
+        issues.append(("Codex not logged in", _repair_codex_login))
 
     # ── Optional capabilities ─────────────────────────────────────────────────
-    # Codex is optional (terminal use only — not used for headless routing).
     if not _get_tavily_api_key():
-        issues.append(("Tavily key missing — web research unavailable", _repair_tavily_key))
+        optional_issues.append(("Tavily key missing — web research unavailable", _repair_tavily_key))
     if not _get_github_token():
-        issues.append(("GitHub token missing — GitHub operations unavailable", _repair_github_token))
+        optional_issues.append(("GitHub token missing — GitHub operations unavailable", _repair_github_token))
 
     # ── uvx (needed for fetch and time MCPs) ──────────────────────────────────
     if not shutil.which("uvx"):
         mcp_servers = _load_mcp_servers()
         if any(svc.get("command") == "uvx" for svc in mcp_servers.values()):
-            issues.append((
+            optional_issues.append((
                 "uvx not installed — fetch and time MCPs need it",
                 _repair_install_uv,
             ))
@@ -3445,6 +3517,9 @@ def _check_setup() -> None:
 
     if not issues:
         console.print("[dim green]All systems ready.[/dim green]")
+        if optional_issues:
+            labels = "; ".join(desc for desc, _ in optional_issues)
+            console.print(f"[dim yellow]Optional setup: {labels}. Type /tools later to review.[/dim yellow]")
         return
 
     # ── Show issues with repair options ───────────────────────────────────────

@@ -21,9 +21,32 @@ $Root = $PSScriptRoot
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 function Find-Command([string]$Name) {
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($null -eq $cmd) { return $null }
-    return $cmd.Source
+    foreach ($candidate in @("$Name.cmd", "$Name.exe", "$Name.bat", $Name)) {
+        $cmd = Get-Command $candidate -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandType -ne "Alias" } |
+            Select-Object -First 1
+        if ($null -ne $cmd) { return $cmd.Source }
+    }
+    return $null
+}
+
+function Get-PythonExe {
+    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
+        $cmd = Find-Command $candidate
+        if (-not $cmd) { continue }
+
+        $isLauncher = [IO.Path]::GetFileNameWithoutExtension($candidate) -eq "py"
+        $args = if ($isLauncher) { @("-3", "--version") } else { @("--version") }
+        $output = & $cmd @args 2>&1 | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and "$output" -match "^Python\s+3\.(1[0-9])\.") {
+            return [PSCustomObject]@{
+                Exe      = $cmd
+                VenvArgs = if ($isLauncher) { @("-3", "-m", "venv") } else { @("-m", "venv") }
+                Version  = "$output"
+            }
+        }
+    }
+    return $null
 }
 
 function Refresh-Path {
@@ -102,8 +125,9 @@ function Add-RepoLocalNodeToPath {
 }
 
 function Get-NpmGlobalBin {
-    if (-not (Find-Command "npm")) { return $null }
-    $prefix = & npm prefix -g 2>$null | Select-Object -First 1
+    $npmExe = Find-Command "npm"
+    if (-not $npmExe) { return $null }
+    $prefix = & $npmExe prefix -g 2>$null | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($prefix)) { return $null }
     return $prefix.Trim()
 }
@@ -176,16 +200,16 @@ Write-Step "Checking prerequisites..."
 
 # Python
 $hasPython = $false
-if (Find-Command "python") {
-    $pyVer = & python --version 2>&1 | Select-Object -First 1
-    Write-OK "Python -- $pyVer"
+$PythonInfo = Get-PythonExe
+if ($PythonInfo) {
+    Write-OK "Python -- $($PythonInfo.Version)"
     $hasPython = $true
 } else {
     Write-Warn "Python not found."
     $null = Invoke-WingetInstall "Python.Python.3.13" "Python 3.13"
-    if (Find-Command "python") {
-        $pyVer = & python --version 2>&1 | Select-Object -First 1
-        Write-OK "Python -- $pyVer"
+    $PythonInfo = Get-PythonExe
+    if ($PythonInfo) {
+        Write-OK "Python -- $($PythonInfo.Version)"
         $hasPython = $true
     } else {
         Write-Info "Install Python 3.10+ from https://www.python.org/downloads/"
@@ -240,7 +264,8 @@ if (Find-Command "node") {
 # npm
 $hasNpm = $false
 if (Find-Command "npm") {
-    $npmVer = & npm --version 2>&1 | Select-Object -First 1
+    $NpmExe = Find-Command "npm"
+    $npmVer = & $NpmExe --version 2>&1 | Select-Object -First 1
     Write-OK "npm -- $npmVer"
     $hasNpm = $true
     $npmGlobalBin = Ensure-NpmGlobalPath
@@ -264,13 +289,14 @@ if (-not $hasNpm) {
     Write-Skip "requirements/npm-tools.txt is empty or missing -- nothing to install."
 } else {
     foreach ($tool in $npmToolList) {
-        if (Find-Command $tool.Command) {
-            $ver = & $tool.Command --version 2>&1 | Select-Object -First 1
+        $toolExe = Find-Command $tool.Command
+        if ($toolExe) {
+            $ver = & $toolExe --version 2>&1 | Select-Object -First 1
             Write-OK "$($tool.Description) -- $ver"
             $toolStatus[$tool.Command] = $true
         } else {
             Write-Host "  Installing $($tool.Description) (npm install -g $($tool.Package))..." -ForegroundColor Cyan
-            npm install -g $tool.Package
+            & $NpmExe install -g $tool.Package
             if ($LASTEXITCODE -eq 0) {
                 $null = Ensure-NpmGlobalPath
                 if (Find-Command $tool.Command) {
@@ -327,7 +353,7 @@ if (-not $hasPython) {
 } else {
     if (-not (Test-Path $VenvPath)) {
         Write-Host "  Creating .venv..." -ForegroundColor Cyan
-        python -m venv $VenvPath
+        & $PythonInfo.Exe @($PythonInfo.VenvArgs + @($VenvPath))
         if ($LASTEXITCODE -eq 0) {
             Write-Done ".venv created."
         } else {
@@ -471,7 +497,7 @@ $hasEnv = Test-Path $EnvFile
 if ($hasEnv) {
     Write-OK ".env found (optional config)."
 } else {
-    Write-Info ".env not present -- that's fine. Auth uses 'claude login', no API keys needed."
+    Write-Info ".env not present -- that's fine. Auth uses 'claude auth login', no API keys needed."
     if (-not (Test-Path $EnvTemplate)) {
         Copy-Item (Join-Path $Root ".env.template") $EnvTemplate -ErrorAction SilentlyContinue
     }
@@ -530,13 +556,13 @@ Write-Host ""
 
 if ($hasClaude) {
     Write-Host "  Claude Code login:" -ForegroundColor White
-    Write-Host "    claude login" -ForegroundColor Yellow
+    Write-Host "    claude auth login" -ForegroundColor Yellow
     Write-Host "  Opens a browser to authenticate with your Anthropic account." -ForegroundColor DarkGray
     Write-Host ""
 } else {
     Write-Host "  Claude Code CLI not installed -- install it first:" -ForegroundColor Yellow
     Write-Host "    npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
-    Write-Host "    claude login" -ForegroundColor Yellow
+    Write-Host "    claude auth login" -ForegroundColor Yellow
     Write-Host ""
 }
 
@@ -582,7 +608,7 @@ foreach ($tool in $npmToolList) {
     }
 }
 
-Write-Host "  [i] Auth: run 'claude login' once to authenticate (no API keys needed)" -ForegroundColor Cyan
+Write-Host "  [i] Auth: run 'claude auth login' once to authenticate (no API keys needed)" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Optional CLI tools (no admin required):" -ForegroundColor DarkGray
 if (Find-Command "jq")                                         { Write-Host "  [x] jq"     -ForegroundColor Green  } else { Write-Host "  [ ] jq      --  winget install jqlang.jq"              -ForegroundColor DarkGray }

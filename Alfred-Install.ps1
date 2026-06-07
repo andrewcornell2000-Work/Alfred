@@ -7,7 +7,7 @@
     - Clones https://github.com/andrewcornell2000-Work/Alfred (or pulls updates)
     - Creates .venv and installs all Python packages
     - Installs Claude Code and Codex CLIs (user-level, no admin)
-    - Runs claude login and codex login (browser OAuth)
+    - Runs claude auth login and codex login (browser OAuth)
     - Prompts for Tavily API key and writes .env
     - Creates a desktop shortcut
     - Idempotent: safe to re-run to update or repair
@@ -51,10 +51,30 @@ function Invoke-PipInstall([string[]]$Packages) {
 }
 
 function Find-Command([string]$Name) {
-    $found = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($found) { return $found.Source }
-    $found = Get-Command "$Name.cmd" -ErrorAction SilentlyContinue
-    if ($found) { return $found.Source }
+    foreach ($candidate in @("$Name.cmd", "$Name.exe", "$Name.bat", $Name)) {
+        $found = Get-Command $candidate -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandType -ne "Alias" } |
+            Select-Object -First 1
+        if ($found) { return $found.Source }
+    }
+    return $null
+}
+
+function Get-PythonExe {
+    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
+        $cmd = Find-Command $candidate
+        if (-not $cmd) { continue }
+
+        $args = if ([IO.Path]::GetFileNameWithoutExtension($candidate) -eq "py") { @("-3", "--version") } else { @("--version") }
+        $output = & $cmd @args 2>&1 | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and "$output" -match "^Python\s+3\.(1[0-9])\.") {
+            return [PSCustomObject]@{
+                Exe      = $cmd
+                VenvArgs = if ([IO.Path]::GetFileNameWithoutExtension($candidate) -eq "py") { @("-3", "-m", "venv") } else { @("-m", "venv") }
+                Version  = "$output"
+            }
+        }
+    }
     return $null
 }
 
@@ -118,7 +138,7 @@ function Install-Python-NoAdmin {
             -Wait -PassThru
         Remove-Item $tmp -ErrorAction SilentlyContinue
         Refresh-Path
-        if ($proc.ExitCode -eq 0 -and (Find-Command "python")) { return $true }
+        if ($proc.ExitCode -eq 0 -and (Get-PythonExe)) { return $true }
     } catch {
         Write-Warn "Python direct download failed: $_"
     }
@@ -230,18 +250,22 @@ if (Test-Path (Join-Path $InstallPath ".git")) {
 
 Write-Step "Step 3: Python"
 
-if (Find-Command "python") {
-    Write-OK "Python — $(& python --version 2>&1 | Select-Object -First 1)"
+$PythonInfo = Get-PythonExe
+if ($PythonInfo) {
+    Write-OK "Python — $($PythonInfo.Version)"
 } else {
     $ok = Install-Tool "Python.Python.3.13" "python" "Python 3.13"
-    if (-not $ok -and -not (Find-Command "python")) {
+    $PythonInfo = Get-PythonExe
+    if (-not $PythonInfo) {
         Write-Warn "winget/scoop failed — trying direct Python download (no admin)..."
         $ok = Install-Python-NoAdmin
+        $PythonInfo = Get-PythonExe
     }
-    if (-not $ok -and -not (Find-Command "python")) {
+    if (-not $PythonInfo) {
         Write-Fail "Python is required. Install from https://www.python.org/downloads/ then re-run."
         exit 2
     }
+    Write-OK "Python — $($PythonInfo.Version)"
 }
 
 $VenvPath = Join-Path $InstallPath ".venv"
@@ -249,8 +273,12 @@ $PipExe   = Join-Path $VenvPath "Scripts\pip.exe"
 
 if (-not (Test-Path $VenvPath)) {
     Write-Host "  Creating virtual environment..." -ForegroundColor Cyan
-    python -m venv $VenvPath
-    Write-Done ".venv created."
+    & $PythonInfo.Exe @($PythonInfo.VenvArgs + @($VenvPath))
+    if ($LASTEXITCODE -eq 0) {
+        Write-Done ".venv created."
+    } else {
+        Write-Fail "Could not create .venv."
+    }
 } else {
     Write-OK ".venv exists."
 }
@@ -295,26 +323,31 @@ if (Find-Command "node") {
 
 if (Find-Command "node") {
     # Add npm global dir to PATH (user-level, no admin)
-    $npmGlobal = & npm prefix -g 2>$null | Select-Object -First 1
-    if ($npmGlobal) { Add-PathEntry $npmGlobal.Trim() }
-
-    if (-not (Find-Command "claude")) {
-        Write-Host "  Installing Claude Code CLI (user-level)..." -ForegroundColor Cyan
-        npm install -g @anthropic-ai/claude-code
-        Refresh-Path
-        if (Find-Command "claude") { Write-Done "Claude Code CLI installed." }
-        else { Write-Warn "Claude Code CLI installed — open a new terminal if it is not found." }
+    $NpmExe = Find-Command "npm"
+    if (-not $NpmExe) {
+        Write-Warn "npm not found — Claude Code and Codex CLIs skipped. Re-run after repairing Node.js."
     } else {
-        Write-OK "Claude Code CLI already present."
-    }
+        $npmGlobal = & $NpmExe prefix -g 2>$null | Select-Object -First 1
+        if ($npmGlobal) { Add-PathEntry $npmGlobal.Trim() }
 
-    if (-not (Find-Command "codex")) {
-        Write-Host "  Installing Codex CLI (user-level)..." -ForegroundColor Cyan
-        npm install -g @openai/codex
-        Refresh-Path
-        Write-Done "Codex CLI installed."
-    } else {
-        Write-OK "Codex CLI already present."
+        if (-not (Find-Command "claude")) {
+            Write-Host "  Installing Claude Code CLI (user-level)..." -ForegroundColor Cyan
+            & $NpmExe install -g @anthropic-ai/claude-code
+            Refresh-Path
+            if (Find-Command "claude") { Write-Done "Claude Code CLI installed." }
+            else { Write-Warn "Claude Code CLI installed — open a new terminal if it is not found." }
+        } else {
+            Write-OK "Claude Code CLI already present."
+        }
+
+        if (-not (Find-Command "codex")) {
+            Write-Host "  Installing Codex CLI (user-level)..." -ForegroundColor Cyan
+            & $NpmExe install -g @openai/codex
+            Refresh-Path
+            Write-Done "Codex CLI installed."
+        } else {
+            Write-OK "Codex CLI already present."
+        }
     }
 } else {
     Write-Warn "Node.js not found — Claude Code and Codex CLIs skipped. Re-run after installing Node.js."
@@ -326,7 +359,8 @@ Write-Step "Step 5: Claude login (Anthropic account — browser, no API key)"
 Write-Host ""
 
 # Find claude.cmd by PATH or directly in npm global bin
-$npmPrefix = & npm prefix -g 2>$null | Select-Object -First 1
+$NpmExe = Find-Command "npm"
+$npmPrefix = if ($NpmExe) { & $NpmExe prefix -g 2>$null | Select-Object -First 1 } else { $null }
 $claudeExe = $null
 if ($npmPrefix) {
     $candidate = Join-Path $npmPrefix.Trim() "claude.cmd"
@@ -339,15 +373,15 @@ if (-not $claudeExe) {
 }
 
 if ($claudeExe) {
-    $doLogin = Read-Host "  Run claude login now? (Y/n)"
+    $doLogin = Read-Host "  Run claude auth login now? (Y/n)"
     if ($doLogin -notmatch "^[Nn]") {
         Write-Host "  Opening a new terminal for Claude authentication..." -ForegroundColor Cyan
         Write-Host "  Sign in via the browser that opens, then close the new window." -ForegroundColor DarkGray
-        Start-Process "cmd.exe" -ArgumentList "/k `"$claudeExe`""
+        Start-Process "cmd.exe" -ArgumentList "/k `"$claudeExe`" auth login"
         Read-Host "  Press Enter here once you have finished authenticating"
     }
 } else {
-    Write-Warn "Claude Code CLI not found on PATH. Open a new terminal and run 'claude' to authenticate."
+    Write-Warn "Claude Code CLI not found on PATH. Open a new terminal and run 'claude auth login' to authenticate."
 }
 
 # ── Step 6: Codex login ───────────────────────────────────────────────────────
@@ -584,7 +618,7 @@ if ($vscodeCLI) {
 # Using system Python would fail if excellm is only in the venv.
 
 $venvPython = Join-Path $InstallPath ".venv\Scripts\python.exe"
-$pyForMcp = if (Test-Path $venvPython) { $venvPython } else { "python" }
+$pyForMcp = if (Test-Path $venvPython) { $venvPython } elseif ($PythonInfo) { $PythonInfo.Exe } else { "python" }
 
 $excellmOk = $false
 try {
@@ -624,22 +658,26 @@ if ($tavilyKey) {
 
 # ── GitHub MCP ────────────────────────────────────────────────────────────────
 
-if ($githubToken) {
+$NpxExe = Find-Command "npx"
+
+if ($githubToken -and $NpxExe) {
     $mcpServers["github"] = [ordered]@{
-        command = "npx"
+        command = $NpxExe
         args    = @("-y", "@modelcontextprotocol/server-github")
         env     = [ordered]@{ GITHUB_PERSONAL_ACCESS_TOKEN = $githubToken }
     }
     Write-OK "GitHub MCP configured — PR creation, issue management, repo search enabled."
+} elseif ($githubToken) {
+    Write-Warn "GitHub MCP skipped (npx not found — install Node.js first)."
 } else {
     Write-Warn "GitHub MCP skipped (no token). Re-run installer to add it."
 }
 
 # ── Playwright MCP ────────────────────────────────────────────────────────────
 
-if (Find-Command "npx") {
+if ($NpxExe) {
     $mcpServers["playwright"] = [ordered]@{
-        command = "npx"
+        command = $NpxExe
         args    = @("-y", "@playwright/mcp", "--browser", "chromium")
     }
     Write-OK "Playwright MCP configured — browser automation enabled."
@@ -673,7 +711,7 @@ if ($mcpServers.ContainsKey("playwright")) {
     $doChrome = Read-Host "  Download Chromium now for browser automation? (Y/n)"
     if ($doChrome -notmatch "^[Nn]") {
         Write-Host "  Installing Chromium — this may take a few minutes..." -ForegroundColor Cyan
-        npx -y playwright install chromium
+        & $NpxExe -y playwright install chromium
         if ($LASTEXITCODE -eq 0) {
             Write-Done "Chromium installed for Playwright browser automation."
         } else {

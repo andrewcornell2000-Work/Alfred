@@ -54,7 +54,7 @@ if not exist "%REPO%\.venv\Scripts\activate.bat" (
 call "%REPO%\.venv\Scripts\activate.bat"
 
 cd /d "%REPO%"
-python .\backend\main.py
+"%REPO%\.venv\Scripts\python.exe" .\backend\main.py
 
 echo.
 echo Alfred has exited. Press any key to close.

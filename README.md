@@ -6,11 +6,23 @@ Alfred is a Windows-first CLI operator for routing natural-language work to the 
 
 ## Fresh-Machine Setup
 
-1. **Get the repo from GitHub**
+1. **Download the installer**
 
-   Easiest Windows path: download **`Install-From-GitHub.bat`** from this repo and double-click it. It installs Git if needed, clones or updates Alfred in `%USERPROFILE%\Alfred`, then starts the normal installer.
+   Download **`Alfred-Install.exe`** from the latest GitHub Release:
 
-   If you download the full repo ZIP instead, extract it, open the extracted folder, and double-click `Install-Alfred.bat`.
+   ```text
+   https://github.com/andrewcornell2000-Work/Alfred/releases/latest/download/Alfred-Install.exe
+   ```
+
+   Save it anywhere, then double-click it.
+
+   When Windows asks whether to run it, choose **More info** -> **Run anyway** if needed.
+
+2. **Confirm the install folder**
+
+   Press `Y` when prompted. The installer installs Git if needed, clones or updates Alfred in `%USERPROFILE%\Alfred`, and continues setup from there.
+
+   Developer/manual fallback: download the full repo ZIP, extract it, open the extracted folder, and double-click `Install-Alfred.bat`.
 
    If Git is already installed, cloning is better because Alfred can check for updates:
 
@@ -19,18 +31,26 @@ Alfred is a Windows-first CLI operator for routing natural-language work to the 
    cd Alfred
    ```
 
-2. **Double-click `Install-Alfred.bat`**
+3. **Let the installer finish**
 
    The installer will:
    - Check Python, Git, Node.js 18+, and npm
-   - Install Git, Python, and Node.js with `winget` when available
+   - Install Git, Python, and Node.js with `winget` when available, or tell you the exact manual step if Windows blocks an install
    - Install Claude Code CLI and Codex CLI from `requirements/npm-tools.txt`
    - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
    - Print login instructions for Claude and Codex
-   - Prompt for `OPENAI_API_KEY` if it is missing
    - Launch Alfred only when the required local toolchain is ready
 
-   Re-run `Install-Alfred.bat` any time. All setup steps are intended to be idempotent.
+4. **Log in once**
+
+   After install, open a new terminal and run:
+
+   ```powershell
+   claude auth login
+   codex login
+   ```
+
+   Re-run `Alfred-Install.exe` any time to update or repair Alfred. All setup steps are intended to be idempotent.
 
 ---
 
@@ -43,35 +63,38 @@ Before Alfred is fully useful, you need:
 | Python 3.10+ | Run Alfred and its Python dependencies | https://www.python.org/downloads/ - tick **Add to PATH** |
 | Git | Clone/update Alfred | https://git-scm.com/download/win |
 | Node.js 18+ and npm | Install Claude Code and Codex CLIs | https://nodejs.org/ |
-| Claude Code login | File/code execution provider | `claude login` |
+| Claude Code login | File/app/MCP execution provider | `claude auth login` |
 | Codex login | Code implementation provider | `codex login` |
-| `OPENAI_API_KEY` | Classification and general chat | https://platform.openai.com/api-keys |
+| Optional API keys | Faster chat, web research, GitHub MCP | `.env` |
 
-Claude and Codex use browser-based CLI login. Alfred does not require an `ANTHROPIC_API_KEY` for the current CLI-based Claude Code flow.
+Claude and Codex use browser-based CLI login. Alfred can run from those logins; API keys are optional enhancements.
 
-### API Key
+### Optional API Keys
 
-If Alfred reports that `OPENAI_API_KEY` is missing, either follow the prompt or create `.env` manually:
+If you want faster direct API responses or extra integrations, create `.env` manually:
 
 ```powershell
 Copy-Item .env.template .env
 notepad .env
 ```
 
-Add:
+Add only the keys you want:
 
 ```text
+ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
+TAVILY_API_KEY=tvly-...
+GITHUB_TOKEN=ghp_...
 ```
 
-Save, then run `Install-Alfred.bat` or `run-alfred.bat` again.
+Save, then run `Alfred-Install.exe` or `run-alfred.bat` again.
 
 ### CLI Login
 
 Run once per machine after the CLIs are installed:
 
 ```powershell
-claude login
+claude auth login
 codex login
 ```
 
@@ -204,8 +227,9 @@ requirements/                    Python, npm, MCP, and tool manifests
 skills/                          Markdown skill modules
 memory/                          Conversation memory, routing notes, learning log
 logs/                            Interaction logs
-Install-Alfred.bat               One-click installer and launcher
-Install-From-GitHub.bat          Fresh-machine bootstrap installer
+Alfred-Install.ps1               Source script compiled into Alfred-Install.exe for releases
+Install-Alfred.bat               Repo-local installer and launcher fallback
+Install-From-GitHub.bat          Legacy bootstrap fallback when the .exe is unavailable
 run-alfred.bat                   Day-to-day launcher with update check
 check-updates.ps1                Prompts before pulling GitHub updates
 setup.ps1                        Idempotent setup script
@@ -225,14 +249,16 @@ AGENTS.md                        Coding agent guidelines
 
 ## Troubleshooting
 
-**`.venv` missing** - Run `Install-Alfred.bat` or `.\setup.ps1` again.
+**`.venv` missing** - Re-run `Alfred-Install.exe`. If you are working from a cloned repo, run `Install-Alfred.bat` or `.\setup.ps1` again.
 
-**`OPENAI_API_KEY` errors** - Check `.env` exists and contains `OPENAI_API_KEY=sk-...` with no quotes or extra spaces.
+**API key errors** - API keys are optional. Check `.env` only if you added one; values should have no quotes or extra spaces.
 
-**`claude` / `codex` not found after install** - Open a new terminal so PATH changes from npm install take effect, then run `claude login` and `codex login`.
+**`claude` / `codex` not found after install** - Open a new terminal so PATH changes from npm install take effect, then run `claude auth login` and `codex login`.
+
+**`npm.ps1 cannot be loaded because running scripts is disabled`** - Download the latest `Alfred-Install.exe` from GitHub Releases and run it again. The installer now calls `npm.cmd`/`npx.cmd` directly, so PowerShell execution policy should not block npm installs.
 
 **Quant import errors** - Activate `.venv`, then run `pip install -r plugins\quant\requirements.txt`.
 
-**npm global install fails with permission errors** - Run `Install-Alfred.bat` as Administrator, or install the CLI manually with `npm install -g`.
+**npm global install fails with permission errors** - Re-run `Alfred-Install.exe` as Administrator, or install the CLI manually with `npm install -g`.
 
 **Local `Node/` folders** - These are machine-local caches and are ignored by git. Fresh installs should use `setup.ps1` to install or detect Node.js instead of committing a Node runtime into the repo.

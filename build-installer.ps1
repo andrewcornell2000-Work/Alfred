@@ -24,6 +24,11 @@ Write-Host ""
 
 # Install ps2exe if needed
 if (-not (Get-Module -ListAvailable -Name ps2exe)) {
+    Write-Host "Preparing PowerShell Gallery access..." -ForegroundColor Cyan
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force | Out-Null
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
     Write-Host "Installing ps2exe module..." -ForegroundColor Cyan
     Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
     Write-Host "ps2exe installed." -ForegroundColor Green

@@ -39,7 +39,7 @@ Optional Quant configuration:
 QUANT_BASE_URL=http://127.0.0.1:5000
 ```
 
-Use `claude login` and `codex login` for Claude Code and Codex authentication.
+Use `claude auth login` and `codex login` for Claude Code and Codex authentication.
 
 Python packages for Alfred core are declared in `requirements/python-requirements.txt` and installed into `.venv` by `setup.ps1`. Quant plugin packages are declared separately in `plugins/quant/requirements.txt`.
 

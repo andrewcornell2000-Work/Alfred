@@ -162,16 +162,16 @@
         "package": "@anthropic-ai/claude-code",
         "command": "claude",
         "description": "Claude Code CLI",
-        "purpose": "Primary execution engine — all EXECUTE, CODE, and POWERBI routing. Also the MCP runtime host for Excel, Power BI, GitHub, and Playwright MCPs.",
+        "purpose": "Primary execution engine for EXECUTE and POWERBI routing. Also the MCP runtime host for Excel, Power BI, GitHub, and Playwright MCPs.",
         "loginRequired": true
       },
       {
         "package": "@openai/codex",
         "command": "codex",
-        "description": "OpenAI Codex CLI (optional)",
-        "purpose": "Available for interactive terminal use via /platforms. Not used for headless Alfred routing (TTY limitation).",
+        "description": "OpenAI Codex CLI",
+        "purpose": "Primary coding engine for CODE routing: implement, refactor, test, and review repository work.",
         "loginRequired": true,
-        "optional": true
+        "optional": false
       }
     ]
   },
