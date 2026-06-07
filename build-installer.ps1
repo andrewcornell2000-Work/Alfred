@@ -26,11 +26,19 @@ Write-Host ""
 if (-not (Get-Module -ListAvailable -Name ps2exe)) {
     Write-Host "Preparing PowerShell Gallery access..." -ForegroundColor Cyan
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force | Out-Null
-    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    try {
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Host "NuGet provider bootstrap skipped: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+    try {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+    } catch {
+        Write-Host "Could not mark PSGallery trusted: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
 
     Write-Host "Installing ps2exe module..." -ForegroundColor Cyan
-    Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
+    Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber -Repository PSGallery
     Write-Host "ps2exe installed." -ForegroundColor Green
 } else {
     Write-Host "ps2exe already installed." -ForegroundColor Green
