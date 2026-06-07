@@ -3,7 +3,7 @@
 .SYNOPSIS
     One-file Alfred bootstrapper. Download and run — no admin required if tools already exist.
 .DESCRIPTION
-    - Checks for Git, Python 3.12, Node.js — installs via winget (admin) or scoop (no admin)
+    - Checks for Git, Python 3.13, Node.js — installs via winget (admin) or scoop (no admin)
     - Clones https://github.com/andrewcornell2000-Work/Alfred (or pulls updates)
     - Creates .venv and installs all Python packages
     - Installs Claude Code and Codex CLIs (user-level, no admin)
@@ -107,7 +107,7 @@ function Install-Tool([string]$WingetId, [string]$ScoopName, [string]$DisplayNam
 
 function Install-Python-NoAdmin {
     # Downloads the official Python installer and runs it in per-user mode — no admin needed.
-    $pyVer = "3.12.9"
+    $pyVer = "3.13.7"
     $url   = "https://www.python.org/ftp/python/$pyVer/python-$pyVer-amd64.exe"
     $tmp   = Join-Path $env:TEMP "python-$pyVer-amd64.exe"
     Write-Host "  Downloading Python $pyVer (user install)..." -ForegroundColor Cyan
@@ -233,7 +233,7 @@ Write-Step "Step 3: Python"
 if (Find-Command "python") {
     Write-OK "Python — $(& python --version 2>&1 | Select-Object -First 1)"
 } else {
-    $ok = Install-Tool "Python.Python.3.12" "python" "Python 3.12"
+    $ok = Install-Tool "Python.Python.3.13" "python" "Python 3.13"
     if (-not $ok -and -not (Find-Command "python")) {
         Write-Warn "winget/scoop failed — trying direct Python download (no admin)..."
         $ok = Install-Python-NoAdmin

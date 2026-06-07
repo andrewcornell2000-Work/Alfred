@@ -44,14 +44,14 @@ Invoke-ps2exe `
     -OutputFile $OutputFile `
     -Title       "Alfred Installer" `
     -Description "Alfred AI Assistant - one-click installer" `
-    -Version     "1.6.1"
+    -Version     "1.6.2"
 
 Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor White
 Write-Host "  1. Go to https://github.com/andrewcornell2000-Work/Alfred/releases/new" -ForegroundColor Yellow
-Write-Host "  2. Create a new release (e.g. v1.6.1)" -ForegroundColor Yellow
+Write-Host "  2. Create a new release (e.g. v1.6.2)" -ForegroundColor Yellow
 Write-Host "  3. Drag Alfred-Install.exe into the release assets" -ForegroundColor Yellow
 Write-Host "  4. Anyone can download and double-click it to install Alfred" -ForegroundColor Yellow
 Write-Host ""

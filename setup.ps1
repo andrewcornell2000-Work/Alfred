@@ -182,7 +182,7 @@ if (Find-Command "python") {
     $hasPython = $true
 } else {
     Write-Warn "Python not found."
-    $null = Invoke-WingetInstall "Python.Python.3.12" "Python 3.12"
+    $null = Invoke-WingetInstall "Python.Python.3.13" "Python 3.13"
     if (Find-Command "python") {
         $pyVer = & python --version 2>&1 | Select-Object -First 1
         Write-OK "Python -- $pyVer"
