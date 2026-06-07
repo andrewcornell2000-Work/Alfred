@@ -901,7 +901,7 @@ def _call_anthropic(
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         return ""
-    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
     try:
         import anthropic  # type: ignore
         client = anthropic.Anthropic(api_key=api_key)
