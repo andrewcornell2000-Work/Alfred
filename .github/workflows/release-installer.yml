@@ -1,0 +1,56 @@
+name: Build & publish installer
+
+# Push a version tag (e.g. v1.6.4) and this builds Alfred-Install.exe on a
+# Windows runner and attaches it to the matching GitHub Release. The binary is
+# never committed to the repo — the Release asset is the single source of truth.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # needed to create the release and upload the asset
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v', ''
+          if ($v -notmatch '^\d+(\.\d+){1,3}$') { $v = '1.0.0' }   # ps2exe needs a numeric version
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Building installer version $v from tag ${{ github.ref_name }}"
+
+      - name: Build Alfred-Install.exe
+        shell: pwsh
+        run: ./build-installer.ps1 -Version "${{ steps.ver.outputs.version }}"
+
+      - name: Publish release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Don't let a non-zero "release not found" abort the step before we can handle it.
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" 1>$null 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag exists - replacing asset."
+            gh release upload $tag Alfred-Install.exe --repo "$env:GITHUB_REPOSITORY" --clobber
+          } else {
+            Write-Host "Creating release $tag."
+            gh release create $tag Alfred-Install.exe `
+              --repo "$env:GITHUB_REPOSITORY" `
+              --title "Alfred $tag" `
+              --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "gh release step failed with exit $LASTEXITCODE" }

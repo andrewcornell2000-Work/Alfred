@@ -10,6 +10,11 @@
     .\build-installer.ps1
 #>
 
+param(
+    # Version stamped into the .exe metadata. CI passes the git tag (without the leading "v").
+    [string]$Version = "1.6.3"
+)
+
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
@@ -44,14 +49,17 @@ Invoke-ps2exe `
     -OutputFile $OutputFile `
     -Title       "Alfred Installer" `
     -Description "Alfred AI Assistant - one-click installer" `
-    -Version     "1.6.3"
+    -Version     $Version
 
 Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green
 Write-Host ""
-Write-Host "Next steps:" -ForegroundColor White
-Write-Host "  1. Go to https://github.com/andrewcornell2000-Work/Alfred/releases/new" -ForegroundColor Yellow
-Write-Host "  2. Create a new release (e.g. v1.6.3)" -ForegroundColor Yellow
-Write-Host "  3. Drag Alfred-Install.exe into the release assets" -ForegroundColor Yellow
-Write-Host "  4. Anyone can download and double-click it to install Alfred" -ForegroundColor Yellow
+Write-Host "Releasing:" -ForegroundColor White
+Write-Host "  Normally you don't run this by hand. Push a version tag and GitHub Actions" -ForegroundColor Yellow
+Write-Host "  (.github/workflows/release-installer.yml) builds this .exe on a Windows runner" -ForegroundColor Yellow
+Write-Host "  and attaches it to the matching release:" -ForegroundColor Yellow
+Write-Host "    git tag v$Version; git push origin v$Version" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  To publish a manual local build instead:" -ForegroundColor DarkGray
+Write-Host "    gh release create v$Version Alfred-Install.exe --title `"Alfred v$Version`" --generate-notes" -ForegroundColor DarkGray
 Write-Host ""
