@@ -6,7 +6,8 @@
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}" },
       "_requires": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
-      "_note": "GitHub repos, PRs, issues, code search. Needs a Personal Access Token in Alfred .env."
+      "_aliases": { "GITHUB_PERSONAL_ACCESS_TOKEN": ["GITHUB_TOKEN"] },
+      "_note": "GitHub repos, PRs, issues, code search. Token read from GITHUB_PERSONAL_ACCESS_TOKEN or, as a fallback, GITHUB_TOKEN (what Alfred's installer writes to .env)."
     },
     "brave-search": {
       "command": "npx",

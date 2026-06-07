@@ -100,6 +100,10 @@ if (-not (Test-Path $McpTemplatePath)) {
 
             $requires = @(); if ($defKeys -contains '_requires') { $requires = @($def._requires) }
             $requiresCmd = $null; if ($defKeys -contains '_requiresCommand') { $requiresCmd = $def._requiresCommand }
+            $aliases = @{}
+            if ($defKeys -contains '_aliases') {
+                foreach ($ap in $def._aliases.PSObject.Properties) { $aliases[$ap.Name] = @($ap.Value) }
+            }
 
             if ($requiresCmd -and -not (Get-Command $requiresCmd -ErrorAction SilentlyContinue)) {
                 $skippedServers += "$name (needs '$requiresCmd' on PATH)"
@@ -115,7 +119,9 @@ if (-not (Test-Path $McpTemplatePath)) {
                     $mch = [regex]::Match($val, '^\$\{env:(.+)\}$')
                     if ($mch.Success) {
                         $varName = $mch.Groups[1].Value
-                        $secret = Resolve-Secret $varName $EnvMap
+                        $lookups = @($varName); if ($aliases.ContainsKey($varName)) { $lookups += $aliases[$varName] }
+                        $secret = $null
+                        foreach ($ln in $lookups) { $secret = Resolve-Secret $ln $EnvMap; if ($secret) { break } }
                         if ($secret) {
                             $resolvedEnv[$ep.Name] = $secret
                             $envList += "$($ep.Name)=$secret"

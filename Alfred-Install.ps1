@@ -728,6 +728,22 @@ if ($pbiCliExe) {
     Write-Host "  Try manually: .venv\Scripts\pip install pbi-cli-tool" -ForegroundColor DarkGray
 }
 
+# ── Step 10: Cursor + Claude Code provisioning (shared MCPs + skills) ──────────
+
+Write-Step "Step 10: Provisioning MCP servers + skills for Cursor and Claude Code"
+
+$provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
+if (Test-Path $provisionScript) {
+    try {
+        & $provisionScript
+    } catch {
+        Write-Warn "Cursor/Claude provisioning failed: $_"
+        Write-Host "  Re-run later: powershell -ExecutionPolicy Bypass -File `"$provisionScript`"" -ForegroundColor DarkGray
+    }
+} else {
+    Write-Warn "Provision-Cursor.ps1 not found — update Alfred (git pull) and re-run the installer."
+}
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 Write-Banner "Alfred is ready"
