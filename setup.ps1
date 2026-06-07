@@ -493,6 +493,33 @@ if (Test-Path $provisionScript) {
     Write-Skip "Provision-Cursor.ps1 not found -- skipping cross-tool provisioning."
 }
 
+# ── Desktop shortcut (custom icon) ────────────────────────────────────────────
+
+Write-Step "Desktop shortcut..."
+try {
+    $Desktop     = [System.Environment]::GetFolderPath("Desktop")
+    $Shortcut    = Join-Path $Desktop "Alfred.lnk"
+    $LauncherBat = Join-Path $Root "run-alfred.bat"
+    $IconPath    = Join-Path $Root "assets\alfred.ico"
+    if (Test-Path $LauncherBat) {
+        $existed = Test-Path $Shortcut
+        $wsh = New-Object -ComObject WScript.Shell
+        $lnk = $wsh.CreateShortcut($Shortcut)
+        $lnk.TargetPath       = "cmd.exe"
+        $lnk.Arguments        = "/c `"$LauncherBat`""
+        $lnk.WorkingDirectory = $Root
+        $lnk.Description      = "Alfred AI Assistant"
+        if (Test-Path $IconPath) { $lnk.IconLocation = "$IconPath,0" } else { $lnk.IconLocation = "cmd.exe,0" }
+        $lnk.Save()
+        if ($existed) { Write-OK "Desktop shortcut refreshed (custom icon)." }
+        else { Write-Done "Desktop shortcut created (custom icon)." }
+    } else {
+        Write-Skip "run-alfred.bat not found -- skipping desktop shortcut."
+    }
+} catch {
+    Write-Warn "Could not create desktop shortcut: $_"
+}
+
 # ── login instructions ────────────────────────────────────────────────────────
 
 Write-Host ""

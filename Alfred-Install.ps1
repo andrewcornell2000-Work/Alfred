@@ -483,23 +483,22 @@ Write-Step "Step 8: Desktop shortcut"
 $Desktop    = [System.Environment]::GetFolderPath("Desktop")
 $Shortcut   = Join-Path $Desktop "Alfred.lnk"
 $LauncherPs = Join-Path $InstallPath "run-alfred.bat"
+$IconPath   = Join-Path $InstallPath "assets\alfred.ico"
 
-if (-not (Test-Path $Shortcut)) {
-    try {
-        $wsh = New-Object -ComObject WScript.Shell
-        $lnk = $wsh.CreateShortcut($Shortcut)
-        $lnk.TargetPath       = "cmd.exe"
-        $lnk.Arguments        = "/c `"$LauncherPs`""
-        $lnk.WorkingDirectory = $InstallPath
-        $lnk.Description      = "Alfred AI Assistant"
-        $lnk.IconLocation     = "cmd.exe,0"
-        $lnk.Save()
-        Write-Done "Desktop shortcut created — Alfred.lnk"
-    } catch {
-        Write-Warn "Could not create desktop shortcut: $_"
-    }
-} else {
-    Write-OK "Desktop shortcut already exists."
+try {
+    $existed = Test-Path $Shortcut
+    $wsh = New-Object -ComObject WScript.Shell
+    $lnk = $wsh.CreateShortcut($Shortcut)
+    $lnk.TargetPath       = "cmd.exe"
+    $lnk.Arguments        = "/c `"$LauncherPs`""
+    $lnk.WorkingDirectory = $InstallPath
+    $lnk.Description      = "Alfred AI Assistant"
+    if (Test-Path $IconPath) { $lnk.IconLocation = "$IconPath,0" } else { $lnk.IconLocation = "cmd.exe,0" }
+    $lnk.Save()
+    if ($existed) { Write-OK "Desktop shortcut refreshed — Alfred.lnk (custom icon)" }
+    else { Write-Done "Desktop shortcut created — Alfred.lnk (custom icon)" }
+} catch {
+    Write-Warn "Could not create desktop shortcut: $_"
 }
 
 # ── Step 9: MCP Tools ────────────────────────────────────────────────────────
