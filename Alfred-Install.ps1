@@ -61,16 +61,37 @@ function Find-Command([string]$Name) {
 }
 
 function Get-PythonExe {
-    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
+    $candidates = @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")
+    $candidatePaths = foreach ($candidate in $candidates) {
         $cmd = Find-Command $candidate
-        if (-not $cmd) { continue }
+        if ($cmd) { $cmd }
+    }
+    foreach ($root in @(
+        "$env:LOCALAPPDATA\Programs\Python",
+        "$env:ProgramFiles",
+        "${env:ProgramFiles(x86)}"
+    )) {
+        if ($root -and (Test-Path $root)) {
+            $candidatePaths += @(
+                Get-ChildItem -Path $root -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
+                    Sort-Object Name -Descending |
+                    ForEach-Object {
+                        $exe = Join-Path $_.FullName "python.exe"
+                        if (Test-Path $exe) { $exe }
+                    }
+            )
+        }
+    }
 
-        $args = if ([IO.Path]::GetFileNameWithoutExtension($candidate) -eq "py") { @("-3", "--version") } else { @("--version") }
+    foreach ($cmd in @($candidatePaths | Select-Object -Unique)) {
+        if (-not $cmd) { continue }
+        $isLauncher = [IO.Path]::GetFileNameWithoutExtension($cmd) -eq "py"
+        $args = if ($isLauncher) { @("-3", "--version") } else { @("--version") }
         $output = & $cmd @args 2>&1 | Select-Object -First 1
         if ($LASTEXITCODE -eq 0 -and "$output" -match "^Python\s+3\.(1[0-9])\.") {
             return [PSCustomObject]@{
                 Exe      = $cmd
-                VenvArgs = if ([IO.Path]::GetFileNameWithoutExtension($candidate) -eq "py") { @("-3", "-m", "venv") } else { @("-m", "venv") }
+                VenvArgs = if ($isLauncher) { @("-3", "-m", "venv") } else { @("-m", "venv") }
                 Version  = "$output"
             }
         }
@@ -222,18 +243,26 @@ if (Find-Command "git") {
 Write-Step "Step 2: Alfred repository"
 
 if (Test-Path (Join-Path $InstallPath ".git")) {
-    Write-OK "Existing checkout found — pulling latest..."
+    Write-OK "Existing checkout found — updating to latest..."
     $dirty = & git -C $InstallPath status --porcelain 2>$null
     if ($dirty) {
         & git -C $InstallPath add -A
         & git -C $InstallPath commit -m "Alfred auto-save before update $(Get-Date -Format 'yyyy-MM-dd HH:mm')" 2>$null
     }
-    & git -C $InstallPath pull --ff-only origin $Branch 2>&1 | Write-CommandOutput
-    $pullExitCode = $LASTEXITCODE
-    if ($pullExitCode -ne 0) {
-        Write-Warn "Pull had conflicts — continuing with local version."
+    & git -C $InstallPath fetch origin $Branch 2>&1 | Write-CommandOutput
+    $fetchExitCode = $LASTEXITCODE
+    if ($fetchExitCode -ne 0) {
+        Write-Warn "Could not fetch latest Alfred — continuing with local version."
     } else {
-        Write-Done "Repository updated."
+        & git -C $InstallPath rebase "origin/$Branch" 2>&1 | Write-CommandOutput
+        $rebaseExitCode = $LASTEXITCODE
+        if ($rebaseExitCode -ne 0) {
+            & git -C $InstallPath rebase --abort 2>$null
+            Write-Warn "Update could not be applied automatically — continuing with local version."
+            Write-Host "  Your local changes were preserved. If this repeats, reinstall to a fresh folder." -ForegroundColor DarkGray
+        } else {
+            Write-Done "Repository updated."
+        }
     }
 } else {
     Write-Host "  Cloning Alfred..." -ForegroundColor Cyan

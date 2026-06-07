@@ -31,11 +31,31 @@ function Find-Command([string]$Name) {
 }
 
 function Get-PythonExe {
-    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
+    $candidates = @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")
+    $candidatePaths = foreach ($candidate in $candidates) {
         $cmd = Find-Command $candidate
-        if (-not $cmd) { continue }
+        if ($cmd) { $cmd }
+    }
+    foreach ($root in @(
+        "$env:LOCALAPPDATA\Programs\Python",
+        "$env:ProgramFiles",
+        "${env:ProgramFiles(x86)}"
+    )) {
+        if ($root -and (Test-Path $root)) {
+            $candidatePaths += @(
+                Get-ChildItem -Path $root -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
+                    Sort-Object Name -Descending |
+                    ForEach-Object {
+                        $exe = Join-Path $_.FullName "python.exe"
+                        if (Test-Path $exe) { $exe }
+                    }
+            )
+        }
+    }
 
-        $isLauncher = [IO.Path]::GetFileNameWithoutExtension($candidate) -eq "py"
+    foreach ($cmd in @($candidatePaths | Select-Object -Unique)) {
+        if (-not $cmd) { continue }
+        $isLauncher = [IO.Path]::GetFileNameWithoutExtension($cmd) -eq "py"
         $args = if ($isLauncher) { @("-3", "--version") } else { @("--version") }
         $output = & $cmd @args 2>&1 | Select-Object -First 1
         if ($LASTEXITCODE -eq 0 -and "$output" -match "^Python\s+3\.(1[0-9])\.") {
