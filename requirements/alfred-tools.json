@@ -301,18 +301,6 @@
         "status": "needs-key"
       },
       {
-        "name": "brave-search",
-        "source": "npx",
-        "package": "@modelcontextprotocol/server-brave-search",
-        "purpose": "Privacy-first web search backup — news, local, image, video. Good Tavily alternative.",
-        "category": "EXECUTE",
-        "destructive": false,
-        "trust": "official",
-        "requiresKey": "BRAVE_API_KEY",
-        "keySource": "https://brave.com/search/api — free tier: 2000 req/month",
-        "status": "needs-key"
-      },
-      {
         "name": "ms365",
         "source": "npx",
         "package": "ms-365-mcp-server",
