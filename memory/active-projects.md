@@ -19,7 +19,8 @@ The **discovery loop** is the primary value: find tools Andrew wouldn't search f
 - `write_file` with complete deliverable
 - `Try asking:` examples (in skill or discovered-tools.md)
 - `memory/learning-log.md` + `memory/discoveries.md` update
-- `send_email` to Andrew with plain-English dot points
+- `send_email` daily to Andrew (subject prefixed "Alfred daily —")
+- Weekly digest is separate workflow (Monday) — compiles last 7 days
 
 ## Discovery targets (rotate)
 - SharePoint / Graph file access

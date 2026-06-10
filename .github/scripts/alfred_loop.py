@@ -1,20 +1,22 @@
 """
 Alfred Autonomous Growth Loop
-Runs in GitHub Actions every 4 hours.
+Runs in GitHub Actions daily at noon AEST.
 Researches, builds, and writes improvements back to the repo.
 """
 
 import anthropic
 import os
+import sys
 import json
 import subprocess
 import requests
 from datetime import datetime
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from email_utils import OWNER_EMAIL, send_alfred_email
+
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 TAVILY_KEY = os.environ.get("TAVILY_API_KEY", "")
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-OWNER_EMAIL = "andrewcornell2000@gmail.com"
 
 # Set once an email actually goes out, so the end-of-run fallback never
 # double-sends when Alfred already emailed via the send_email tool.
@@ -22,34 +24,12 @@ _email_sent = False
 
 
 def send_update_email(subject, body):
-    """Send Alfred's loop summary via Resend API."""
+    """Send Alfred's daily loop summary via Resend API."""
     global _email_sent
-    print(f"[Email] RESEND_API_KEY present: {bool(RESEND_API_KEY)}")
-    if not RESEND_API_KEY:
-        print("[Email] RESEND_API_KEY not set in GitHub Secrets — skipping")
-        return
-    try:
-        payload = {
-            "from": "Alfred <onboarding@resend.dev>",
-            "to": [OWNER_EMAIL],
-            "subject": subject,
-            "text": body
-        }
-        print(f"[Email] Sending to {OWNER_EMAIL} via Resend...")
-        r = requests.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-            json=payload,
-            timeout=15
-        )
-        print(f"[Email] Response: {r.status_code} — {r.text}")
-        if r.ok:
-            _email_sent = True
-            print(f"[Email] SUCCESS — sent to {OWNER_EMAIL}")
-        else:
-            print(f"[Email] FAILED: {r.status_code} {r.text}")
-    except Exception as e:
-        print(f"[Email] ERROR: {e}")
+    if not subject.lower().startswith("alfred daily"):
+        subject = f"Alfred daily — {subject}"
+    if send_alfred_email(subject, body):
+        _email_sent = True
 
 # Tools Alfred can use inside GitHub Actions
 TOOLS = [
@@ -121,11 +101,11 @@ TOOLS = [
     },
     {
         "name": "send_email",
-        "description": "Send an update email to Andrew (andrewcornell2000@gmail.com) at the END of your loop. Use plain-English DOT POINTS, not paragraphs — Andrew wants a scannable list of exactly what you added and how it works.",
+        "description": "Send the DAILY update email to Andrew (andrewcornell2000@gmail.com) at the END of your loop. Subject is prefixed 'Alfred daily —' automatically. Use plain-English DOT POINTS, not paragraphs — Andrew wants a scannable list of exactly what you added and how it works.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "subject": {"type": "string", "description": "Short subject line, e.g. 'Alfred update — added a Power Query transformations skill'"},
+                "subject": {"type": "string", "description": "Short subject after 'Alfred daily —', e.g. 'new SharePoint MCP candidate + Try asking prompts'"},
                 "body": {"type": "string", "description": "Email in plain English using dot points (use '- ' for each bullet, no other markdown). Structure:\n\nOne short opening line of context.\n\nWhat I added:\n- one bullet per concrete thing you added or changed (name it plainly)\n\nHow it works:\n- 2-4 bullets explaining, in everyday language, what it does and how Andrew/the team would actually use it\n\nWhat's next:\n- 1-2 bullets on what you'll tackle next time\n\nSign off as Alfred. Keep each bullet to one clear sentence. No code blocks, no file paths, no jargon — but DO be specific about what the thing actually does."}
             },
             "required": ["subject", "body"]
@@ -321,10 +301,10 @@ Steps:
 3. Write a COMPLETE file with write_file. Then read_file it back to confirm it is non-empty and
    genuinely useful before you move on.
 4. Update memory/learning-log.md with what you did.
-5. Call send_email with an update for Andrew. Use plain-English DOT POINTS (not paragraphs):
-   a "What I added" list, a "How it works" list (everyday language — what it does and how he'd
-   use it), and a short "What's next". Be specific. No file paths or jargon. Only claim you built
-   something if the file is real and complete.
+5. Call send_email with your DAILY update for Andrew (weekly digest is separate — this is today's
+   run only). Use plain-English DOT POINTS (not paragraphs): a "What I added" list, a "How it works"
+   list (everyday language), 2-3 "Try asking:" prompts he can paste into Cursor, and "What's next".
+   Be specific. No file paths or jargon. Only claim you built something if the file is real and complete.
 
 This is your ONE run today. Don't rush and don't pad — go deep and ship a single excellent,
 complete deliverable. Depth and correctness matter far more than covering extra ground.
@@ -442,26 +422,26 @@ Start immediately. Pick your mission and begin.
     elif substantive:
         files_summary = "\n".join(f"  - {f}" for f in substantive)
         send_update_email(
-            subject=f"Alfred update — {datetime.utcnow().strftime('%d %b %Y, %H:%M')} AEST",
+            subject=datetime.utcnow().strftime("%d %b %Y — shipped updates"),
             body=(
                 f"Hi Andrew,\n\n"
-                f"Just finished my latest growth loop. Here's what I got done:\n\n"
+                f"Daily discovery loop finished. Here's what I got done today:\n\n"
                 f"Files I built or updated:\n{files_summary}\n\n"
-                f"You can see everything at:\n"
+                f"Pull latest or re-run Alfred-Install.exe to pick up changes.\n"
                 f"https://github.com/andrewcornell2000-Work/Alfred\n\n"
-                f"I'll run again tomorrow at noon.\n\n"
+                f"Next daily run: tomorrow at noon AEST. Weekly digest: Monday.\n\n"
                 f"— Alfred"
             )
         )
     else:
         print("[QualityGate] No substantive output this run — sending honest note")
         send_update_email(
-            subject="Alfred update — quiet run, nothing worth shipping",
+            subject="quiet run, nothing worth shipping",
             body=(
                 "Hi Andrew,\n\n"
-                "I ran my growth loop but didn't produce anything solid enough to keep this time, "
+                "I ran today's discovery loop but didn't produce anything solid enough to keep, "
                 "so I'm not padding the repo with busywork. Just a heads-up that I'm alive — "
-                "I'll try again tomorrow at noon.\n\n"
+                "I'll try again tomorrow at noon. Your weekly digest still arrives Monday.\n\n"
                 "— Alfred"
             )
         )

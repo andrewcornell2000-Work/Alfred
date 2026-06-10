@@ -41,6 +41,7 @@ Every day, cloud Alfred:
 2. Compares against what's already in `cursor/mcp.json` and `discovered-tools.md`
 3. Ships a **complete** skill or catalog entry with **"Try asking:"** example prompts
 4. Commits to GitHub → you pull / re-run installer → provision picks it up
+5. Emails you a **daily** update (noon AEST) and a **weekly digest** (Monday noon) with tools to try
 
 You don't hunt for tools. The loop brings them to you.
 
