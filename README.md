@@ -39,6 +39,7 @@ Alfred is a Windows-first CLI operator for routing natural-language work to the 
    - Install Claude Code CLI and Codex CLI from `requirements/npm-tools.txt`
    - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
    - Print login instructions for Claude and Codex
+   - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
    - Launch Alfred only when the required local toolchain is ready
 
 4. **Log in once**
@@ -51,6 +52,24 @@ Alfred is a Windows-first CLI operator for routing natural-language work to the 
    ```
 
    Re-run `Alfred-Install.exe` any time to update or repair Alfred. All setup steps are intended to be idempotent.
+
+### Cross-tool MCP + skills (Cursor, Claude Code, Codex)
+
+`cursor/mcp.json` is the portable MCP template. `Provision-Cursor.ps1` resolves paths and secrets from `.env`, then writes:
+
+| Tool | Where MCPs land |
+|------|-----------------|
+| Cursor | `~/.cursor/mcp.json` |
+| Claude Code | `claude mcp add --scope user` |
+| Codex | `codex mcp add` |
+
+Skills from `skills/` sync to `~/.cursor/skills`, `~/.claude/skills`, and `~/.codex/skills`.
+
+Re-provision after pulling updates:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1
+```
 
 ---
 

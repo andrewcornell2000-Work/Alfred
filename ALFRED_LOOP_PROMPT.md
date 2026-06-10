@@ -55,16 +55,17 @@ WRITE A NEW SKILL (skills/):
   - Write it as a markdown skill file following existing format
   - Add it to alfred-tools.json and requirements/mcp-tools.md
 
-ADD OR IMPROVE AN MCP (settings.json or npm-tools.txt):
-  - Research new MCP servers available in June 2026
-  - Install without admin: npm install -g @modelcontextprotocol/...
-  - Add to .claude/settings.json
-  - Verify it works, document in requirements/mcp-tools.md
+ADD OR IMPROVE AN MCP (cursor/mcp.json — provisions Cursor + Claude + Codex):
+  - Research MCPs that save tokens or improve reasoning (fetch, memory, sequential-thinking, duckdb)
+  - Add to cursor/mcp.json with _requiresCommand guards — never commit secrets
+  - Write a how-to skill in skills/
+  - Document in requirements/mcp-tools.md
+  - Users get it on next Provision-Cursor.ps1 / Alfred-Install.exe run
 
 EXTERNAL SERVICE / ACCOUNT:
   - If your mission needs a backend: create a Supabase account
     using $env:ALFRED_EMAIL, get the API keys, store in .env
-  - If your mission needs search: set up a Tavily or Exa account
+  - If your mission needs search: set up a Tavily account (web search is Tavily direct API, not an MCP)
   - ALWAYS use free tier. ALWAYS store creds in .env (gitignored)
   - ALWAYS add the account to memory/accounts.md
 

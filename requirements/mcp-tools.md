@@ -22,14 +22,6 @@ via `claude mcp add` rather than being hard-installed globally.
 - **Destructive:** true (can write to open workbooks)
 - **Install:** `pip install excellm` - Alfred installer handles this automatically
 
-### brave-search
-- **Source:** npm package `@modelcontextprotocol/server-brave-search`
-- **Command:** `npx -y @modelcontextprotocol/server-brave-search`
-- **Purpose:** Live web search for latest docs, current versions, news, and current public information
-- **Trust:** official
-- **Destructive:** false
-- **Requires:** `BRAVE_API_KEY`
-
 ### github
 - **Source:** npm package `@modelcontextprotocol/server-github`
 - **Command:** `npx -y @modelcontextprotocol/server-github`
@@ -44,6 +36,13 @@ via `claude mcp add` rather than being hard-installed globally.
 - **Purpose:** Browser automation - navigate pages, fill forms, scrape data, take screenshots
 - **Trust:** official
 - **Destructive:** false
+
+### Web search (Tavily — not an MCP)
+- **Source:** Direct HTTP API from `backend/main.py` (not provisioned via `cursor/mcp.json`)
+- **Requires:** `TAVILY_API_KEY` in Alfred `.env`
+- **Purpose:** Live web search for latest docs, versions, news, and current public information
+- **Skill:** `skills/web-search.md`
+- **Note:** brave-search and exa MCPs were removed — Tavily is the single web-search path
 
 ---
 

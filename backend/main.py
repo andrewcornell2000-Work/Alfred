@@ -2752,15 +2752,6 @@ def _mcp_runtime_status(name: str, configured_servers: dict) -> tuple[str, str]:
     if name == "duckdb":
         return "ready", "Fast SQL queries on CSV, Excel exports, Parquet files"
 
-    if name in {"exa", "brave-search"}:
-        env_key = "EXA_API_KEY" if name == "exa" else "BRAVE_API_KEY"
-        has_key = bool(
-            os.getenv(env_key)
-            or svc.get("env", {}).get(env_key)
-        )
-        label = "Neural web search" if name == "exa" else "Brave web search"
-        return ("ready", label) if has_key else ("attention", f"{env_key} not set in .env")
-
     return "ready", "Configured in Claude MCP settings"
 
 

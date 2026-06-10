@@ -1,13 +1,25 @@
 {
-  "$comment": "Alfred -> Cursor/Claude MCP source of truth. Template only: ${env:VAR} placeholders are resolved from Alfred's .env (or machine env) by Provision-Cursor.ps1. Keys starting with _ are metadata used by the provisioner and are stripped before anything is written. NEVER put real tokens in this file.",
+  "$comment": "Alfred -> Cursor/Claude MCP source of truth. Template only: ${env:VAR} placeholders are resolved from Alfred's .env (or machine env) by Provision-Cursor.ps1. Path tokens (${repoRoot}, ${financeDir}, etc.) are resolved at provision time. Keys starting with _ are metadata used by the provisioner and are stripped before anything is written. NEVER put real tokens in this file.",
   "mcpServers": {
+    "powerbi-modeling-mcp": {
+      "command": "${powerBiMcp}",
+      "args": ["--start"],
+      "_requires": [],
+      "_note": "Edit live Power BI Desktop models. Auto-skipped if VS Code Power BI Modeling MCP extension is not installed."
+    },
+    "excel": {
+      "command": "${repoRoot}\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "excellm"],
+      "_requires": [],
+      "_note": "Read/write live open Excel workbooks. Auto-skipped if Alfred venv python or excellm is missing."
+    },
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}" },
       "_requires": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
       "_aliases": { "GITHUB_PERSONAL_ACCESS_TOKEN": ["GITHUB_TOKEN"] },
-      "_note": "GitHub repos, PRs, issues, code search. Token read from GITHUB_PERSONAL_ACCESS_TOKEN or, as a fallback, GITHUB_TOKEN (what Alfred's installer writes to .env)."
+      "_note": "GitHub repos, PRs, issues, code search. Token read from GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN in Alfred .env."
     },
     "playwright": {
       "command": "npx",
@@ -23,19 +35,62 @@
       "_optionalEnv": ["CONTEXT7_API_KEY"],
       "_note": "Up-to-date, version-specific library docs injected into context. Works without a key; a key raises rate limits."
     },
-    "excel": {
-      "command": "python",
-      "args": ["-m", "excellm"],
-      "_requires": [],
-      "_requiresCommand": "python",
-      "_note": "Read/write live open Excel workbooks. Auto-skipped if python (with excellm) is not on PATH."
-    },
     "markitdown": {
       "command": "uvx",
       "args": ["markitdown-mcp"],
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "Microsoft MarkItDown - converts PDF, Office docs, images, audio, HTML and more to clean Markdown for LLM ingestion. No key needed. Auto-skipped if uvx is not on PATH."
+      "_note": "Microsoft MarkItDown - converts PDF, Office docs, images, audio, HTML and more to clean Markdown. Auto-skipped if uvx is not on PATH."
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "_requires": [],
+      "_note": "Structured multi-step reasoning for complex Power BI, Office, and PC operator tasks."
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": { "MEMORY_FILE_PATH": "${memoryDir}\\mcp-knowledge-graph.json" },
+      "_requires": [],
+      "_note": "Persistent knowledge graph for entities, relationships, and facts across sessions."
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${financeDir}",
+        "${repoRoot}"
+      ],
+      "_requires": [],
+      "_note": "Scoped read/write file access for the finance OneDrive folder and Alfred project."
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "_requires": [],
+      "_requiresCommand": "uvx",
+      "_note": "Clean web page fetching and HTML-to-Markdown conversion. Auto-skipped if uvx is not on PATH."
+    },
+    "time": {
+      "command": "uvx",
+      "args": ["mcp-server-time"],
+      "_requires": [],
+      "_requiresCommand": "uvx",
+      "_note": "Time and timezone conversion for scheduling and automation context."
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "${dataDir}\\alfred.db"],
+      "_requires": [],
+      "_note": "Local SQLite database - create, query, and analyse structured data without a server."
+    },
+    "duckdb": {
+      "command": "npx",
+      "args": ["-y", "@ktanaka101/mcp-server-duckdb", "--db-path", "${dataDir}\\analytics.duckdb"],
+      "_requires": [],
+      "_note": "Fast SQL analytics on CSV, Excel exports, and Parquet files."
     }
   }
 }

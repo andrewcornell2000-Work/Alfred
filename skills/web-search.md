@@ -3,15 +3,13 @@
 Use this skill when Alfred needs real-time information: latest versions, current documentation,
 recent news, prices, or anything that requires up-to-date data beyond training knowledge.
 
-## Tool: brave-search MCP
+## Tool: Tavily (direct API — not an MCP)
 
-The `brave_web_search` tool is available via the `brave-search` MCP server.
+Alfred calls Tavily directly from Python (`backend/main.py`). No MCP server is needed.
+The API key lives in Alfred's `.env` as `TAVILY_API_KEY`.
 
-```
-brave_web_search(query="your search query", count=5)
-```
-
-Returns: title, url, description for each result. Follow up with `brave_local_search` for location-based queries.
+Routing: requests with live/current-data keywords (latest, news, price, today, current version)
+are classified as **SEARCH** and run through Tavily before Claude synthesises the answer.
 
 ## When to use
 
@@ -25,20 +23,19 @@ Returns: title, url, description for each result. Follow up with `brave_local_se
 ## Approach
 
 1. Form a precise, concise search query (avoid filler words)
-2. Run `brave_web_search` with `count=5`
+2. Alfred runs Tavily with `max_results=5` (or 3 for quick lookups)
 3. Return the most relevant result with the source URL
 4. If the top results look unreliable, refine the query and search again
 
-## Example queries
+## Setup (fresh machine)
 
-```
-brave_web_search(query="Python 3.13 release notes", count=3)
-brave_web_search(query="FastAPI latest stable version", count=3)
-brave_web_search(query="site:docs.anthropic.com Claude API tool use", count=5)
-```
+1. Get a free key at https://app.tavily.com
+2. Add to Alfred `.env`: `TAVILY_API_KEY=tvly-...`
+3. Verify in Alfred Control Tower — Tavily should show **ready**
 
 ## Safety rules
 
 - Always cite the source URL
 - Do not present search results as your own knowledge
 - If results conflict, show both and let the user decide
+- Never commit the Tavily key to git

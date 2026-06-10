@@ -737,22 +737,32 @@ if ($NpxExe) {
     Write-Warn "Playwright MCP skipped (npx not found — install Node.js first)."
 }
 
-# ── Write settings.json ───────────────────────────────────────────────────────
+# ── Write settings.json (permissions only — MCPs come from Provision-Cursor.ps1) ──
+# Provision-Cursor.ps1 is the single source of truth for MCP servers across
+# Cursor, Claude Code (user scope), and Codex. Writing a partial mcpServers block
+# here would shadow the global registry and miss servers on fresh installs.
 
+$settingsPath = Join-Path $ClaudeSettingsDir "settings.json"
+$settingsObj = [ordered]@{
+    permissions = [ordered]@{
+        allow = @(
+            "Bash(pbi*)", "Bash(python*)", "Bash(git *)", "Bash(git)",
+            "Bash(npm *)", "Bash(npx *)", "Bash(node *)", "Bash(pip *)",
+            "Bash(powershell *)", "Bash(uvx*)", "Bash(gh*)", "Bash(jq*)",
+            "Bash(pandoc*)", "Bash(az*)", "Bash(xlwings*)", "Bash(vd*)",
+            "Bash(in2csv*)", "Bash(csvsql*)", "Bash(csvstat*)",
+            "Bash(csvjoin*)", "Bash(csvcut*)"
+        )
+        deny  = @()
+    }
+}
+$settingsJson = $settingsObj | ConvertTo-Json -Depth 5
+Set-Content $settingsPath $settingsJson -Encoding UTF8
+Write-Done ".claude\settings.json written (CLI permissions; MCPs provisioned in Step 10)."
 if ($mcpServers.Count -gt 0) {
-    $settingsObj = [ordered]@{ mcpServers = $mcpServers }
-    $settingsJson = $settingsObj | ConvertTo-Json -Depth 5
-    $settingsPath = Join-Path $ClaudeSettingsDir "settings.json"
-    Set-Content $settingsPath $settingsJson -Encoding UTF8
-    Write-Done ".claude\settings.json written with $($mcpServers.Count) MCP server(s)."
-    Write-Host "  Power BI:   edit measures, tables, relationships, DAX" -ForegroundColor DarkGray
-    Write-Host "  Excel:      read/write cells, charts, pivot tables, VBA" -ForegroundColor DarkGray
-    Write-Host "  Web Search: real-time results via Tavily" -ForegroundColor DarkGray
-    Write-Host "  GitHub:     create PRs, manage issues, search repos" -ForegroundColor DarkGray
-    Write-Host "  Browser:    navigate pages, fill forms, scrape data, take screenshots" -ForegroundColor DarkGray
+    Write-Host "  Detected $($mcpServers.Count) local MCP prerequisite(s) — full stack registered via Provision-Cursor.ps1" -ForegroundColor DarkGray
 } else {
-    Write-Warn "No MCP servers configured — .claude\settings.json not written."
-    Write-Host "  Re-run this installer after installing VS Code + Power BI extension." -ForegroundColor DarkGray
+    Write-Warn "Some MCP prerequisites missing (VS Code / Node / excellm) — Step 10 will register what it can."
 }
 
 # ── Playwright Chromium browser ───────────────────────────────────────────────
@@ -819,7 +829,7 @@ if ($pbiCliExe) {
 
 # ── Step 10: Cursor + Claude Code provisioning (shared MCPs + skills) ──────────
 
-Write-Step "Step 10: Provisioning MCP servers + skills for Cursor and Claude Code"
+Write-Step "Step 10: Provisioning MCP servers + skills for Cursor, Claude Code, and Codex"
 
 $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {

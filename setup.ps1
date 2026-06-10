@@ -410,9 +410,15 @@ if ($hasNode -and ($nodeVersionMajor -ge 18)) {
 }
 
 if ($hasClaude) {
-    Write-OK "Claude Code CLI available (provides MCP runtime)."
+    Write-OK "Claude Code CLI available (MCP host + agent runtime)."
 } else {
     Write-Warn "Claude Code CLI missing -- MCP features unavailable until installed."
+}
+
+if ($hasCodex) {
+    Write-OK "Codex CLI available (MCP host + coding agent runtime)."
+} else {
+    Write-Warn "Codex CLI missing -- install via npm-tools.txt for coding agent routing."
 }
 
 # ── Python virtual environment ────────────────────────────────────────────────
@@ -469,6 +475,22 @@ if (-not $hasPython) {
     } else {
         Write-Fail "pip not found in .venv -- package install skipped."
     }
+}
+
+# Alfred venv Scripts on PATH — excellm, uvx, az, vd, in2csv, xlwings for agents + MCP provision
+$venvScripts = Join-Path $VenvPath "Scripts"
+if (Test-Path $venvScripts) {
+    $null = Add-PathEntry $venvScripts
+    Write-OK "Alfred venv Scripts on user PATH -- $venvScripts"
+}
+
+# uvx check (installed via `uv` in python-requirements.txt)
+if (Find-Command "uvx") {
+    Write-OK "uvx available (fetch, time, markitdown MCPs)."
+} elseif (Test-Path $PipExe) {
+    Write-Warn "uvx not on PATH after venv install -- re-run setup or: .venv\Scripts\pip install uv"
+} else {
+    Write-Skip "uvx check skipped (no venv pip)."
 }
 
 # ── Optional CLI tools (no admin required) ───────────────────────────────────
@@ -579,7 +601,7 @@ if ($hasEnv) {
 
 # ── Cursor + Claude Code provisioning (shared MCPs + skills) ──────────────────
 
-Write-Step "Provisioning MCP servers + skills for Cursor and Claude Code..."
+Write-Step "Provisioning MCP servers + skills for Cursor, Claude Code, and Codex..."
 
 $provisionScript = Join-Path $Root "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {

@@ -78,7 +78,7 @@ function Resolve-Secret([string]$name, [hashtable]$envMap) {
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Alfred -> Cursor + Claude Code provisioning" -ForegroundColor Cyan
+Write-Host "  Alfred -> Cursor + Claude Code + Codex provisioning" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 
 # If Cursor isn't installed, skip all Cursor steps (Claude Code is still configured).
@@ -95,6 +95,15 @@ if (-not $SkipCursor -and -not (Test-CursorInstalled)) {
 }
 
 $EnvMap = Read-DotEnv (Join-Path $Root ".env")
+
+# Ensure Alfred venv + bin are on PATH so excellm, uvx, az, vd, etc. resolve during provision.
+$venvScripts = Join-Path $Root ".venv\Scripts"
+$binDir = Join-Path $Root "bin"
+foreach ($p in @($venvScripts, $binDir)) {
+    if ((Test-Path $p) -and ($env:PATH -split ';' | Where-Object { $_.TrimEnd('\') -ieq $p.TrimEnd('\') }).Count -eq 0) {
+        $env:PATH = "$p;$env:PATH"
+    }
+}
 
 # ── resolve machine-specific path tokens ──────────────────────────────────────
 # The template uses ${repoRoot}, ${userProfile}, ${financeDir}, ${dataDir},
@@ -345,10 +354,11 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
     Write-OK "Synced $($mdFiles.Count) skill(s) -> $($destRoots -join ', ')"
 }
 
-Write-Step "Skills: syncing Alfred skills into Cursor + Claude Code"
+Write-Step "Skills: syncing Alfred skills into Cursor + Claude Code + Codex"
 $skillDests = @()
 if (-not $SkipCursor) { $skillDests += (Join-Path $HOME ".cursor\skills") }
 if (-not $SkipClaude) { $skillDests += (Join-Path $HOME ".claude\skills") }
+if (-not $SkipCodex)  { $skillDests += (Join-Path $HOME ".codex\skills") }
 if ($skillDests.Count -gt 0) { Sync-Skills (Join-Path $Root "skills") $skillDests }
 
 # ── Rules: per-project seeding (opt-in via -ProjectPath) ──────────────────────
@@ -384,5 +394,5 @@ if ($skippedServers.Count -gt 0) {
 }
 
 Write-Host ""
-Write-Host "Provisioning complete. Restart Cursor / Claude Code to pick up new MCP servers." -ForegroundColor Green
+Write-Host "Provisioning complete. Restart Cursor, Claude Code, and/or Codex to pick up MCP servers + skills." -ForegroundColor Green
 Write-Host ""

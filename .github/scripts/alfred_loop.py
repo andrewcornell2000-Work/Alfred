@@ -210,7 +210,7 @@ def api_call_with_retry(messages, system):
                 # Opus 4.7: runs once daily (noon AEST), so we use the most
                 # capable model for best judgment on tool vetting + precise
                 # manifest edits, rather than a cheap high-frequency split.
-                model="claude-opus-4-7",
+                model="claude-sonnet-4-6",
                 # Was 2000 — too low. A full skill file is ~1.5-2k tokens of
                 # write_file JSON plus reasoning, so writes hit the cap and got
                 # truncated mid-tool-call, producing empty/partial files. 8000
@@ -249,42 +249,40 @@ def run():
     recent_log = read_file_safe("memory/learning-log.md", limit=800)
     skills_list = ", ".join(sorted(os.listdir("skills"))) if os.path.exists("skills") else "none"
 
-    # Alfred's growth loop is about UPGRADING HIMSELF: the tools he can use
-    # (MCP servers, CLIs) and the skills for driving those tools well.
-    # It must NOT touch the finance/domain skills (cash flow, labour, Excel,
-    # Power BI, data-*) — those are owned by Andrew, not the loop.
+    # Growth loop scope: CLI + MCP catalog + agent skills (token efficiency & reasoning).
+    # NEVER touch finance/domain skills (cash-flow*, labour*, working-capital*, excel-financial*,
+    # powerbi-*, powerquery-*, data-*). Those are human-owned.
     DOMAIN_ROTATION = [
-        "NEW MCP TOOL: research one promising MCP server that gives Alfred a genuinely new capability "
-        "(official modelcontextprotocol servers or well-regarded community ones that launch via npx or uvx). "
-        "ADD it for real to the portable template cursor/mcp.json: an entry with command (npx or uvx), args, "
-        "and a \"_requiresCommand\" guard (npx or uvx) so it auto-skips on machines lacking that runtime. "
-        "If it needs a key, put \"${env:VAR}\" in env and list VAR under \"_requires\" — NEVER write the key itself. "
-        "Then write a short how-to skill in skills/ for it and add a one-line entry to requirements/mcp-tools.md. "
-        "Result: the tool becomes usable by Claude, Codex AND Cursor the next time Andrew provisions. "
-        "Do NOT duplicate a server already in cursor/mcp.json.",
-        "TOOL SKILL: write a how-to skill for driving ONE tool Alfred already has (e.g. the GitHub MCP, "
-        "Playwright MCP, Power BI MCP, Excel MCP, or the claude/codex CLI) — concrete commands, common "
-        "workflows, gotchas, and when to reach for it. Skills go in skills/.",
-        "NEW CLI TOOL: research one useful CLI tool Alfred should be able to drive. Add it to the right "
-        "manifest (requirements/npm-tools.txt or requirements/python-requirements.txt) in the documented "
-        "format AND mirror it into requirements/alfred-tools.json, with purpose and routing category.",
-        "DEEPEN a TOOL skill: pick an existing tool/how-to skill and make it materially better "
-        "(add a worked example, fix gaps, sharpen triggers). Do NOT touch finance/domain skills.",
-        "ROUTING: review backend/main.py routing keywords for the tools Alfred has and propose/document "
-        "improvements so the right tool is picked for the right request. Keep destructive tools behind the safety gate.",
-        "CONSOLIDATE: if two existing TOOL skills overlap, merge them into one stronger file and delete the weaker.",
+        "NEW MCP: research one MCP (npx/uvx) that reduces token spend OR improves structured reasoning "
+        "(e.g. fetch vs browser, duckdb vs loading CSVs into chat, sequential-thinking, memory). "
+        "ADD it to cursor/mcp.json with _requiresCommand guards. Write a how-to skill. "
+        "Update requirements/mcp-tools.md. On next Provision-Tools.ps1 run it registers for Claude + Codex + Cursor. "
+        "Do NOT duplicate servers already in cursor/mcp.json.",
+        "NEW CLI: research one CLI that setup.ps1 can install without admin (pip, npm -g, winget user, portable zip). "
+        "Add to requirements/python-requirements.txt OR requirements/npm-tools.txt AND requirements/alfred-tools.json. "
+        "Write skills/<name>.md with concrete commands and when Alfred should route to it.",
+        "MCP HOW-TO: deepen one existing MCP skill (github, playwright, markitdown, filesystem, memory, "
+        "sequential-thinking, fetch, duckdb, excel, powerbi-model-editing) — worked example + token-saving tips.",
+        "CLI HOW-TO: deepen one CLI skill (gh, jq, pandoc, az, pbi, vd, in2csv, claude, codex) — "
+        "concrete commands, cost-aware routing notes, common gotchas.",
+        "TOKEN EFFICIENCY: improve skills/agent-token-efficiency.md OR write a new agent-* skill teaching "
+        "grep-before-read, partial file reads, parallel lookups, MCP-vs-bash choices. Must be actionable checklists.",
+        "REASONING: improve skills/agent-reasoning.md OR write agent-* guidance on decompose→verify→act, "
+        "when to use sequential-thinking MCP, and how good reasoning reduces total token spend.",
+        "CONSOLIDATE: merge two overlapping tool/agent skills into one stronger file; delete the weaker duplicate.",
+        "ROUTING KEYWORDS (light touch): if you added a tool skill this week, add matching keywords to "
+        "TOOL_REGISTRY in backend/main.py — one small focused edit only; do NOT grep the whole file without writing.",
     ]
     focus = DOMAIN_ROTATION[int(iteration_num) % len(DOMAIN_ROTATION)] if iteration_num.isdigit() else DOMAIN_ROTATION[0]
 
     system = (
-        "You are Alfred — an autonomous AI agent running in GitHub Actions (ubuntu-latest). "
-        "Your growth loop is for UPGRADING YOURSELF: the tools you can use (MCP servers, CLIs) and the "
-        "how-to skills for driving those tools well. Do NOT edit the finance/domain skills "
-        "(cash flow, labour, working capital, Excel, Power BI, data-*) — those belong to Andrew, not you. "
-        "You have tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
-        "Each run must leave the repo genuinely better — a new tool documented or a tool how-to improved. "
-        "An empty or stub file counts as a FAILED run, not a completed one. "
-        "Files you write are automatically committed to https://github.com/andrewcornell2000-Work/Alfred"
+        "You are Alfred — autonomous growth loop in GitHub Actions (ubuntu-latest). "
+        "Your ONLY job: grow the CLI catalog, MCP catalog (cursor/mcp.json), and agent skills that "
+        "help Claude Code, Codex, and Cursor agents reason better and spend fewer tokens. "
+        "Never edit finance/domain skills (cash-flow*, labour*, data-*, excel-financial*, powerbi-*, powerquery-*). "
+        "Tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
+        "Every run MUST call write_file at least once with a complete deliverable. "
+        "Analysis-only runs are failures. Files auto-commit to https://github.com/andrewcornell2000-Work/Alfred"
     )
 
     messages = [
@@ -322,28 +320,26 @@ Steps:
 This is your ONE run today. Don't rush and don't pad — go deep and ship a single excellent,
 complete deliverable. Depth and correctness matter far more than covering extra ground.
 
-QUALITY BAR (this is the whole point of the loop):
-- SCOPE: this loop only upgrades Alfred's TOOLS and tool how-to skills. NEVER edit the finance/domain
-  skills (cash-flow-forecasting, labour-cost-forecasting, working-capital-metrics, excel-*, powerbi-*,
-  powerquery-*, data-*). If your mission would touch one of those, pick a different tool-focused mission.
-- NEVER leave an empty or stub file. An empty file is worse than no file — it is noise. If you cannot
-  write a complete, useful file this run, improve an existing tool skill instead.
-- NO near-duplicates. Prefer one excellent tool guide over three thin ones.
-- A run that consolidates or sharpens an existing tool skill is MORE valuable than a shallow new file.
+QUALITY BAR:
+- SCOPE: CLI catalog + MCP catalog + agent-* / tool how-to skills ONLY. No finance/domain skills.
+- Every deliverable must help agents reason better OR spend fewer tokens — state which in learning-log.md.
+- NEVER leave an empty or stub file. Improve agent-token-efficiency.md or agent-reasoning.md if stuck.
+- NO near-duplicates. One excellent skill beats three thin ones.
 - Be efficient — do not re-read files already shown above.
-- Tool how-to skills go in skills/, tool manifests in requirements/, memory updates in memory/.
+- Skills → skills/ | MCP template → cursor/mcp.json | CLI → requirements/*.txt + alfred-tools.json
 
-TOOLING MISSIONS (MCP / CLI) — extra rules:
-- MCP server: ADD it to the portable template cursor/mcp.json with a "_requiresCommand" guard (npx/uvx)
-  so it auto-skips where the runtime is absent. This is SAFE — it installs nothing on Andrew's machine;
-  it just makes the tool available the next time he provisions (which registers it for Claude + Codex + Cursor).
-  Also write a how-to skill in skills/.
-- CLI tool: document it in the right manifest (requirements/). Do NOT edit setup.ps1 — Andrew owns install policy.
-- NEVER write an API key, token, or credential into any file — use "${env:VAR}" in env + list it under "_requires".
-- Never say a tool is "installed on the machine". Say it is "added to the catalog, applied on next provision".
-- If a tool is destructive (can write/delete/modify live data), say so in its skill and note it must be added
-  to the safety gate (DANGEROUS_KEYWORDS in backend/main.py) before it is ever allowed to dispatch.
-- Don't duplicate a server already in cursor/mcp.json or a tool already in requirements/.
+CROSS-TOOL PROVISIONING (Claude + Codex + Cursor — not Cursor-only):
+- cursor/mcp.json is the portable MCP template. Provision-Tools.ps1 (Provision-Cursor.ps1) registers
+  servers into ~/.cursor/mcp.json, `claude mcp add --scope user`, AND `codex mcp add`.
+- Skills sync to ~/.cursor/skills, ~/.claude/skills, and ~/.codex/skills on provision.
+- Say "available after next provision" — the cloud loop cannot install on Andrew's machine.
+
+MCP / CLI rules:
+- MCP: add to cursor/mcp.json with _requiresCommand guards; how-to skill required.
+- CLI: add to requirements manifests; setup.ps1 picks up python/npm lists automatically.
+- NEVER write API keys — use "${env:VAR}" + "_requires".
+- Destructive tools: note in skill + DANGEROUS_KEYWORDS gate in backend/main.py.
+- Do NOT duplicate existing catalog entries.
 
 Start immediately. Pick your mission and begin.
 """
@@ -351,6 +347,8 @@ Start immediately. Pick your mission and begin.
     ]
 
     print("=== Alfred Growth Loop starting ===\n")
+
+    files_written = 0
 
     for iteration in range(15):
         response = api_call_with_retry(messages, system)
@@ -366,8 +364,24 @@ Start immediately. Pick your mission and begin.
             elif block.type == "tool_use":
                 tool_uses.append(block)
 
+        # Do not allow a "research-only" run — must ship at least one write_file.
+        if (response.stop_reason == "end_turn" or not tool_uses) and files_written == 0:
+            print("[QualityGate] Model tried to finish without writing — nudging to ship a file")
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({
+                "role": "user",
+                "content": (
+                    "STOP — you have not called write_file yet. This run is FAILED until you "
+                    "write at least one complete, useful file (skill, manifest entry, or "
+                    "memory/learning-log update). Do NOT end with analysis only. "
+                    "Call write_file now for your deliverable, then read_file to verify it."
+                )
+            })
+            time.sleep(1)
+            continue
+
         if response.stop_reason == "end_turn" or not tool_uses:
-            print("\n=== Alfred loop complete ===")
+            print(f"\n=== Alfred loop complete ({files_written} file(s) written) ===")
             break
 
         messages.append({"role": "assistant", "content": response.content})
@@ -378,6 +392,8 @@ Start immediately. Pick your mission and begin.
             result = handle_tool(t.name, t.input)
             result_str = str(result)
             print(f"  → {result_str[:200]}")
+            if t.name == "write_file" and result_str.startswith("Written:"):
+                files_written += 1
             results.append({
                 "type": "tool_result",
                 "tool_use_id": t.id,

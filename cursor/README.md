@@ -1,48 +1,52 @@
-# cursor/ - cross-tool provisioning source of truth
+# cursor/ — cross-tool provisioning source of truth
 
-This folder is the single place Alfred reads when it provisions a machine's AI dev tools.
-`Provision-Cursor.ps1` (in the repo root) consumes it and writes config into **both Cursor and
-Claude Code**, so the same MCP servers, skills, and rules are available no matter which tool you open.
+Despite the folder name, this is **not Cursor-only**. `Provision-Cursor.ps1` (repo root) reads
+`cursor/mcp.json` and provisions **Cursor, Claude Code, and Codex** on a fresh machine.
 
-It runs automatically as part of `setup.ps1` (so it also re-runs after every Alfred update), or you
-can run it on its own:
+Runs automatically at the end of `setup.ps1` and `Alfred-Install.ps1`, or manually:
 
 ```powershell
-# MCP servers (global) + skills (global) for both Cursor and Claude Code:
+# MCP servers (global) + skills (global) for Cursor, Claude Code, and Codex:
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1
 
-# Also seed Cursor rules + a shared AGENTS.md into a specific project:
+# Also seed Cursor rules + shared AGENTS.md into a project:
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ProjectPath C:\path\to\repo
 
 # Only one tool:
-powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipClaude   # Cursor only
-powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCursor   # Claude Code only
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipClaude
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCursor
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCodex
 ```
 
-## What lives here
+## What lands where
 
-| Path | What it is | Where it lands |
-|------|-----------|----------------|
-| `mcp.json` | MCP server manifest (template; `${env:VAR}` placeholders, **no secrets**) | `~/.cursor/mcp.json` (Cursor, global) + `claude mcp add --scope user` (Claude Code, all projects) |
-| `rules/*.mdc` | Cursor project rules | `<project>/.cursor/rules/` (only with `-ProjectPath`) |
-| `AGENTS.shared.md` | Cross-tool rules | `<project>/AGENTS.md` (only with `-ProjectPath`; never overwrites an existing one) |
+| Source | What it is | Destination |
+|--------|-----------|-------------|
+| `mcp.json` | MCP server template (`${env:VAR}` placeholders, no secrets) | `~/.cursor/mcp.json` + `claude mcp add --scope user` + `codex mcp add` |
+| `skills/*.md` (repo root) | Agent + tool how-to skills | `~/.cursor/skills/`, `~/.claude/skills/`, `~/.codex/skills/` |
+| `rules/*.mdc` | Cursor project rules | `<project>/.cursor/rules/` (with `-ProjectPath`) |
+| `AGENTS.shared.md` | Cross-tool rules | `<project>/AGENTS.md` (with `-ProjectPath`) |
 
-Skills are **not** stored here - they are synced from the repo's top-level `skills/*.md`, wrapped as
-`alfred-<name>/SKILL.md`, into `~/.cursor/skills/` and `~/.claude/skills/`. Add a skill once in
-`skills/` and it reaches both tools.
+Skills are wrapped as `alfred-<name>/SKILL.md`. Add once in `skills/` — all three agents get it on next provision.
 
-## Adding / changing an MCP server
+## Adding an MCP server
 
-Edit `mcp.json`. Each server may carry provisioner metadata (stripped before anything is written):
+Edit `mcp.json`. Metadata keys (stripped before write):
 
-- `_requires`: env var names that **must** resolve or the server is skipped (e.g. `GITHUB_PERSONAL_ACCESS_TOKEN`).
-- `_optionalEnv`: env vars used if present, dropped if not (e.g. `CONTEXT7_API_KEY`).
-- `_requiresCommand`: a CLI that must be on PATH or the server is skipped (e.g. `python` for `excel`).
-- `_note`: human description.
+- `_requires` — env vars that must resolve or server is skipped
+- `_optionalEnv` — used if present, dropped if missing
+- `_requiresCommand` — CLI on PATH required (`npx`, `uvx`, etc.)
+- `_note` — human description
 
-Secrets are read from Alfred's `.env` (or machine environment) at provision time and written into
-`~/.cursor/mcp.json`, which is machine-local and never committed. This mirrors the hard rule in
-`requirements/mcp-tools.md`: never store credentials in a committed manifest.
+Path tokens resolved at provision time: `${repoRoot}`, `${financeDir}`, `${dataDir}`, `${memoryDir}`, `${powerBiMcp}`.
 
-> Power BI MCP is intentionally **not** auto-configured here: its command is a machine-specific VS Code
-> extension path. See `requirements/mcp-tools.md` to wire it per machine.
+Secrets come from Alfred `.env` at provision time into machine-local config — never committed.
+
+## Fresh-machine checklist
+
+After `Alfred-Install.exe` or `setup.ps1`:
+
+1. Restart Cursor / Claude Code / Codex
+2. `claude auth login` and `codex login` (once)
+3. Optional: add `GITHUB_TOKEN`, `TAVILY_API_KEY` to `.env`, re-run `Provision-Cursor.ps1`
+4. Power BI MCP: install VS Code extension `analysis-services.powerbi-modeling-mcp`, re-provision

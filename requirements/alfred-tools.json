@@ -289,18 +289,6 @@
         "storage": "data/analytics.duckdb"
       },
       {
-        "name": "exa",
-        "source": "npx",
-        "package": "exa-mcp-server",
-        "purpose": "Neural semantic web search — better than keyword search for research, technical docs, company/people lookup",
-        "category": "EXECUTE",
-        "destructive": false,
-        "trust": "official",
-        "requiresKey": "EXA_API_KEY",
-        "keySource": "https://exa.ai — free tier: 1000 req/month",
-        "status": "needs-key"
-      },
-      {
         "name": "ms365",
         "source": "npx",
         "package": "ms-365-mcp-server",

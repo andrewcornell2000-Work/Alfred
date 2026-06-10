@@ -2,6 +2,8 @@ rich
 python-dotenv
 typer
 truststore
+excellm
+uv
 pbi-cli-tool
 winotify
 python-docx
