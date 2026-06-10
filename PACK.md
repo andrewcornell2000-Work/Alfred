@@ -19,6 +19,7 @@
 | Weekly / after updates | Re-run `.exe` or `run-alfred.bat` (checks git pull → setup → provision) |
 | "What's installed?" | Alfred menu → Control Tower, or `lean-ctx doctor` |
 | "What can I ask that I don't know?" | Read `requirements/discovered-tools.md` |
+| Claude Desktop Connectors empty | Alfred provisions Desktop separately — re-run `Provision-Cursor.ps1`, restart Claude app |
 
 ## Provision pipeline (single source of truth)
 

@@ -29,6 +29,7 @@ param(
     [string]$ProjectPath,
     [switch]$SkipCursor,
     [switch]$SkipClaude,
+    [switch]$SkipClaudeDesktop,
     [switch]$SkipCodex,
     [switch]$SkipLeanCtx
 )
@@ -292,6 +293,42 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
             }
         }
     }
+}
+
+# ── Claude Desktop app: %APPDATA%\Claude\claude_desktop_config.json ─────────────
+# Separate from Claude Code CLI (~/.claude.json). The Desktop "Connectors" UI reads this file.
+if (-not $SkipClaudeDesktop -and $managed.Count -gt 0) {
+    Write-Step "Claude Desktop: claude_desktop_config.json"
+    $claudeAppDir = Join-Path $env:APPDATA "Claude"
+    if (-not (Test-Path $claudeAppDir)) { New-Item -ItemType Directory -Path $claudeAppDir -Force | Out-Null }
+    $desktopPath = Join-Path $claudeAppDir "claude_desktop_config.json"
+
+    $desktopRoot = [ordered]@{}
+    if (Test-Path $desktopPath) {
+        try {
+            $existingDesktop = Get-Content $desktopPath -Raw | ConvertFrom-Json
+            foreach ($p in $existingDesktop.PSObject.Properties) {
+                if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
+            }
+            $finalDesktop = [ordered]@{}
+            if ($existingDesktop.mcpServers) {
+                foreach ($p in $existingDesktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
+            }
+        } catch {
+            Write-Warn2 "Existing claude_desktop_config.json unreadable -- backing up and recreating mcpServers."
+            Copy-Item $desktopPath "$desktopPath.bak" -Force -ErrorAction SilentlyContinue
+            $finalDesktop = [ordered]@{}
+        }
+    } else {
+        $finalDesktop = [ordered]@{}
+    }
+    foreach ($k in $managed.Keys) { $finalDesktop[$k] = $managed[$k] }
+    $desktopRoot['mcpServers'] = $finalDesktop
+
+    $json = $desktopRoot | ConvertTo-Json -Depth 12
+    Write-TextNoBom $desktopPath $json
+    Write-OK "Wrote $($managed.Count) managed server(s); $($finalDesktop.Count) total in $desktopPath"
+    Write-Info "Restart the Claude Desktop app to see Connectors update."
 }
 
 # ── Codex: codex mcp add (global, idempotent) ─────────────────────────────────
