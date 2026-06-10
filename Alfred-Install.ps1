@@ -221,6 +221,24 @@ function Install-Node-Portable([string]$RepoPath) {
     }
 }
 
+function Install-Uv {
+    # Installs uv (Astral) — provides the `uvx` launcher used by the markitdown,
+    # fetch, time, sqlite, and duckdb MCP servers. Without uv those 5 MCPs are
+    # silently skipped by Provision-Cursor.ps1 (_requiresCommand: "uvx").
+    # Official standalone installer — per-user, no admin, lands in %USERPROFILE%\.local\bin.
+    Write-Host "  Installing uv (Astral) for uvx-based MCP servers..." -ForegroundColor Cyan
+    try {
+        powershell -ExecutionPolicy ByPass -NoProfile -Command "irm https://astral.sh/uv/install.ps1 | iex"
+    } catch {
+        Write-Warn "uv install script failed: $_"
+    }
+    # Installer writes to %USERPROFILE%\.local\bin and updates the user PATH, but the
+    # current process needs it on PATH so Step 10's provisioning detects uvx now.
+    Add-PathEntry (Join-Path $env:USERPROFILE ".local\bin")
+    Refresh-Path
+    return [bool](Find-Command "uvx")
+}
+
 function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
     if (Test-Path $EnvPath) {
         $content = Get-Content $EnvPath -Raw
@@ -735,6 +753,44 @@ if ($NpxExe) {
     Write-OK "Playwright MCP configured — browser automation enabled."
 } else {
     Write-Warn "Playwright MCP skipped (npx not found — install Node.js first)."
+}
+
+# ── uv / uvx (markitdown, fetch, time, sqlite, duckdb MCPs) ───────────────────
+# These 5 MCP servers launch via `uvx`. Provision-Cursor.ps1 auto-skips them when
+# uvx is missing (_requiresCommand: "uvx" in cursor/mcp.json), so install uv here
+# before Step 10 runs — otherwise a third of the stack silently never registers.
+
+$uvxReady = $false
+if (Find-Command "uvx") {
+    Write-OK "uv / uvx already present — markitdown, fetch, time, sqlite, duckdb MCPs enabled."
+    $uvxReady = $true
+} else {
+    if (Install-Uv) {
+        Write-Done "uv installed — markitdown, fetch, time, sqlite, duckdb MCPs enabled."
+        $uvxReady = $true
+    } else {
+        Write-Warn "uv install failed — markitdown, fetch, time, sqlite, duckdb MCPs will be skipped."
+        Write-Host "  Install manually: irm https://astral.sh/uv/install.ps1 | iex   then re-run this installer." -ForegroundColor DarkGray
+    }
+}
+
+# Pre-warm the uvx package cache. The first launch of each uvx MCP downloads its
+# dependency tree (markitdown pulls a large set), which otherwise overruns the MCP
+# client's startup health-check timeout and shows the server as "Failed to connect"
+# until a later restart. Fetching now makes the first real launch instant.
+if ($uvxReady) {
+    $uvxExe = Find-Command "uvx"
+    $uvxPkgs = @("markitdown-mcp", "mcp-server-fetch", "mcp-server-time", "mcp-server-sqlite", "mcp-server-duckdb")
+    Write-Host "  Pre-fetching uvx MCP packages (first run only — may take a minute)..." -ForegroundColor Cyan
+    foreach ($pkg in $uvxPkgs) {
+        try {
+            $p = Start-Process -FilePath $uvxExe -ArgumentList @($pkg, "--help") `
+                -NoNewWindow -PassThru -RedirectStandardOutput $env:TEMP\uvx-warm.out -RedirectStandardError $env:TEMP\uvx-warm.err
+            if (-not $p.WaitForExit(180000)) { $p.Kill() }  # 3-min cap per package
+        } catch {}
+    }
+    Remove-Item "$env:TEMP\uvx-warm.out","$env:TEMP\uvx-warm.err" -ErrorAction SilentlyContinue
+    Write-Done "uvx MCP packages cached — markitdown, fetch, time, sqlite, duckdb will connect on first launch."
 }
 
 # ── Write settings.json (permissions only — MCPs come from Provision-Cursor.ps1) ──
