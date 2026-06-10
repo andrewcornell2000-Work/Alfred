@@ -455,7 +455,7 @@ if (Find-Command "jq") {
     Write-OK "jq (JSON processor) -- $jqVer"
 } elseif (Find-Command "winget") {
     Write-Host "  Installing jq via winget..." -ForegroundColor Cyan
-    winget install jqlang.jq --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    winget install jqlang.jq --scope user --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
     Refresh-Path
     if (Find-Command "jq") { Write-Done "jq installed." }
     else { Write-Info "jq: run 'winget install jqlang.jq' manually." }
@@ -469,7 +469,7 @@ if (Find-Command "pandoc") {
     Write-OK "pandoc (document converter) -- $pandocVer"
 } elseif (Find-Command "winget") {
     Write-Host "  Installing pandoc via winget..." -ForegroundColor Cyan
-    winget install JohnMacFarlane.Pandoc --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    winget install JohnMacFarlane.Pandoc --scope user --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
     Refresh-Path
     if (Find-Command "pandoc") { Write-Done "pandoc installed." }
     else { Write-Info "pandoc: run 'winget install JohnMacFarlane.Pandoc' manually." }

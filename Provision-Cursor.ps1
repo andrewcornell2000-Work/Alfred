@@ -82,6 +82,61 @@ Write-Host "============================================" -ForegroundColor Cyan
 
 $EnvMap = Read-DotEnv (Join-Path $Root ".env")
 
+# ── resolve machine-specific path tokens ──────────────────────────────────────
+# The template uses ${repoRoot}, ${userProfile}, ${financeDir}, ${dataDir},
+# ${memoryDir}, ${powerBiMcp} so no path is tied to one person's profile.
+$repoRoot    = $Root
+$userProfile = $env:USERPROFILE
+$dataDir     = Join-Path $repoRoot "data"
+$memoryDir   = Join-Path $repoRoot "memory"
+if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
+
+# Finance folder: .env override -> OneDrive-for-Business subfolder -> OneDrive root -> profile
+$financeDir = $EnvMap["ALFRED_FINANCE_DIR"]
+if (-not $financeDir -or -not (Test-Path $financeDir)) {
+    $odc = $env:OneDriveCommercial; if (-not $odc) { $odc = $env:OneDrive }
+    if ($odc -and (Test-Path (Join-Path $odc "MCL Finance - General"))) {
+        $financeDir = Join-Path $odc "MCL Finance - General"
+    } elseif ($odc -and (Test-Path $odc)) {
+        $financeDir = $odc
+    } else {
+        $financeDir = $userProfile
+    }
+}
+
+# Power BI Modeling MCP — newest installed VS Code extension build (version-specific)
+$powerBiMcp = ""
+$pbiExtRoot = Join-Path $userProfile ".vscode\extensions"
+if (Test-Path $pbiExtRoot) {
+    $pbiHit = Get-ChildItem $pbiExtRoot -Directory -Filter "analysis-services.powerbi-modeling-mcp-*" -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "server\powerbi-modeling-mcp.exe" } |
+        Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($pbiHit) { $powerBiMcp = $pbiHit }
+}
+
+$PathTokens = @{
+    '${repoRoot}'    = $repoRoot
+    '${userProfile}' = $userProfile
+    '${financeDir}'  = $financeDir
+    '${dataDir}'     = $dataDir
+    '${memoryDir}'   = $memoryDir
+    '${powerBiMcp}'  = $powerBiMcp
+}
+
+function Expand-Tokens([string]$value) {
+    if ($null -eq $value) { return $value }
+    foreach ($tok in $PathTokens.Keys) { $value = $value.Replace($tok, [string]$PathTokens[$tok]) }
+    return $value
+}
+
+# Does this command refer to an absolute file path that is missing on this machine?
+function Test-CommandMissing([string]$command) {
+    if ([string]::IsNullOrWhiteSpace($command)) { return $true }   # unresolved token
+    if ($command -match '^[A-Za-z]:\\') { return -not (Test-Path $command) }
+    return $false   # bare commands (npx, uvx, python) resolve via PATH at runtime
+}
+
 # ── resolve MCP servers from the template ─────────────────────────────────────
 $McpTemplatePath = Join-Path $Root "cursor\mcp.json"
 $managed         = [ordered]@{}   # name -> ordered hashtable { command, args, env }
@@ -130,6 +185,7 @@ if (-not (Test-Path $McpTemplatePath)) {
                         }
                         # optional + missing -> silently drop this env key
                     } else {
+                        $val = Expand-Tokens $val
                         $resolvedEnv[$ep.Name] = $val
                         $envList += "$($ep.Name)=$val"
                     }
@@ -140,7 +196,17 @@ if (-not (Test-Path $McpTemplatePath)) {
                 continue
             }
 
-            $serverObj = [ordered]@{ command = [string]$def.command; args = @($def.args) }
+            $expandedCommand = Expand-Tokens ([string]$def.command)
+            $expandedArgs    = @($def.args | ForEach-Object { Expand-Tokens ([string]$_) })
+
+            # Skip servers whose absolute command path isn't present on THIS machine
+            # (e.g. Power BI extension not installed, venv not built yet).
+            if (Test-CommandMissing $expandedCommand) {
+                $skippedServers += "$name (command not found on this machine: $expandedCommand)"
+                continue
+            }
+
+            $serverObj = [ordered]@{ command = $expandedCommand; args = $expandedArgs }
             if ($resolvedEnv.Count -gt 0) { $serverObj.env = $resolvedEnv }
             $managed[$name] = $serverObj
             $managedEnvLists[$name] = $envList
