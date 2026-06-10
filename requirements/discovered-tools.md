@@ -27,6 +27,7 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 | Power BI MCP | "Add a measure for labour cost per FTE in the open Desktop model" |
 | Excel MCP | "Update the pivot on the open wages workbook" |
 | duckdb MCP | "Run SQL on last week's CSV export without opening Excel" |
+| sqlite MCP | "Create a table from this wages CSV and show top 10 sites by hours" |
 | markitdown MCP | "Convert this PDF brief to markdown so we can work from text" |
 | filesystem MCP | "List xlsx files in the finance folder modified this week" |
 | GitHub MCP | "Open a PR for the DLP schema change" |

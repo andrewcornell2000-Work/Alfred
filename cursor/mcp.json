@@ -81,16 +81,18 @@
       "_note": "Time and timezone conversion for scheduling and automation context."
     },
     "sqlite": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "${dataDir}\\alfred.db"],
+      "command": "uvx",
+      "args": ["mcp-server-sqlite", "--db-path", "${dataDir}\\alfred.db"],
       "_requires": [],
-      "_note": "Local SQLite database - create, query, and analyse structured data without a server."
+      "_requiresCommand": "uvx",
+      "_note": "Official SQLite MCP (PyPI). Local database — query and analyse without a server."
     },
     "duckdb": {
-      "command": "npx",
-      "args": ["-y", "@ktanaka101/mcp-server-duckdb", "--db-path", "${dataDir}\\analytics.duckdb"],
+      "command": "uvx",
+      "args": ["mcp-server-duckdb", "--db-path", "${dataDir}\\analytics.duckdb"],
       "_requires": [],
-      "_note": "Fast SQL analytics on CSV, Excel exports, and Parquet files."
+      "_requiresCommand": "uvx",
+      "_note": "DuckDB MCP (PyPI). Fast SQL on CSV, Excel exports, and Parquet files."
     }
   }
 }

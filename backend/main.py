@@ -2760,17 +2760,22 @@ def _mcp_runtime_status(name: str, configured_servers: dict) -> tuple[str, str]:
             return "attention", "No accessible directories configured"
         return "ready", f"{len(accessible)} path(s) accessible"
 
-    if name in {"fetch", "time"}:
+    if name in {"fetch", "time", "sqlite", "duckdb"}:
         ok = bool(shutil.which("uvx"))
-        label = "Web page fetching" if name == "fetch" else "Time and timezone conversion"
-        return ("ready", label) if ok else ("attention", "uvx not installed — run: pip install uv")
-
-    if name == "sqlite":
-        db = next((a for a in svc.get("args", []) if a.endswith(".db")), "")
-        return "ready", f"Local SQL database{' — ' + db if db else ''}"
-
-    if name == "duckdb":
-        return "ready", "Fast SQL queries on CSV, Excel exports, Parquet files"
+        labels = {
+            "fetch": "Web page fetching",
+            "time": "Time and timezone conversion",
+            "sqlite": "Local SQLite database",
+            "duckdb": "Fast SQL on CSV, Excel exports, Parquet",
+        }
+        label = labels[name]
+        if name == "sqlite":
+            db = next((a for a in svc.get("args", []) if a.endswith(".db")), "")
+            if db:
+                label += f" — {db}"
+        if ok:
+            return "ready", label
+        return "attention", "uvx not installed — run: pip install uv"
 
     return "ready", "Configured in Claude MCP settings"
 

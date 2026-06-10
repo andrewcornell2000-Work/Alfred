@@ -279,22 +279,24 @@
       },
       {
         "name": "sqlite",
-        "source": "npx",
-        "package": "@modelcontextprotocol/server-sqlite",
+        "source": "uvx",
+        "package": "mcp-server-sqlite",
         "purpose": "Local SQLite database — create, query, and analyse structured data without a server",
         "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
+        "requires": "uvx",
         "storage": "data/alfred.db"
       },
       {
         "name": "duckdb",
-        "source": "npx",
-        "package": "@ktanaka101/mcp-server-duckdb",
+        "source": "uvx",
+        "package": "mcp-server-duckdb",
         "purpose": "Fast SQL analytics on CSV, Excel exports, and Parquet files — query raw data without loading into Excel",
         "category": "EXECUTE",
         "destructive": false,
         "trust": "community",
+        "requires": "uvx",
         "storage": "data/analytics.duckdb"
       },
       {
