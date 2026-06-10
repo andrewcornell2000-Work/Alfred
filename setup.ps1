@@ -184,18 +184,44 @@ function Ensure-NpmGlobalPath {
 
 function Invoke-WingetInstall([string]$PackageId, [string]$Name) {
     if (-not (Find-Command "winget")) {
-        Write-Info "winget not available -- install $Name manually."
+        Write-Info "winget not available -- will try Scoop (no admin) instead."
         return $false
     }
-    Write-Host "  Installing $Name via winget (this may take a moment)..." -ForegroundColor Cyan
-    winget install --id $PackageId --silent --accept-package-agreements --accept-source-agreements
+    Write-Host "  Installing $Name via winget, user scope (this may take a moment)..." -ForegroundColor Cyan
+    # Prefer user scope so no admin/UAC is needed; some packages ignore it harmlessly.
+    winget install --id $PackageId --scope user --silent --accept-package-agreements --accept-source-agreements
     if ($LASTEXITCODE -eq 0) {
         Refresh-Path
         Write-Done "$Name installed."
         return $true
     }
-    Write-Fail "$Name install via winget failed -- install manually."
+    Write-Info "$Name not installed via winget (may require admin) -- will try Scoop (no admin)."
     return $false
+}
+
+function Ensure-Scoop {
+    if (Find-Command "scoop") { return $true }
+    Write-Host "  Installing Scoop (user-space package manager, no admin required)..." -ForegroundColor Cyan
+    try {
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force -ErrorAction SilentlyContinue
+        Invoke-RestMethod -Uri "https://get.scoop.sh" | Invoke-Expression
+        Refresh-Path
+    } catch {
+        Write-Fail "Scoop bootstrap failed: $_"
+    }
+    return [bool](Find-Command "scoop")
+}
+
+function Install-ViaScoop([string]$Package, [string]$Name) {
+    if (-not (Ensure-Scoop)) {
+        Write-Info "Scoop unavailable -- $Name needs a manual install."
+        return $false
+    }
+    Write-Host "  Installing $Name via Scoop (no admin)..." -ForegroundColor Cyan
+    & scoop install $Package 2>&1 | Out-Null
+    Refresh-Path
+    Write-Done "$Name install via Scoop attempted."
+    return $true
 }
 
 function Write-Step([string]$Msg) {
@@ -251,6 +277,9 @@ if ($PythonInfo) {
     Write-Warn "Python not found."
     $null = Invoke-WingetInstall "Python.Python.3.13" "Python 3.13"
     $PythonInfo = Get-PythonExe
+    if (-not $PythonInfo -and (Install-ViaScoop "python" "Python")) {
+        $PythonInfo = Get-PythonExe
+    }
     if ($PythonInfo) {
         Write-OK "Python -- $($PythonInfo.Version)"
         $hasPython = $true
@@ -269,6 +298,7 @@ if (Find-Command "git") {
 } else {
     Write-Warn "Git not found."
     $null = Invoke-WingetInstall "Git.Git" "Git"
+    if (-not (Find-Command "git")) { $null = Install-ViaScoop "git" "Git" }
     if (Find-Command "git") {
         $gitVer = & git --version 2>&1 | Select-Object -First 1
         Write-OK "Git -- $gitVer"
@@ -294,6 +324,7 @@ if (Find-Command "node") {
 } else {
     Write-Warn "Node.js not found."
     $null = Invoke-WingetInstall "OpenJS.NodeJS.LTS" "Node.js LTS"
+    if (-not (Find-Command "node")) { $null = Install-ViaScoop "nodejs-lts" "Node.js LTS" }
     if (Find-Command "node") {
         $nodeVerStr = & node --version 2>&1 | Select-Object -First 1
         Write-OK "Node.js -- $nodeVerStr"

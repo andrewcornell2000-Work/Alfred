@@ -80,6 +80,19 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  Alfred -> Cursor + Claude Code provisioning" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 
+# If Cursor isn't installed, skip all Cursor steps (Claude Code is still configured).
+# Prevents creating stray ~/.cursor folders on machines without Cursor.
+function Test-CursorInstalled {
+    if (Get-Command cursor -ErrorAction SilentlyContinue) { return $true }
+    if (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\cursor\Cursor.exe")) { return $true }
+    if (Test-Path (Join-Path $HOME ".cursor")) { return $true }
+    return $false
+}
+if (-not $SkipCursor -and -not (Test-CursorInstalled)) {
+    Write-Info "Cursor not detected -- skipping Cursor provisioning. Claude Code will still be set up."
+    $SkipCursor = $true
+}
+
 $EnvMap = Read-DotEnv (Join-Path $Root ".env")
 
 # ── resolve machine-specific path tokens ──────────────────────────────────────
