@@ -1,8 +1,8 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Provision MCP servers, skills, and (optionally) rules into Cursor AND Claude Code,
-    machine-wide, from Alfred's single source of truth.
+    Provision MCP servers, skills, and (optionally) rules into Cursor, Claude Code,
+    AND Codex, machine-wide, from Alfred's single source of truth.
 .DESCRIPTION
     Reads cursor/mcp.json (a template with ${env:VAR} placeholders) and:
       * deep-merges the servers into ~/.cursor/mcp.json (Cursor, global, all projects),
@@ -28,7 +28,8 @@
 param(
     [string]$ProjectPath,
     [switch]$SkipCursor,
-    [switch]$SkipClaude
+    [switch]$SkipClaude,
+    [switch]$SkipCodex
 )
 
 $ErrorActionPreference = "Continue"
@@ -278,6 +279,32 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
                 else { Write-Warn2 "claude mcp add '$name' returned exit $LASTEXITCODE." }
             } catch {
                 Write-Warn2 "claude mcp add '$name' failed: $_"
+            }
+        }
+    }
+}
+
+# ── Codex: codex mcp add (global, idempotent) ─────────────────────────────────
+# Makes the SAME global MCP servers usable from Codex, not just Claude/Cursor.
+if (-not $SkipCodex -and $managed.Count -gt 0) {
+    Write-Step "Codex: registering servers (global)"
+    if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
+        Write-Skip "codex CLI not found -- skipping Codex MCP registration."
+    } else {
+        foreach ($name in $managed.Keys) {
+            $srv = $managed[$name]
+            try { & codex mcp remove $name 2>$null | Out-Null } catch {}
+            $argList = @('mcp', 'add', $name)
+            foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
+            $argList += '--'
+            $argList += $srv.command
+            $argList += $srv.args
+            try {
+                & codex @argList 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) { Write-OK "Registered '$name' (Codex, global)." }
+                else { Write-Warn2 "codex mcp add '$name' returned exit $LASTEXITCODE." }
+            } catch {
+                Write-Warn2 "codex mcp add '$name' failed: $_"
             }
         }
     }

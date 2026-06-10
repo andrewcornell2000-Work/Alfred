@@ -29,6 +29,13 @@
       "_requires": [],
       "_requiresCommand": "python",
       "_note": "Read/write live open Excel workbooks. Auto-skipped if python (with excellm) is not on PATH."
+    },
+    "markitdown": {
+      "command": "uvx",
+      "args": ["markitdown-mcp"],
+      "_requires": [],
+      "_requiresCommand": "uvx",
+      "_note": "Microsoft MarkItDown - converts PDF, Office docs, images, audio, HTML and more to clean Markdown for LLM ingestion. No key needed. Auto-skipped if uvx is not on PATH."
     }
   }
 }
