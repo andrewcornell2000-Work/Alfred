@@ -829,7 +829,7 @@ if ($pbiCliExe) {
 
 # ── Step 10: Cursor + Claude Code provisioning (shared MCPs + skills) ──────────
 
-Write-Step "Step 10: Provisioning MCP servers + skills for Cursor, Claude Code, and Codex"
+Write-Step "Step 10: Provisioning MCPs + skills + LeanCTX for Cursor, Claude Code, and Codex"
 
 $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {

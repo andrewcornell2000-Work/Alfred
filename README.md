@@ -1,6 +1,8 @@
-# Alfred - AI Task Routing Orchestrator
+# Alfred 2.0 — AI Task Routing Orchestrator + LeanCTX
 
-Alfred is a Windows-first CLI operator for routing natural-language work to the cheapest capable AI provider. It classifies a request, chooses OpenAI Mini, Claude Code, Codex, or the Quant plugin, then either answers directly, generates a scoped execution prompt, or dispatches to the selected tool.
+Alfred is a Windows-first CLI operator for routing natural-language work to the cheapest capable AI provider.
+**Alfred 2.0** adds **LeanCTX** as a built-in context compression layer — domain MCPs (Power BI, Excel, GitHub)
+plus LeanCTX token governance across Cursor, Claude Code, and Codex. It classifies a request, chooses OpenAI Mini, Claude Code, Codex, or the Quant plugin, then either answers directly, generates a scoped execution prompt, or dispatches to the selected tool.
 
 ---
 
@@ -40,6 +42,7 @@ Alfred is a Windows-first CLI operator for routing natural-language work to the 
    - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
    - Print login instructions for Claude and Codex
    - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
+   - Run `lean-ctx bootstrap` — merges LeanCTX context compression (no API keys required)
    - Launch Alfred only when the required local toolchain is ready
 
 4. **Log in once**
@@ -70,6 +73,20 @@ Re-provision after pulling updates:
 ```powershell
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1
 ```
+
+### LeanCTX (Alfred 2.0 — no new accounts)
+
+LeanCTX compresses file reads and shell output, persists session memory, and exposes `ctx_*` MCP tools.
+It merges into your existing MCP configs — Alfred domain tools are untouched.
+
+| | Alfred MCPs | LeanCTX |
+|---|-------------|---------|
+| Power BI / Excel / GitHub | ✓ | — |
+| Code read/search compression | — | ✓ |
+| Session memory / knowledge graph | basic `memory` MCP | rich `ctx_*` memory |
+| Web search | Tavily direct API | — |
+
+Verify: `lean-ctx doctor` · Savings: `lean-ctx gain` · Skill: `skills/lean-ctx.md`
 
 ---
 

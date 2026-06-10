@@ -12,7 +12,7 @@
 
 param(
     # Version stamped into the .exe metadata. CI passes the git tag (without the leading "v").
-    [string]$Version = "1.6.12"
+    [string]$Version = "2.0.0"
 )
 
 $ErrorActionPreference = "Stop"

@@ -29,7 +29,8 @@ param(
     [string]$ProjectPath,
     [switch]$SkipCursor,
     [switch]$SkipClaude,
-    [switch]$SkipCodex
+    [switch]$SkipCodex,
+    [switch]$SkipLeanCtx
 )
 
 $ErrorActionPreference = "Continue"
@@ -385,6 +386,25 @@ if ($ProjectPath) {
     }
 } else {
     Write-Info "Rules are per-project. Re-run with -ProjectPath <repo> to seed Cursor rules + AGENTS.md."
+}
+
+# ── LeanCTX: context compression (merge-based — runs AFTER Alfred MCPs) ───────
+if (-not $SkipLeanCtx) {
+    Write-Step "LeanCTX: wiring context compression into Cursor + Claude + Codex"
+    if (-not (Get-Command lean-ctx -ErrorAction SilentlyContinue)) {
+        Write-Skip "lean-ctx not on PATH -- install lean-ctx-bin (npm-tools.txt), then re-run."
+    } else {
+        try {
+            & lean-ctx bootstrap 2>&1 | ForEach-Object { if ("$_".Trim()) { Write-Info $_ } }
+            if ($LASTEXITCODE -eq 0) {
+                Write-OK "LeanCTX merged (ctx_* tools + hooks). No API keys required."
+            } else {
+                Write-Warn2 "lean-ctx bootstrap returned exit $LASTEXITCODE -- run: lean-ctx doctor --fix"
+            }
+        } catch {
+            Write-Warn2 "lean-ctx bootstrap failed: $_"
+        }
+    }
 }
 
 # ── summary ───────────────────────────────────────────────────────────────────

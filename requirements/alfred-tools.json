@@ -172,6 +172,15 @@
         "purpose": "Primary coding engine for CODE routing: implement, refactor, test, and review repository work.",
         "loginRequired": true,
         "optional": false
+      },
+      {
+        "package": "lean-ctx-bin",
+        "command": "lean-ctx",
+        "description": "LeanCTX context compression layer",
+        "purpose": "Compress file reads and shell output, session memory, ctx_* MCP tools. Wired via lean-ctx bootstrap after Alfred MCP provision. No API keys required.",
+        "loginRequired": false,
+        "category": "CONTEXT",
+        "trust": "community"
       }
     ]
   },
@@ -287,6 +296,18 @@
         "destructive": false,
         "trust": "community",
         "storage": "data/analytics.duckdb"
+      },
+      {
+        "name": "lean-ctx",
+        "source": "npm",
+        "package": "lean-ctx-bin",
+        "command": "lean-ctx bootstrap",
+        "purpose": "Context OS — compress reads/shell output, session memory, 76 ctx_* MCP tools. Merged after Alfred MCPs via Provision-Cursor.ps1. No API keys.",
+        "category": "CONTEXT",
+        "destructive": false,
+        "trust": "community",
+        "install": "npm install -g lean-ctx-bin; lean-ctx bootstrap",
+        "notes": "Complements Alfred domain MCPs; does not replace Power BI / Excel / GitHub."
       },
       {
         "name": "ms365",

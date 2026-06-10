@@ -601,7 +601,7 @@ if ($hasEnv) {
 
 # ── Cursor + Claude Code provisioning (shared MCPs + skills) ──────────────────
 
-Write-Step "Provisioning MCP servers + skills for Cursor, Claude Code, and Codex..."
+Write-Step "Provisioning MCP servers + skills + LeanCTX for Cursor, Claude Code, and Codex..."
 
 $provisionScript = Join-Path $Root "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {

@@ -20,6 +20,7 @@ Goal: same outcome, fewer tokens — without cutting corners on correctness.
 
 | MCP | Token-saving use |
 |-----|------------------|
+| **LeanCTX** (`ctx_read`, `ctx_search`) | Map-mode reads, cached re-reads (~13 tok), compressed git/shell output — Alfred 2.0 default |
 | `sequential-thinking` | Decompose a hard task in structured steps *before* touching files — avoids wasted trial-and-error reads |
 | `memory` | Store stable facts (paths, conventions, TaskKey rules) once; stop re-discovering each session |
 | `filesystem` | Scoped file ops without pasting directory listings into chat |

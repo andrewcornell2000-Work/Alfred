@@ -37,6 +37,16 @@ via `claude mcp add` rather than being hard-installed globally.
 - **Trust:** official
 - **Destructive:** false
 
+### lean-ctx (Alfred 2.0)
+- **Source:** npm package `lean-ctx-bin` → local `lean-ctx` binary
+- **Install:** `npm install -g lean-ctx-bin` then `lean-ctx bootstrap` (runs automatically via `Provision-Cursor.ps1`)
+- **Purpose:** Context compression layer — `ctx_read`, `ctx_search`, session memory, compressed shell output
+- **Trust:** community (Apache 2.0, local-first)
+- **Destructive:** false (read/compress by default; some ctx_* tools can write memory)
+- **Requires:** No API keys or accounts for core use
+- **Skill:** `skills/lean-ctx.md`
+- **Note:** Merges into existing MCP configs after Alfred domain MCPs; does not replace them
+
 ### Web search (Tavily — not an MCP)
 - **Source:** Direct HTTP API from `backend/main.py` (not provisioned via `cursor/mcp.json`)
 - **Requires:** `TAVILY_API_KEY` in Alfred `.env`

@@ -13,6 +13,7 @@
 8. **ROUTING KEYWORDS** — small `TOOL_REGISTRY` edit when a new tool skill ships
 
 ## DONE
+- [x] Alfred 2.0 — LeanCTX integrated via `lean-ctx bootstrap` after Alfred MCP provision (no API keys)
 - [x] Full MCP catalog in `cursor/mcp.json` (13 servers) — provisions to Cursor + Claude + Codex
 - [x] brave-search and exa removed; Tavily is the web-search path
 - [x] Seed skills: `agent-token-efficiency.md`, `agent-reasoning.md`

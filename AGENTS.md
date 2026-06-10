@@ -41,3 +41,10 @@ Instructions for Codex, Claude Code, and other coding agents working in this rep
 ## Applies to
 
 Coding, refactoring, debugging, architecture decisions, UI/app design, and Alfred self-improvement tasks.
+
+<!-- lean-ctx -->
+## lean-ctx
+
+Prefer lean-ctx MCP tools over native equivalents for token savings.
+Full rules: @LEAN-CTX.md
+<!-- /lean-ctx -->
