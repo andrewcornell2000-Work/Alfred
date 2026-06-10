@@ -23,6 +23,7 @@ lean-ctx read path/to/file -m map      # API surface, ~13 tokens on re-read
 lean-ctx -c "git status"               # compressed shell output
 lean-ctx gain                          # show token savings
 lean-ctx doctor                        # verify wiring
+lean-ctx doctor --fix                  # repair MCP + hooks after Cursor/Alfred updates
 lean-ctx overview                      # project recap after a new chat
 ```
 
@@ -40,6 +41,17 @@ anonymous telemetry, auto-updates, external providers — all declined by defaul
 ## After install
 
 Restart Cursor, Claude Code, and Codex once. Then run `lean-ctx gain` after a coding session to see savings.
+
+## Cursor shows lean-ctx error
+
+Cursor does not support `autoApprove` in `~/.cursor/mcp.json` (lean-ctx bootstrap adds it). Fix:
+
+```powershell
+lean-ctx doctor --fix
+.\Provision-Cursor.ps1 -SkipClaude -SkipCodex   # strips autoApprove + fixes hook paths
+```
+
+Then fully restart Cursor.
 
 ## Disable temporarily
 

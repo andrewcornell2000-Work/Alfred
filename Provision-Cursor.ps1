@@ -388,6 +388,49 @@ if ($ProjectPath) {
     Write-Info "Rules are per-project. Re-run with -ProjectPath <repo> to seed Cursor rules + AGENTS.md."
 }
 
+function Repair-LeanCtxForCursor {
+    # lean-ctx bootstrap writes autoApprove into mcp.json; Cursor only allows
+    # command/args/env/envFile/url/headers — invalid fields break the MCP server.
+    if ($SkipCursor) { return }
+    $mcpPath = Join-Path $env:USERPROFILE ".cursor\mcp.json"
+    if (-not (Test-Path $mcpPath)) { return }
+    $leanCtxBin = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
+    if (-not $leanCtxBin) { $leanCtxBin = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
+    if (-not $leanCtxBin) {
+        Write-Warn2 "lean-ctx not on PATH -- skipping Cursor MCP repair"
+        return
+    }
+    $leanCtxBin = ($leanCtxBin -replace '\\', '/')
+
+    try {
+        $mcp = Get-Content $mcpPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $lc = $mcp.mcpServers.'lean-ctx'
+        if (-not $lc) { return }
+        if ($lc.PSObject.Properties.Name -contains 'autoApprove') {
+            $lc.PSObject.Properties.Remove('autoApprove')
+        }
+        $lc.command = $leanCtxBin
+        $mcp | ConvertTo-Json -Depth 30 | Set-Content $mcpPath -Encoding UTF8
+        Write-OK "Cursor lean-ctx: removed autoApprove, command -> $leanCtxBin"
+    } catch {
+        Write-Warn2 "Could not repair lean-ctx in mcp.json: $_"
+    }
+
+    $hooksPath = Join-Path $env:USERPROFILE ".cursor\hooks.json"
+    if (Test-Path $hooksPath) {
+        try {
+            $hooksRaw = Get-Content $hooksPath -Raw -Encoding UTF8
+            $fixed = $hooksRaw -replace '"command":\s*"lean-ctx', "`"command`": `"$leanCtxBin"
+            if ($fixed -ne $hooksRaw) {
+                Set-Content $hooksPath $fixed -Encoding UTF8 -NoNewline
+                Write-OK "Cursor hooks: lean-ctx uses absolute path (hooks run without user PATH)"
+            }
+        } catch {
+            Write-Warn2 "Could not repair hooks.json: $_"
+        }
+    }
+}
+
 # ── LeanCTX: context compression (merge-based — runs AFTER Alfred MCPs) ───────
 if (-not $SkipLeanCtx) {
     Write-Step "LeanCTX: wiring context compression into Cursor + Claude + Codex"
@@ -395,14 +438,18 @@ if (-not $SkipLeanCtx) {
         Write-Skip "lean-ctx not on PATH -- install lean-ctx-bin (npm-tools.txt), then re-run."
     } else {
         try {
+            & lean-ctx doctor --fix 2>&1 | ForEach-Object { if ("$_".Trim()) { Write-Info $_ } }
             & lean-ctx bootstrap 2>&1 | ForEach-Object { if ("$_".Trim()) { Write-Info $_ } }
             if ($LASTEXITCODE -eq 0) {
+                Repair-LeanCtxForCursor
                 Write-OK "LeanCTX merged (ctx_* tools + hooks). No API keys required."
             } else {
                 Write-Warn2 "lean-ctx bootstrap returned exit $LASTEXITCODE -- run: lean-ctx doctor --fix"
+                Repair-LeanCtxForCursor
             }
         } catch {
             Write-Warn2 "lean-ctx bootstrap failed: $_"
+            Repair-LeanCtxForCursor
         }
     }
 }
