@@ -254,11 +254,14 @@ def run():
     # It must NOT touch the finance/domain skills (cash flow, labour, Excel,
     # Power BI, data-*) — those are owned by Andrew, not the loop.
     DOMAIN_ROTATION = [
-        "NEW MCP TOOL: research one promising MCP server that would give Alfred a genuinely new "
-        "capability (browse the official modelcontextprotocol servers and well-regarded community ones). "
-        "Document it as a CANDIDATE following the 'Learning Mode: Adding MCP Tools' process in "
-        "requirements/mcp-tools.md — add the entry there AND to the mcp.tools array in "
-        "requirements/alfred-tools.json as a PLANNED tool.",
+        "NEW MCP TOOL: research one promising MCP server that gives Alfred a genuinely new capability "
+        "(official modelcontextprotocol servers or well-regarded community ones that launch via npx or uvx). "
+        "ADD it for real to the portable template cursor/mcp.json: an entry with command (npx or uvx), args, "
+        "and a \"_requiresCommand\" guard (npx or uvx) so it auto-skips on machines lacking that runtime. "
+        "If it needs a key, put \"${env:VAR}\" in env and list VAR under \"_requires\" — NEVER write the key itself. "
+        "Then write a short how-to skill in skills/ for it and add a one-line entry to requirements/mcp-tools.md. "
+        "Result: the tool becomes usable by Claude, Codex AND Cursor the next time Andrew provisions. "
+        "Do NOT duplicate a server already in cursor/mcp.json.",
         "TOOL SKILL: write a how-to skill for driving ONE tool Alfred already has (e.g. the GitHub MCP, "
         "Playwright MCP, Power BI MCP, Excel MCP, or the claude/codex CLI) — concrete commands, common "
         "workflows, gotchas, and when to reach for it. Skills go in skills/.",
@@ -331,12 +334,16 @@ QUALITY BAR (this is the whole point of the loop):
 - Tool how-to skills go in skills/, tool manifests in requirements/, memory updates in memory/.
 
 TOOLING MISSIONS (MCP / CLI) — extra rules:
-- DOCUMENT only. Add the tool to the manifests as a CANDIDATE/PLANNED entry. NEVER auto-install it,
-  never edit setup.ps1, and never claim it is installed — Andrew approves installs separately.
-- NEVER write an API key, token, or credential into any file.
-- If a tool is destructive (can write/delete/modify live data), say so in its entry and note it must be
-  added to the safety gate (DANGEROUS_KEYWORDS in backend/main.py) before it is ever allowed to dispatch.
-- Don't duplicate a tool that's already listed in requirements/ — extend or skip it instead.
+- MCP server: ADD it to the portable template cursor/mcp.json with a "_requiresCommand" guard (npx/uvx)
+  so it auto-skips where the runtime is absent. This is SAFE — it installs nothing on Andrew's machine;
+  it just makes the tool available the next time he provisions (which registers it for Claude + Codex + Cursor).
+  Also write a how-to skill in skills/.
+- CLI tool: document it in the right manifest (requirements/). Do NOT edit setup.ps1 — Andrew owns install policy.
+- NEVER write an API key, token, or credential into any file — use "${env:VAR}" in env + list it under "_requires".
+- Never say a tool is "installed on the machine". Say it is "added to the catalog, applied on next provision".
+- If a tool is destructive (can write/delete/modify live data), say so in its skill and note it must be added
+  to the safety gate (DANGEROUS_KEYWORDS in backend/main.py) before it is ever allowed to dispatch.
+- Don't duplicate a server already in cursor/mcp.json or a tool already in requirements/.
 
 Start immediately. Pick your mission and begin.
 """
