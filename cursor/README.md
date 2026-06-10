@@ -1,7 +1,10 @@
-# cursor/ — cross-tool provisioning source of truth
+# cursor/ — Alfred Pack provisioning source of truth
 
 Despite the folder name, this is **not Cursor-only**. `Provision-Cursor.ps1` (repo root) reads
 `cursor/mcp.json` and provisions **Cursor, Claude Code, and Codex** on a fresh machine.
+
+See [PACK.md](../PACK.md) for the full pack model. New tools land here via the **discovery loop**
+(`requirements/discovered-tools.md` → promote to `mcp.json` → re-provision).
 
 Runs automatically at the end of `setup.ps1` and `Alfred-Install.ps1`, or manually:
 

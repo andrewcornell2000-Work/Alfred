@@ -1,43 +1,42 @@
-# Active Projects
-*Growth loop backlog — CLI, MCP, and agent skills (token efficiency + reasoning).*
+# Active Projects — Alfred Pack discovery loop
 *Last updated: 2026-06-10*
 
-## LOOP MISSION TYPES (rotate daily)
-1. **NEW MCP** — must reduce tokens OR improve structured reasoning; add to `cursor/mcp.json` + skill
-2. **NEW CLI** — add to requirements manifests + how-to skill
-3. **MCP HOW-TO** — deepen an existing MCP skill with worked examples
-4. **CLI HOW-TO** — deepen gh/jq/pandoc/az/pbi/vd/claude/codex skill
-5. **TOKEN EFFICIENCY** — improve `agent-token-efficiency.md` or related agent-* skill
-6. **REASONING** — improve `agent-reasoning.md` or sequential-thinking guidance
-7. **CONSOLIDATE** — merge duplicate tool skills
-8. **ROUTING KEYWORDS** — small `TOOL_REGISTRY` edit when a new tool skill ships
+## What Alfred is now
+A **toolchain pack** — installs MCPs, skills, rules globally for Cursor + Claude + Codex.
+The **discovery loop** is the primary value: find tools Andrew wouldn't search for himself.
+
+## LOOP MISSIONS (rotate daily)
+1. **DISCOVER MCP** — finance/office angle; web search → ship or candidate
+2. **DISCOVER CLI** — day-to-day tools; ship or candidate
+3. **DISCOVER technique** — agent skill with "Try asking:" prompts
+4. **SHIP candidate** — promote from discovered-tools.md
+5. **MCP / CLI HOW-TO** — deepen with real Cursor prompts
+6. **CATALOG refresh** — curate discovered-tools.md
+7. **CONSOLIDATE** — merge duplicate skills
+
+## Every run must include
+- ≥2 `web_search` calls on DISCOVER missions
+- `write_file` with complete deliverable
+- `Try asking:` examples (in skill or discovered-tools.md)
+- `memory/learning-log.md` + `memory/discoveries.md` update
+- `send_email` to Andrew with plain-English dot points
+
+## Discovery targets (rotate)
+- SharePoint / Graph file access
+- PDF table extraction beyond markitdown
+- Outlook / calendar MCPs
+- Power BI Service REST via az
+- Parquet / CSV fast analytics
+- Clipboard / screenshot / OCR workflows
+- Scheduling / automation without admin
 
 ## DONE
-- [x] Alfred 2.0 — LeanCTX integrated via `lean-ctx bootstrap` after Alfred MCP provision (no API keys)
-- [x] Full MCP catalog in `cursor/mcp.json` (13 servers) — provisions to Cursor + Claude + Codex
-- [x] brave-search and exa removed; Tavily is the web-search path
-- [x] Seed skills: `agent-token-efficiency.md`, `agent-reasoning.md`
-- [x] Growth loop: must `write_file` before finishing; no analysis-only runs
-- [x] Cross-tool skill sync includes `~/.codex/skills`
-
-## MCP — deepen or add (token/reasoning angle)
-- [ ] markitdown how-to skill with example prompts (saves tokens vs pasting binary docs)
-- [ ] git MCP (`uvx mcp-server-git`) — structured diffs without dumping whole files
-- [ ] SharePoint / Graph MCP (needs Azure app — research only until key available)
-
-## CLI — deepen or add
-- [ ] Codex vs Claude routing skill — when each saves tokens
-- [ ] GitHub MCP skill — PR/issue workflows + gotchas
-- [ ] `jq` skill — parse API JSON without pasting raw responses into chat
-
-## AGENT SKILLS — token + reasoning
-- [ ] Expand `agent-token-efficiency.md` with Power BI / DAX-specific examples
-- [ ] Expand `agent-reasoning.md` with TaskKey / labour-planning reconciliation pattern
-- [ ] Skill: when to use `duckdb` MCP vs pandas vs Excel MCP
+- [x] Alfred reframed as Pack (PACK.md, README)
+- [x] discovered-tools.md catalog
+- [x] Loop preloads mcp.json + discovered catalog
+- [x] DISCOVER missions with mandatory web search
 
 ## NOTES
-- `cursor/mcp.json` is the portable template — safe to commit; installs nothing by itself
-- `Provision-Cursor.ps1` registers MCPs for **Cursor + Claude Code + Codex** and syncs skills to all three
-- `setup.ps1` / `Alfred-Install.exe` run provisioning automatically at end of install
-- Never write secrets — use `${env:VAR}` + `_requires` in the template
-- Finance/domain skills (cash-flow*, labour*, data-*, excel-financial*) are human-owned — loop must NOT edit them
+- Andrew works in Cursor — pack provisions globally; loop finds what to provision next
+- Never edit finance/domain skills in the loop
+- `Provision-Cursor.ps1` + `lean-ctx bootstrap` = install path

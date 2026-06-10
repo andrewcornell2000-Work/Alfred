@@ -1747,8 +1747,9 @@ def _show_startup_memory() -> None:
 def _show_header() -> None:
     console.print(
         Panel.fit(
-            "[bold cyan]Alfred[/bold cyan]  [dim]v2[/dim]\n"
-            "[dim]Your personal AI assistant — just talk to me naturally.[/dim]",
+            "[bold cyan]Alfred Pack[/bold cyan]  [dim]v2.1[/dim]\n"
+            "[dim]Toolchain installer + discovery loop. "
+            "Day-to-day work → Cursor / Claude / Codex.[/dim]",
             border_style="cyan",
             padding=(0, 2),
         )
@@ -1762,7 +1763,7 @@ def _show_menu() -> None:
     t.add_row("1", "Ask Alfred")
     t.add_row("2", "Control Tower")
     t.add_row("3", "View Skills")
-    t.add_row("4", "Platforms")
+    t.add_row("4", "Discovered Tools")
     t.add_row("5", "Dev Portal")
     t.add_row("6", "Plugins")
     t.add_row("7", "Publish Update")
@@ -2303,17 +2304,18 @@ def _show_chat_help() -> None:
     """Show contextual help inside the chat loop."""
     console.print()
     console.print(Markdown("""
-**Alfred — quick reference**
+**Alfred Pack — quick reference**
 
-Just talk naturally. Examples:
-- *"Find my wages report and check if Derrimut looks off this week"*
-- *"Fix the bug in backend/main.py where X crashes"*
-- *"What's the latest version of pandas?"*
-- *"Create a PowerPoint summary of last month's financials"*
+**Day-to-day:** work in **Cursor** (or Claude Code / Codex). MCPs, LeanCTX, and skills are already provisioned globally.
+
+**This CLI** is for pack maintenance — updates, health checks, and browsing what the discovery loop found.
 
 **Shortcuts:**
 | Command | What it does |
 |---------|-------------|
+| `/discover` | Tools the loop found that you wouldn't search for |
+| `/tower` | Control Tower — MCP + CLI health |
+| `/menu` | Full numbered menu |
 | `clip` | Process what's in your clipboard |
 | `paste` | Enter multi-line input |
 | `remember: ...` | Save a note to memory |
@@ -2321,7 +2323,7 @@ Just talk naturally. Examples:
 | `pbi connect` | Link to open Power BI file |
 
 **Slash commands:**
-`/tools` · `/memory` · `/skills` · `/status` · `/clear` · `/menu` · `/dev` · `/help`
+`/discover` · `/tower` · `/tools` · `/memory` · `/skills` · `/menu` · `/dev` · `/help`
 
 **Provider override:** *"use claude code: ..."* or type `auto` to reset.
     """))
@@ -2343,6 +2345,8 @@ def _handle_slash_command(cmd: str, _sticky_provider: "str | None" = None) -> No
         _action_view_skills()
     elif name in {"/status", "/tower"}:
         _action_control_tower()
+    elif name in {"/discover", "/discovered", "/new"}:
+        _action_discovered_tools()
     elif name in {"/clear", "/reset"}:
         _clear_history()
     elif name in {"/menu"}:
@@ -2402,9 +2406,9 @@ def _chat_loop() -> None:
     while remaining entirely optional — normal speech always works.
     """
     console.print(
-        "\n[dim]Just talk naturally. "
-        "Type [bold]/help[/bold] for tips · [bold]/tools[/bold] to see what I can do · "
-        "[bold]/menu[/bold] for the full menu.[/dim]\n"
+        "\n[dim]Pack control panel — for updates and discovery, not daily work. "
+        "Use [bold]Cursor[/bold] for real tasks (MCPs + skills already provisioned). "
+        "[bold]/discover[/bold] · [bold]/tower[/bold] · [bold]/menu[/bold] · [bold]/help[/bold][/dim]\n"
     )
 
     sticky_provider: "str | None" = None
@@ -2613,6 +2617,22 @@ def _action_view_memory() -> None:
             shown += 1
     if shown == 0:
         console.print("[dim]All memory files are empty.[/dim]")
+
+
+def _action_discovered_tools() -> None:
+    """Show tools MCPs found by the growth loop — prompts Andrew wouldn't think to search for."""
+    console.print(Rule("[bold cyan]Discovered Tools[/bold cyan]"))
+    catalog = os.path.join(os.path.dirname(__file__), "..", "requirements", "discovered-tools.md")
+    if not os.path.isfile(catalog):
+        console.print("[dim]No catalog yet — run the growth loop or pull latest from GitHub.[/dim]")
+        return
+    with open(catalog, "r", encoding="utf-8") as f:
+        content = f.read()
+    console.print(Markdown(content))
+    console.print(
+        "\n[dim]Re-run [bold]Provision-Cursor.ps1[/bold] or [bold]Alfred-Install.exe[/bold] "
+        "after pulling updates. Work in Cursor — paste any [bold]Try asking:[/bold] prompt.[/dim]"
+    )
 
 
 def _action_view_skills() -> None:
@@ -3322,7 +3342,7 @@ _ACTIONS = {
     "1": _action_ask_alfred,
     "2": _action_control_tower,
     "3": _action_view_skills,
-    "4": _action_platforms,
+    "4": _action_discovered_tools,
     "5": _action_dev_portal,
     "6": _action_plugins,
     "7": _action_publish_update,

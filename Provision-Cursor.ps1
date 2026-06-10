@@ -79,7 +79,7 @@ function Resolve-Secret([string]$name, [hashtable]$envMap) {
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Alfred -> Cursor + Claude Code + Codex provisioning" -ForegroundColor Cyan
+Write-Host "  Alfred Pack -> global provision (Cursor + Claude + Codex)" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 
 # If Cursor isn't installed, skip all Cursor steps (Claude Code is still configured).

@@ -1,8 +1,17 @@
-# Alfred 2.0 — AI Task Routing Orchestrator + LeanCTX
+# Alfred Pack 2.0
 
-Alfred is a Windows-first CLI operator for routing natural-language work to the cheapest capable AI provider.
-**Alfred 2.0** adds **LeanCTX** as a built-in context compression layer — domain MCPs (Power BI, Excel, GitHub)
-plus LeanCTX token governance across Cursor, Claude Code, and Codex. It classifies a request, chooses OpenAI Mini, Claude Code, Codex, or the Quant plugin, then either answers directly, generates a scoped execution prompt, or dispatches to the selected tool.
+**Alfred is a Windows toolchain pack** — not a chatbot you use every day.
+
+Run `Alfred-Install.exe` once and it wires your PC for AI work:
+
+- **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, LeanCTX, …)
+- **Skills + rules** → all three agents globally
+- **CLIs** → Claude, Codex, gh, pbi, jq, LeanCTX, …
+- **Discovery loop** → nightly search for new tools you wouldn't think to look for
+
+**Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
+
+**Alfred CLI** (`run-alfred.bat`) is for updates, health checks, and viewing discovered tools — see [PACK.md](PACK.md).
 
 ---
 
@@ -165,28 +174,26 @@ Or use Alfred menu option **9. Quant Dashboard**.
 
 ## Day-To-Day Use
 
-Double-click **`run-alfred.bat`**, or from a terminal:
+**Use Cursor** (or Claude Code / Codex) for real work. MCPs, LeanCTX, and skills are global.
+
+### Keep the pack current
 
 ```powershell
-.\run-alfred.bat
+# Re-run installer, or:
+.\run-alfred.bat          # checks git pull → setup → provision
 ```
 
-At the `Alfred >` prompt, describe your task. Type `back`, `menu`, or `exit` to return to the main menu.
-
-Useful menu options:
+### Alfred CLI menu (optional)
 
 | Option | Purpose |
 |---|---|
-| 1 | Ask Alfred |
-| 2 | Control Tower |
+| 2 | **Control Tower** — what's installed and ready on this machine |
 | 3 | View Skills |
-| 4 | Platforms |
-| 5 | Dev Portal / Learning Creator Mode |
-| 6 | Plugins |
+| 4 | **Discovered Tools** — things the loop found that you can try in Cursor |
+| 7 | Publish update to GitHub |
+| 1 | Ask Alfred (legacy chat — Cursor is better for daily work) |
 
-Control Tower is Alfred's first-class capability registry. It shows provider status, Office Mastery paths, configured MCP tools, planned MCP stack tools, destructive/read-only risk, and setup gaps.
-
-Use Dev Portal when you want to teach Alfred a new skill, routing rule, tool requirement, or self-improvement. Dev Portal discusses the proposed change first, asks for confirmation, then routes confirmed implementation work through Codex.
+New tools land in `requirements/discovered-tools.md` with **"Try asking:"** prompts. Re-provision after pulling updates.
 
 ## Office Mastery
 
@@ -206,35 +213,15 @@ Use `Control Tower` to see which capabilities are ready on the current machine.
 
 ---
 
-## Routing Summary
+## Discovery loop (why Alfred exists)
 
-Alfred classifies each request as one of:
+You can't find every useful MCP yourself. Alfred's GitHub Actions loop runs daily:
 
-| Category | Typical route |
-|---|---|
-| `GENERAL` | OpenAI Mini answers directly |
-| `POWERBI` | Claude Code scope + dispatch |
-| `CLAUDE_EXECUTION` | Codex or Claude Code based on keyword scoring |
-| `QUANT` | Quant plugin API |
+1. Searches for new MCPs, CLIs, and techniques (finance, office, Power BI, token efficiency)
+2. Ships catalog entries + skills with **"Try asking:"** examples
+3. Commits to this repo → you pull / re-run installer → `Provision-Cursor.ps1` wires everything globally
 
-Explicit provider override phrases are supported in the local working tree:
-
-```text
-use claude ...
-use claude code ...
-use codex ...
-with claude ...
-with claude code ...
-with codex ...
-via claude ...
-via claude code ...
-via codex ...
-ask claude ...
-ask claude code ...
-ask codex ...
-```
-
-Auto-dispatch is blocked for dangerous keywords such as `delete`, `remove`, `overwrite`, `credentials`, and `password`.
+See `requirements/discovered-tools.md` for the living catalog.
 
 ---
 

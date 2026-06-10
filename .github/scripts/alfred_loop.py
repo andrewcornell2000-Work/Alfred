@@ -247,42 +247,45 @@ def run():
     iteration_num = subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
     active_projects = read_file_safe("memory/active-projects.md")
     recent_log = read_file_safe("memory/learning-log.md", limit=800)
+    discovered = read_file_safe("requirements/discovered-tools.md", limit=2000)
+    mcp_catalog = read_file_safe("cursor/mcp.json", limit=2000)
     skills_list = ", ".join(sorted(os.listdir("skills"))) if os.path.exists("skills") else "none"
 
-    # Growth loop scope: CLI + MCP catalog + agent skills (token efficiency & reasoning).
-    # NEVER touch finance/domain skills (cash-flow*, labour*, working-capital*, excel-financial*,
-    # powerbi-*, powerquery-*, data-*). Those are human-owned.
+    # Alfred Pack growth loop: DISCOVER tools Andrew wouldn't find himself.
+    # Ship to manifests so Provision-Cursor.ps1 wires Cursor + Claude + Codex globally.
+    # NEVER edit finance/domain skills (cash-flow*, labour*, data-*, excel-financial*, powerbi-*, powerquery-*).
     DOMAIN_ROTATION = [
-        "NEW MCP: research one MCP (npx/uvx) that reduces token spend OR improves structured reasoning "
-        "(e.g. fetch vs browser, duckdb vs loading CSVs into chat, sequential-thinking, memory). "
-        "ADD it to cursor/mcp.json with _requiresCommand guards. Write a how-to skill. "
-        "Update requirements/mcp-tools.md. On next Provision-Tools.ps1 run it registers for Claude + Codex + Cursor. "
-        "Do NOT duplicate servers already in cursor/mcp.json.",
-        "NEW CLI: research one CLI that setup.ps1 can install without admin (pip, npm -g, winget user, portable zip). "
-        "Add to requirements/python-requirements.txt OR requirements/npm-tools.txt AND requirements/alfred-tools.json. "
-        "Write skills/<name>.md with concrete commands and when Alfred should route to it.",
-        "MCP HOW-TO: deepen one existing MCP skill (github, playwright, markitdown, filesystem, memory, "
-        "sequential-thinking, fetch, duckdb, excel, powerbi-model-editing) — worked example + token-saving tips.",
-        "CLI HOW-TO: deepen one CLI skill (gh, jq, pandoc, az, pbi, vd, in2csv, claude, codex) — "
-        "concrete commands, cost-aware routing notes, common gotchas.",
-        "TOKEN EFFICIENCY: improve skills/agent-token-efficiency.md OR write a new agent-* skill teaching "
-        "grep-before-read, partial file reads, parallel lookups, MCP-vs-bash choices. Must be actionable checklists.",
-        "REASONING: improve skills/agent-reasoning.md OR write agent-* guidance on decompose→verify→act, "
-        "when to use sequential-thinking MCP, and how good reasoning reduces total token spend.",
-        "CONSOLIDATE: merge two overlapping tool/agent skills into one stronger file; delete the weaker duplicate.",
-        "ROUTING KEYWORDS (light touch): if you added a tool skill this week, add matching keywords to "
-        "TOOL_REGISTRY in backend/main.py — one small focused edit only; do NOT grep the whole file without writing.",
+        "DISCOVER MCP (finance/office): run 2-3 web searches for MCP servers Andrew wouldn't think to "
+        "look for (SharePoint, PDF tables, scheduling, email, parquet, Azure, clipboard, OCR). "
+        "Read cursor/mcp.json below — do NOT duplicate. If installable (npx/uvx, no admin): ADD to "
+        "cursor/mcp.json + skill + mcp-tools.md. Else: append candidate to requirements/discovered-tools.md "
+        "with 3 'Try asking:' prompts. Update memory/discoveries.md.",
+        "DISCOVER CLI (day-to-day): search for CLIs that help finance/office work (CSV, xlsx, pdf, "
+        "markdown, calendar, api-json). Compare requirements/alfred-tools.json. If shippable: add to "
+        "npm/python manifest + alfred-tools.json + skill with 'Try asking:'. Else: discovered-tools.md candidate.",
+        "DISCOVER technique: search 'context engineering', 'MCP server', 'agent skill' patterns Andrew "
+        "doesn't know. Write or improve an agent-* skill with actionable checklist + 'Try asking:' examples. "
+        "Append to discovered-tools.md if it's a workflow not a tool.",
+        "SHIP discovered candidate: read requirements/discovered-tools.md for status=candidate entries. "
+        "Pick the best one, verify it still exists, and either promote to cursor/mcp.json + manifests OR "
+        "write a complete how-to skill. Mark status shipped in discovered-tools.md.",
+        "MCP HOW-TO: deepen one pack MCP skill — must add a real 'Try asking:' block Andrew can paste into Cursor.",
+        "CLI HOW-TO: deepen one pack CLI skill (gh, jq, pandoc, az, pbi, vd, lean-ctx) with day-to-day examples.",
+        "CATALOG refresh: read discovered-tools.md + cursor/mcp.json; fix stale entries, merge duplicates, "
+        "add missing 'Try asking:' lines to shipped tools. No new tools this run — curation only.",
+        "CONSOLIDATE: merge two overlapping tool skills; update discovered-tools.md to point at the survivor.",
     ]
     focus = DOMAIN_ROTATION[int(iteration_num) % len(DOMAIN_ROTATION)] if iteration_num.isdigit() else DOMAIN_ROTATION[0]
 
     system = (
-        "You are Alfred — autonomous growth loop in GitHub Actions (ubuntu-latest). "
-        "Your ONLY job: grow the CLI catalog, MCP catalog (cursor/mcp.json), and agent skills that "
-        "help Claude Code, Codex, and Cursor agents reason better and spend fewer tokens. "
+        "You are Alfred Pack's discovery engine — GitHub Actions (ubuntu-latest). "
+        "Andrew cannot find new MCPs and tools himself. YOU search the frontier, evaluate, and ship "
+        "catalog entries + skills so Provision-Cursor.ps1 wires them into Cursor, Claude Code, and Codex. "
+        "Every deliverable needs 'Try asking:' example prompts Andrew can paste into Cursor. "
         "Never edit finance/domain skills (cash-flow*, labour*, data-*, excel-financial*, powerbi-*, powerquery-*). "
         "Tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
-        "Every run MUST call write_file at least once with a complete deliverable. "
-        "Analysis-only runs are failures. Files auto-commit to https://github.com/andrewcornell2000-Work/Alfred"
+        "DISCOVER missions: at least 2 web_search calls before write_file. "
+        "Every run MUST call write_file at least once. Analysis-only runs are failures."
     )
 
     messages = [
@@ -301,6 +304,12 @@ Recent learning log (last entry):
 {recent_log}
 
 Existing skills: {skills_list}
+
+=== MCP CATALOG (do not duplicate) ===
+{mcp_catalog}
+
+=== DISCOVERED TOOLS CATALOG ===
+{discovered}
 
 === YOUR MISSION THIS ITERATION ===
 {focus}
@@ -321,14 +330,15 @@ This is your ONE run today. Don't rush and don't pad — go deep and ship a sing
 complete deliverable. Depth and correctness matter far more than covering extra ground.
 
 QUALITY BAR:
-- SCOPE: CLI catalog + MCP catalog + agent-* / tool how-to skills ONLY. No finance/domain skills.
-- Every deliverable must help agents reason better OR spend fewer tokens — state which in learning-log.md.
-- NEVER leave an empty or stub file. Improve agent-token-efficiency.md or agent-reasoning.md if stuck.
-- NO near-duplicates. One excellent skill beats three thin ones.
-- Be efficient — do not re-read files already shown above.
-- Skills → skills/ | MCP template → cursor/mcp.json | CLI → requirements/*.txt + alfred-tools.json
+- PRIMARY VALUE: Andrew discovers tools he didn't know existed. Every email must list 'Try asking:' prompts.
+- DISCOVER missions: minimum 2 web_search calls; cite what you searched in learning-log.md.
+- SCOPE: pack catalog only — no finance/domain skills.
+- Append shipped tools to requirements/discovered-tools.md (status: shipped).
+- Candidates go to discovered-tools.md (status: candidate) with install notes.
+- NEVER leave empty/stub files.
+- Skills → skills/ | MCP → cursor/mcp.json | CLI → requirements/*.txt + alfred-tools.json
 
-CROSS-TOOL PROVISIONING (Claude + Codex + Cursor — not Cursor-only):
+ALFRED PACK (global provision — Andrew's real workflow is Cursor):
 - cursor/mcp.json is the portable MCP template. Provision-Tools.ps1 (Provision-Cursor.ps1) registers
   servers into ~/.cursor/mcp.json, `claude mcp add --scope user`, AND `codex mcp add`.
 - Skills sync to ~/.cursor/skills, ~/.claude/skills, and ~/.codex/skills on provision.
