@@ -4,7 +4,7 @@ typer
 truststore
 excellm
 uv
-pbi-cli-tool
+pbi-cli-tool>=3.11.1
 winotify
 python-docx
 python-pptx

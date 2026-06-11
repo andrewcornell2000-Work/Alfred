@@ -12,11 +12,11 @@
       "anthropic",
       "pywin32",
       {
-        "package": "pbi-cli-tool",
+        "package": "pbi-cli-tool>=3.11.1",
         "command": "pbi",
         "description": "Power BI CLI for Claude Code",
         "purpose": "Connect pbi-cli to an open Power BI Desktop instance. Run 'pbi connect' with Desktop open, then use Power BI MCP for model editing.",
-        "postInstall": "pbi-cli skills install",
+        "postInstall": "pbi setup",
         "category": "POWERBI",
         "destructive": true,
         "trust": "community"

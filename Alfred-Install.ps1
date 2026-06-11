@@ -849,29 +849,26 @@ if ($mcpServers.ContainsKey("playwright")) {
 Write-Host ""
 Write-Host "  pbi-cli: Power BI visual editing..." -ForegroundColor Cyan
 
-# Find pbi-cli in venv (may be .exe or .cmd)
+# Always install/upgrade pbi-cli-tool to the required version (>=3.11.1), even if an
+# older copy already exists. pip handles its pre-release dependency (pythonnet==3.1.0rc0);
+# a bare `uv tool install` would silently fall back to 1.0.6 without `--prerelease allow`.
+Write-Host "  Installing/upgrading pbi-cli-tool (>=3.11.1) into venv..." -ForegroundColor Cyan
+Invoke-PipInstall @("--upgrade", "pbi-cli-tool>=3.11.1") 2>$null
+
+# 3.11.x installs both 'pbi' and 'pbi-cli' executables.
 $pbiCliExe = $null
-foreach ($candidate in @("pbi-cli.exe", "pbi-cli.cmd", "pbi-cli")) {
+foreach ($candidate in @("pbi.exe", "pbi-cli.exe", "pbi.cmd", "pbi-cli.cmd", "pbi", "pbi-cli")) {
     $path = Join-Path $InstallPath ".venv\Scripts\$candidate"
     if (Test-Path $path) { $pbiCliExe = $path; break }
 }
 
-if (-not $pbiCliExe) {
-    Write-Host "  Installing pbi-cli-tool into venv..." -ForegroundColor Cyan
-    Invoke-PipInstall @("pbi-cli-tool") 2>$null
-    foreach ($candidate in @("pbi-cli.exe", "pbi-cli.cmd", "pbi-cli")) {
-        $path = Join-Path $InstallPath ".venv\Scripts\$candidate"
-        if (Test-Path $path) { $pbiCliExe = $path; break }
-    }
-}
-
 if ($pbiCliExe) {
-    Write-Host "  Registering Power BI visual skills with Claude Code..." -ForegroundColor Cyan
-    & $pbiCliExe skills install 2>$null
+    Write-Host "  Verifying pbi-cli env + registering Power BI skills with Claude Code..." -ForegroundColor Cyan
+    & $pbiCliExe setup 2>$null   # 3.11.x: 'setup' verifies the env AND installs Claude Code skills (replaces 'skills install')
     if ($LASTEXITCODE -eq 0) {
-        Write-Done "pbi-cli ready — 13 Power BI skills registered with Claude Code."
+        Write-Done "pbi-cli 3.11+ ready — environment verified, Power BI skills registered with Claude Code."
     } else {
-        Write-Warn "pbi-cli skills install returned non-zero — skills may not have registered. Try: pbi-cli skills install"
+        Write-Warn "pbi-cli setup returned non-zero. Run manually: .venv\Scripts\pbi setup"
     }
     Write-Host ""
     Write-Host "  To enable visual editing:" -ForegroundColor DarkGray
