@@ -6,9 +6,11 @@
 .DESCRIPTION
     Reads cursor/mcp.json (a template with ${env:VAR} placeholders) and:
       * deep-merges the servers into ~/.cursor/mcp.json (Cursor, global, all projects),
-      * registers them with Claude Code at user scope (claude mcp add --scope user).
+      * registers them with Claude Code at user scope (claude mcp add --scope user),
+      * merges them into Claude Desktop (%APPDATA%\Claude\claude_desktop_config.json).
     Secrets are resolved from Alfred's .env (or machine environment). A server whose
     REQUIRED secret or command is missing is skipped with a clear message.
+    Tokens land in machine-local config files only — never committed to git.
 
     Skills: every skills/*.md is wrapped as alfred-<name>/SKILL.md and synced into
     ~/.cursor/skills and ~/.claude/skills (global in both tools).
@@ -23,6 +25,12 @@
     Skip Cursor (~/.cursor) provisioning.
 .PARAMETER SkipClaude
     Skip Claude Code (claude mcp / ~/.claude) provisioning.
+.PARAMETER SkipClaudeDesktop
+    Skip Claude Desktop app (%APPDATA%\Claude\claude_desktop_config.json).
+.PARAMETER SkipCodex
+    Skip Codex (codex mcp add) provisioning.
+.PARAMETER SkipLeanCtx
+    Skip lean-ctx bootstrap and Cursor lean-ctx repair.
 #>
 [CmdletBinding()]
 param(
@@ -47,6 +55,105 @@ function Write-Info([string]$m) { Write-Host "          $m" -ForegroundColor Dar
 function Write-TextNoBom([string]$path, [string]$text) {
     $enc = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($path, $text, $enc)
+}
+
+$script:ProvisionErrors = @()
+
+function Get-LeanCtxBinaryPath {
+    $bin = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
+    if (-not $bin) { $bin = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
+    if ($bin) { return ($bin -replace '\\', '/') }
+    return $null
+}
+
+function Invoke-McpCliAdd([string]$toolName, [string]$serverName, [string[]]$argList) {
+    $stderr = & $toolName @argList 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-OK "Registered '$serverName' ($toolName)."
+        return $true
+    }
+    $detail = ($stderr | Out-String).Trim()
+    if ($detail.Length -gt 300) { $detail = $detail.Substring(0, 300) + "..." }
+    $msg = "$toolName mcp add '$serverName' failed (exit $LASTEXITCODE): $detail"
+    $script:ProvisionErrors += $msg
+    Write-Warn2 $msg
+    return $false
+}
+
+function Repair-LeanCtxMcpFile([string]$mcpPath, [string]$label) {
+    if (-not (Test-Path $mcpPath)) { return }
+    $leanCtxBin = Get-LeanCtxBinaryPath
+    if (-not $leanCtxBin) {
+        Write-Warn2 "lean-ctx not on PATH -- skipping $label MCP repair"
+        return
+    }
+    try {
+        $mcp = Get-Content $mcpPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $lc = $mcp.mcpServers.'lean-ctx'
+        if (-not $lc) { return }
+        if ($lc.PSObject.Properties.Name -contains 'autoApprove') {
+            $lc.PSObject.Properties.Remove('autoApprove')
+        }
+        $lc.command = $leanCtxBin
+        if ($lc.PSObject.Properties.Name -contains 'type') {
+            $lc.PSObject.Properties.Remove('type')
+        }
+        $json = $mcp | ConvertTo-Json -Depth 30
+        Write-TextNoBom $mcpPath $json
+        Write-OK "$label lean-ctx: removed autoApprove, command -> $leanCtxBin"
+    } catch {
+        Write-Warn2 "Could not repair lean-ctx in ${label} mcp config: $_"
+    }
+}
+
+function Sync-LeanCtxToClaudeDesktop {
+    if ($SkipClaudeDesktop) { return }
+    $desktopPath = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
+    if (-not (Test-Path $desktopPath)) { return }
+    $leanCtxBin = Get-LeanCtxBinaryPath
+    if (-not $leanCtxBin) { return }
+
+    $leanEntry = [ordered]@{
+        command = $leanCtxBin
+        env     = [ordered]@{ LEAN_CTX_DATA_DIR = (Join-Path $HOME ".config\lean-ctx") }
+    }
+    $claudeJson = Join-Path $HOME ".claude.json"
+    if (Test-Path $claudeJson) {
+        try {
+            $cj = Get-Content $claudeJson -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($cj.mcpServers.'lean-ctx') {
+                $src = $cj.mcpServers.'lean-ctx'
+                if ($src.command) { $leanEntry.command = ($src.command -replace '\\', '/') }
+                if ($src.env) {
+                    $leanEntry.env = [ordered]@{}
+                    foreach ($ep in $src.env.PSObject.Properties) { $leanEntry.env[$ep.Name] = $ep.Value }
+                }
+            }
+        } catch {}
+    }
+
+    try {
+        $desktop = Get-Content $desktopPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $finalDesktop = [ordered]@{}
+        if ($desktop.mcpServers) {
+            foreach ($p in $desktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
+        }
+        $finalDesktop['lean-ctx'] = $leanEntry
+        if ($finalDesktop['lean-ctx'].PSObject.Properties.Name -contains 'autoApprove') {
+            $finalDesktop['lean-ctx'].PSObject.Properties.Remove('autoApprove')
+        }
+        $finalDesktop['lean-ctx'].command = $leanCtxBin
+
+        $desktopRoot = [ordered]@{}
+        foreach ($p in $desktop.PSObject.Properties) {
+            if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
+        }
+        $desktopRoot['mcpServers'] = $finalDesktop
+        Write-TextNoBom $desktopPath ($desktopRoot | ConvertTo-Json -Depth 30)
+        Write-OK "Claude Desktop: lean-ctx merged (no autoApprove)"
+    } catch {
+        Write-Warn2 "Could not merge lean-ctx into Claude Desktop: $_"
+    }
 }
 
 # ── .env loader (KEY=VALUE; comments/blank ignored) ───────────────────────────
@@ -284,13 +391,7 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
             $argList += '--'
             $argList += $srv.command
             $argList += $srv.args
-            try {
-                & claude @argList 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) { Write-OK "Registered '$name' (Claude Code, user scope)." }
-                else { Write-Warn2 "claude mcp add '$name' returned exit $LASTEXITCODE." }
-            } catch {
-                Write-Warn2 "claude mcp add '$name' failed: $_"
-            }
+            Invoke-McpCliAdd 'claude' $name $argList | Out-Null
         }
     }
 }
@@ -325,7 +426,7 @@ if (-not $SkipClaudeDesktop -and $managed.Count -gt 0) {
     foreach ($k in $managed.Keys) { $finalDesktop[$k] = $managed[$k] }
     $desktopRoot['mcpServers'] = $finalDesktop
 
-    $json = $desktopRoot | ConvertTo-Json -Depth 12
+    $json = $desktopRoot | ConvertTo-Json -Depth 30
     Write-TextNoBom $desktopPath $json
     Write-OK "Wrote $($managed.Count) managed server(s); $($finalDesktop.Count) total in $desktopPath"
     Write-Info "Restart the Claude Desktop app to see Connectors update."
@@ -346,13 +447,7 @@ if (-not $SkipCodex -and $managed.Count -gt 0) {
             $argList += '--'
             $argList += $srv.command
             $argList += $srv.args
-            try {
-                & codex @argList 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) { Write-OK "Registered '$name' (Codex, global)." }
-                else { Write-Warn2 "codex mcp add '$name' returned exit $LASTEXITCODE." }
-            } catch {
-                Write-Warn2 "codex mcp add '$name' failed: $_"
-            }
+            Invoke-McpCliAdd 'codex' $name $argList | Out-Null
         }
     }
 }
@@ -426,40 +521,19 @@ if ($ProjectPath) {
 }
 
 function Repair-LeanCtxForCursor {
-    # lean-ctx bootstrap writes autoApprove into mcp.json; Cursor only allows
-    # command/args/env/envFile/url/headers — invalid fields break the MCP server.
     if ($SkipCursor) { return }
     $mcpPath = Join-Path $env:USERPROFILE ".cursor\mcp.json"
-    if (-not (Test-Path $mcpPath)) { return }
-    $leanCtxBin = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
-    if (-not $leanCtxBin) { $leanCtxBin = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
-    if (-not $leanCtxBin) {
-        Write-Warn2 "lean-ctx not on PATH -- skipping Cursor MCP repair"
-        return
-    }
-    $leanCtxBin = ($leanCtxBin -replace '\\', '/')
+    Repair-LeanCtxMcpFile $mcpPath 'Cursor'
 
-    try {
-        $mcp = Get-Content $mcpPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $lc = $mcp.mcpServers.'lean-ctx'
-        if (-not $lc) { return }
-        if ($lc.PSObject.Properties.Name -contains 'autoApprove') {
-            $lc.PSObject.Properties.Remove('autoApprove')
-        }
-        $lc.command = $leanCtxBin
-        $mcp | ConvertTo-Json -Depth 30 | Set-Content $mcpPath -Encoding UTF8
-        Write-OK "Cursor lean-ctx: removed autoApprove, command -> $leanCtxBin"
-    } catch {
-        Write-Warn2 "Could not repair lean-ctx in mcp.json: $_"
-    }
-
+    $leanCtxBin = Get-LeanCtxBinaryPath
+    if (-not $leanCtxBin) { return }
     $hooksPath = Join-Path $env:USERPROFILE ".cursor\hooks.json"
     if (Test-Path $hooksPath) {
         try {
             $hooksRaw = Get-Content $hooksPath -Raw -Encoding UTF8
             $fixed = $hooksRaw -replace '"command":\s*"lean-ctx', "`"command`": `"$leanCtxBin"
             if ($fixed -ne $hooksRaw) {
-                Set-Content $hooksPath $fixed -Encoding UTF8 -NoNewline
+                Write-TextNoBom $hooksPath $fixed
                 Write-OK "Cursor hooks: lean-ctx uses absolute path (hooks run without user PATH)"
             }
         } catch {
@@ -479,14 +553,17 @@ if (-not $SkipLeanCtx) {
             & lean-ctx bootstrap 2>&1 | ForEach-Object { if ("$_".Trim()) { Write-Info $_ } }
             if ($LASTEXITCODE -eq 0) {
                 Repair-LeanCtxForCursor
+                Sync-LeanCtxToClaudeDesktop
                 Write-OK "LeanCTX merged (ctx_* tools + hooks). No API keys required."
             } else {
                 Write-Warn2 "lean-ctx bootstrap returned exit $LASTEXITCODE -- run: lean-ctx doctor --fix"
                 Repair-LeanCtxForCursor
+                Sync-LeanCtxToClaudeDesktop
             }
         } catch {
             Write-Warn2 "lean-ctx bootstrap failed: $_"
             Repair-LeanCtxForCursor
+            Sync-LeanCtxToClaudeDesktop
         }
     }
 }
@@ -497,6 +574,15 @@ if ($skippedServers.Count -gt 0) {
     foreach ($s in $skippedServers) { Write-Info "- $s" }
 }
 
+if ($script:ProvisionErrors.Count -gt 0) {
+    Write-Host ""
+    Write-Warn2 "Provisioning finished with $($script:ProvisionErrors.Count) MCP registration error(s):"
+    foreach ($e in $script:ProvisionErrors) { Write-Info "- $e" }
+}
+
 Write-Host ""
-Write-Host "Provisioning complete. Restart Cursor, Claude Code, and/or Codex to pick up MCP servers + skills." -ForegroundColor Green
+Write-Host "Provisioning complete. Restart Cursor, Claude Desktop, Claude Code, and/or Codex." -ForegroundColor Green
+Write-Info "MCP tokens are machine-local only — rotate keys in Alfred .env if configs are ever shared."
 Write-Host ""
+
+if ($script:ProvisionErrors.Count -gt 0) { exit 1 }

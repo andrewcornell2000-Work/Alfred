@@ -41,7 +41,17 @@ jobs:
         run: |
           git config user.name "Alfred"
           git config user.email "alfredTCP2000@gmail.com"
-          git add -A
+          # Stage only pack-safe paths — never git add -A (secrets/backend surprises).
+          ALLOW_RE='^(memory/|skills/|requirements/|cursor/|PACK\.md|README\.md|ALFRED_LOOP_PROMPT\.md)'
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            path="${line:3}"
+            if echo "$path" | grep -qE "$ALLOW_RE"; then
+              git add -- "$path"
+            else
+              echo "Skipping path outside allowlist: $path"
+            fi
+          done < <(git status --porcelain)
           git diff --staged --quiet && echo "Nothing to commit" || \
             git commit -m "Alfred loop: autonomous improvement [$(date -u '+%Y-%m-%d %H:%M UTC')]"
           git pull --rebase origin main

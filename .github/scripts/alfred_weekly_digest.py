@@ -8,18 +8,23 @@ import os
 import re
 import sys
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from email_utils import send_alfred_email
 
 DAYS = 7
+AEST = ZoneInfo("Australia/Sydney")
 
 
 def _run_git(*args: str) -> str:
     result = subprocess.run(
         ["git", *args], capture_output=True, text=True, timeout=60
     )
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "unknown error").strip()
+        raise RuntimeError(f"git {' '.join(args)} failed (exit {result.returncode}): {err[:300]}")
     return (result.stdout or "").strip()
 
 
@@ -70,7 +75,10 @@ def _parse_learning_log(since_date) -> list[dict]:
             continue
         if entry_date < since_date:
             continue
-        title_match = re.search(r"## \d{4}-\d{2}-\d{2}[^\n—]*—\s*(.+)", match.group(0))
+        title_match = re.search(
+            r"## \d{4}-\d{2}-\d{2}[^\n]*?(?:—|-|:)\s*(.+)",
+            match.group(0),
+        )
         title = title_match.group(1).strip() if title_match else "Update"
         summary = ""
         sm = re.search(r"\*\*Change summary:\*\*\s*\n(.*?)(?=\n\*\*|\n---|\Z)", block, re.DOTALL)
@@ -106,19 +114,25 @@ def _parse_discovered_tools(since_date) -> list[dict]:
         if not name or name.startswith("|"):
             continue
 
-        date_match = re.search(r"\*\*Discovered:\*\*\s*(\d{4}-\d{2}-\d{2})", block)
-        if not date_match:
-            continue
-        try:
-            discovered = datetime.strptime(date_match.group(1), "%Y-%m-%d").date()
-        except ValueError:
-            continue
-        if discovered < since_date:
-            continue
-
         def _field(label: str) -> str:
             m = re.search(rf"\*\*{re.escape(label)}:\*\*\s*(.+)", block)
             return m.group(1).strip() if m else ""
+
+        status = _field("Status").lower()
+        date_match = re.search(r"\*\*Discovered:\*\*\s*(\d{4}-\d{2}-\d{2})", block)
+        if date_match:
+            try:
+                discovered = datetime.strptime(date_match.group(1), "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            if discovered < since_date:
+                continue
+            discovered_str = date_match.group(1)
+        elif "shipped" in status or "candidate" in status:
+            # Undated loop entries still ship — include if marked shipped/candidate
+            discovered_str = "recent"
+        else:
+            continue
 
         entries.append({
             "name": name,
@@ -126,7 +140,7 @@ def _parse_discovered_tools(since_date) -> list[dict]:
             "what": _field("What it does"),
             "try_asking": _field("Try asking").strip('"').strip("'"),
             "status": _field("Status"),
-            "date": date_match.group(1),
+            "date": discovered_str,
         })
     return entries
 
@@ -151,7 +165,7 @@ def _parse_active_focus() -> list[str]:
 
 
 def build_digest() -> tuple[str, str]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(AEST)
     since = (now - timedelta(days=DAYS)).date()
     since_iso = since.isoformat()
     week_end = now.strftime("%d %b %Y")
@@ -168,11 +182,11 @@ def build_digest() -> tuple[str, str]:
         if ln.strip().endswith(".md") and "skills/" in ln
     })
 
-    subject = f"Alfred weekly digest — week ending {week_end}"
+    subject = f"Alfred weekly digest — week ending {week_end} (AEST)"
 
     lines = [
         f"Hi Andrew,\n",
-        f"Your Alfred Pack weekly roundup ({since.isoformat()} → {week_end}).\n",
+        f"Your Alfred Pack weekly roundup ({since.isoformat()} → {week_end} AEST).\n",
         "WHAT TO DO",
         "- Pull latest: git pull in %USERPROFILE%\\Alfred (or re-run Alfred-Install.exe)",
         "- Work in Cursor — paste any Try asking prompt below\n",

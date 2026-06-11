@@ -8,6 +8,7 @@ import anthropic
 import os
 import sys
 import json
+import shlex
 import subprocess
 import requests
 from datetime import datetime
@@ -90,11 +91,11 @@ TOOLS = [
     },
     {
         "name": "run_command",
-        "description": "Run a shell command (git log, python, etc). Ubuntu environment.",
+        "description": "Run a read-only git command. Only git log, rev-list, status, diff, and show are allowed.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "command": {"type": "string", "description": "Shell command"}
+                "command": {"type": "string", "description": "Read-only git command, e.g. 'git log --oneline -5'"}
             },
             "required": ["command"]
         }
@@ -163,9 +164,22 @@ def handle_tool(name, inp):
             return r.text[:3000]
 
         elif name == "run_command":
+            allowed_git = {"log", "rev-list", "status", "diff", "show"}
+            try:
+                parts = shlex.split(inp["command"].strip())
+            except ValueError as e:
+                return f"Command parse error: {e}"
+            if len(parts) < 2 or parts[0] != "git" or parts[1] not in allowed_git:
+                return (
+                    "Rejected — only read-only git commands are allowed: "
+                    + ", ".join(sorted(allowed_git))
+                )
             result = subprocess.run(
-                inp["command"], shell=True, capture_output=True, text=True, timeout=60
+                parts, capture_output=True, text=True, timeout=60, shell=False
             )
+            if result.returncode != 0:
+                err = (result.stderr or result.stdout or "unknown error").strip()
+                return f"git failed (exit {result.returncode}): {err[:500]}"
             out = result.stdout
             if result.stderr:
                 out += f"\n[stderr]: {result.stderr[:500]}"
@@ -412,7 +426,7 @@ Start immediately. Pick your mission and begin.
         if p.startswith(".github"):
             continue
         if p.endswith(".md") and os.path.exists(p) and os.path.getsize(p) < 50:
-            os.remove(p)  # `git add -A` in the workflow will stage the removal
+            os.remove(p)  # workflow allowlist will stage the deletion on next commit
             print(f"[QualityGate] Removed empty/stub file: {p}")
             continue
         substantive.append(p)
