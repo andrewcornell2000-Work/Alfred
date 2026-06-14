@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Provision MCP servers, skills, and (optionally) rules into Cursor, Claude Code,

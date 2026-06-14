@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     One-file Alfred bootstrapper. Download and run — no admin required if tools already exist.

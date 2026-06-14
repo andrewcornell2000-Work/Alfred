@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Checks whether the local Alfred repo is behind origin/main and offers to pull.

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Smoke test for cursor/mcp.json — no MCP health checks, no secrets written.
