@@ -31,7 +31,7 @@ Provision-Cursor.ps1     → ~/.cursor/mcp.json
                          → claude mcp add --scope user
                          → codex mcp add
                          → ~/.cursor/skills + ~/.claude/skills + ~/.codex/skills
-                         → lean-ctx bootstrap (merge, not replace)
+                         → lean-ctx onboard (merge, not replace)
 ```
 
 ## Discovery loop (the real value)

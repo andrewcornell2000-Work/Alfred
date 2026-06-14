@@ -40,4 +40,4 @@ The **discovery loop** is the primary value: find tools Andrew wouldn't search f
 ## NOTES
 - Andrew works in Cursor — pack provisions globally; loop finds what to provision next
 - Never edit finance/domain skills in the loop
-- `Provision-Cursor.ps1` + `lean-ctx bootstrap` = install path
+- `Provision-Cursor.ps1` + `lean-ctx onboard` = install path

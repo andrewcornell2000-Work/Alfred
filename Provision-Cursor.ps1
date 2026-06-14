@@ -30,7 +30,7 @@
 .PARAMETER SkipCodex
     Skip Codex (codex mcp add) provisioning.
 .PARAMETER SkipLeanCtx
-    Skip lean-ctx bootstrap and Cursor lean-ctx repair.
+    Skip lean-ctx onboard and Cursor lean-ctx repair.
 #>
 [CmdletBinding()]
 param(
@@ -543,25 +543,61 @@ function Repair-LeanCtxForCursor {
 }
 
 # ── LeanCTX: context compression (merge-based — runs AFTER Alfred MCPs) ───────
+# Runs lean-ctx with stdin closed and a hard timeout so it can NEVER block the
+# install on an interactive prompt. Returns $true only on a clean exit 0.
+function Invoke-LeanCtxGuarded([string]$Arguments, [int]$TimeoutSec = 120) {
+    $exe = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
+    if (-not $exe) { $exe = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
+    if (-not $exe) { return $false }
+    $inF  = Join-Path $env:TEMP "leanctx_empty.in"
+    $outF = Join-Path $env:TEMP "leanctx_$PID.out"
+    $errF = Join-Path $env:TEMP "leanctx_$PID.err"
+    New-Item -ItemType File -Path $inF -Force | Out-Null
+    try {
+        $p = Start-Process -FilePath $exe -ArgumentList $Arguments -NoNewWindow -PassThru `
+             -RedirectStandardInput $inF -RedirectStandardOutput $outF -RedirectStandardError $errF
+    } catch {
+        Write-Warn2 "Could not start lean-ctx: $_"
+        return $false
+    }
+    if (-not $p.WaitForExit($TimeoutSec * 1000)) {
+        Write-Warn2 "lean-ctx $Arguments exceeded ${TimeoutSec}s -- killing and skipping (install continues)."
+        & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+        return $false
+    }
+    # onboard returns a non-zero "already connected" code on idempotent re-runs even
+    # though it succeeded, so treat a clear success marker in the output as success too.
+    $connected = $false
+    foreach ($f in @($outF, $errF)) {
+        if (Test-Path $f) {
+            $raw = Get-Content $f -Raw
+            if ($raw -match 'is connected|init complete|already configured') { $connected = $true }
+            ($raw -split "`r?`n") | Where-Object { $_.Trim() } | ForEach-Object { Write-Info $_ }
+        }
+    }
+    return (($p.ExitCode -eq 0) -or $connected)
+}
+
 if (-not $SkipLeanCtx) {
     Write-Step "LeanCTX: wiring context compression into Cursor + Claude + Codex"
     if (-not (Get-Command lean-ctx -ErrorAction SilentlyContinue)) {
         Write-Skip "lean-ctx not on PATH -- install lean-ctx-bin (npm-tools.txt), then re-run."
     } else {
         try {
-            & lean-ctx doctor --fix 2>&1 | ForEach-Object { if ("$_".Trim()) { Write-Info $_ } }
-            & lean-ctx bootstrap 2>&1 | ForEach-Object { if ("$_".Trim()) { Write-Info $_ } }
-            if ($LASTEXITCODE -eq 0) {
-                Repair-LeanCtxForCursor
-                Sync-LeanCtxToClaudeDesktop
-                Write-OK "LeanCTX merged (ctx_* tools + hooks). No API keys required."
+            # lean-ctx 3.7.x: 'onboard' connects all detected AI tools with recommended
+            # defaults. The old 'bootstrap' verb was REMOVED and now blocks on a stdin
+            # prompt (hangs the installer), so we run 'onboard' stdin-closed under a hard
+            # timeout via Invoke-LeanCtxGuarded -- it can never stall provisioning.
+            $leanOk = Invoke-LeanCtxGuarded -Arguments 'onboard' -TimeoutSec 120
+            Repair-LeanCtxForCursor
+            Sync-LeanCtxToClaudeDesktop
+            if ($leanOk) {
+                Write-OK "LeanCTX connected (ctx_* tools + hooks). No API keys required."
             } else {
-                Write-Warn2 "lean-ctx bootstrap returned exit $LASTEXITCODE -- run: lean-ctx doctor --fix"
-                Repair-LeanCtxForCursor
-                Sync-LeanCtxToClaudeDesktop
+                Write-Warn2 "lean-ctx onboard did not finish cleanly -- run 'lean-ctx onboard' manually later. Install continues."
             }
         } catch {
-            Write-Warn2 "lean-ctx bootstrap failed: $_"
+            Write-Warn2 "lean-ctx onboard failed: $_ -- install continues."
             Repair-LeanCtxForCursor
             Sync-LeanCtxToClaudeDesktop
         }

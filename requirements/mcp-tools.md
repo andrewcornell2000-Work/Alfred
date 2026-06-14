@@ -39,7 +39,7 @@ via `claude mcp add` rather than being hard-installed globally.
 
 ### lean-ctx (Alfred 2.0)
 - **Source:** npm package `lean-ctx-bin` → local `lean-ctx` binary
-- **Install:** `npm install -g lean-ctx-bin` then `lean-ctx bootstrap` (runs automatically via `Provision-Cursor.ps1`)
+- **Install:** `npm install -g lean-ctx-bin` then `lean-ctx onboard` (runs automatically via `Provision-Cursor.ps1`)
 - **Purpose:** Context compression layer — `ctx_read`, `ctx_search`, session memory, compressed shell output
 - **Trust:** community (Apache 2.0, local-first)
 - **Destructive:** false (read/compress by default; some ctx_* tools can write memory)

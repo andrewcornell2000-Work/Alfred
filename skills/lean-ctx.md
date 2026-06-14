@@ -33,7 +33,7 @@ Installed automatically by `Alfred-Install.exe` / `setup.ps1`:
 
 1. `npm install -g lean-ctx-bin`
 2. Alfred provisions domain MCPs first (`Provision-Cursor.ps1`)
-3. `lean-ctx bootstrap` merges LeanCTX into Cursor + Claude + Codex configs
+3. `lean-ctx onboard` merges LeanCTX into Cursor + Claude + Codex configs
 
 **No API keys or accounts required** for core use. Optional opt-ins during setup:
 anonymous telemetry, auto-updates, external providers — all declined by default in Alfred's bootstrap path.
@@ -44,7 +44,7 @@ Restart Cursor, Claude Code, and Codex once. Then run `lean-ctx gain` after a co
 
 ## Cursor shows lean-ctx error
 
-Cursor does not support `autoApprove` in `~/.cursor/mcp.json` (lean-ctx bootstrap adds it). Fix:
+Cursor does not support `autoApprove` in `~/.cursor/mcp.json` (lean-ctx onboard adds it). Fix:
 
 ```powershell
 lean-ctx doctor --fix

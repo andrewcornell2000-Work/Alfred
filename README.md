@@ -51,7 +51,7 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
    - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
    - Print login instructions for Claude and Codex
    - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
-   - Run `lean-ctx bootstrap` — merges LeanCTX context compression (no API keys required)
+   - Run `lean-ctx onboard` — merges LeanCTX context compression (no API keys required)
    - Launch Alfred only when the required local toolchain is ready
 
 4. **Log in once**
