@@ -93,6 +93,19 @@
       "_requires": [],
       "_requiresCommand": "uvx",
       "_note": "DuckDB MCP (PyPI). Fast SQL on CSV, Excel exports, and Parquet files."
+    },
+    "codegraph": {
+      "command": "codegraph",
+      "args": ["serve", "--mcp"],
+      "_requires": [],
+      "_requiresCommand": "codegraph",
+      "_note": "CodeGraph (colbymchenry/codegraph) - local, pre-indexed code knowledge graph for coding agents (explore/node/search/callers). 100% local, no key. Installed globally via npm-tools.txt; run 'codegraph init' in a repo to index it. Auto-skipped if the codegraph CLI is not on PATH."
+    },
+    "excel-mcp": {
+      "command": "${repoRoot}\\bin\\excel-mcp\\mcp-excel.exe",
+      "args": [],
+      "_requires": [],
+      "_note": "ExcelMcp (sbroenne/mcp-server-excel) - .NET Excel COM automation: 230 operations incl. Power Query, DAX, VBA, PivotTables, charts. Separate from the live 'excel' (excellm) MCP. Windows + Excel required; close open workbooks before use (needs exclusive access). Self-contained exe downloaded by setup.ps1 to Alfred\\bin\\excel-mcp\\. Auto-skipped if the exe is not present."
     }
   }
 }

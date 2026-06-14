@@ -181,6 +181,15 @@
         "loginRequired": false,
         "category": "CONTEXT",
         "trust": "community"
+      },
+      {
+        "package": "@colbymchenry/codegraph",
+        "command": "codegraph",
+        "description": "CodeGraph - local code knowledge graph (CLI + MCP)",
+        "purpose": "Pre-indexed code knowledge graph for coding agents - explore, node, search, callers across 20+ languages. 100% local (SQLite), no API key. Installed globally via npm; also registered as the 'codegraph' MCP. Run 'codegraph init' in a repo to index it.",
+        "loginRequired": false,
+        "category": "CODE",
+        "trust": "community"
       }
     ]
   },
@@ -333,6 +342,30 @@
         "trust": "official",
         "status": "planned",
         "notes": "Useful when targeting a specific repo. Bash git is already pre-approved as fallback."
+      },
+      {
+        "name": "codegraph",
+        "source": "npm",
+        "package": "@colbymchenry/codegraph",
+        "command": "codegraph serve --mcp",
+        "purpose": "Local code knowledge graph for coding agents - explore, node, search, callers across 20+ languages. 100% local (SQLite), no key.",
+        "category": "CODE",
+        "destructive": false,
+        "trust": "community",
+        "install": "npm i -g @colbymchenry/codegraph (via npm-tools.txt); run 'codegraph init' per repo",
+        "notes": "Registered for Cursor + Claude + Codex via cursor/mcp.json. Auto-skipped if the codegraph CLI is not on PATH."
+      },
+      {
+        "name": "excel-mcp",
+        "source": "github-release",
+        "package": "sbroenne/mcp-server-excel",
+        "command": "Alfred\\bin\\excel-mcp\\mcp-excel.exe",
+        "purpose": "Excel COM automation - 230 operations incl. Power Query, DAX, VBA, PivotTables, charts. Complements the live 'excel' (excellm) MCP.",
+        "category": "OFFICE",
+        "destructive": true,
+        "trust": "community",
+        "install": "Self-contained .exe downloaded by setup.ps1 from the latest ExcelMcp-MCP-Server-*-windows.zip release (no admin, no .NET runtime)",
+        "notes": "Windows + Excel required; close open workbooks before use (exclusive access). Separate name from 'excel' so both can coexist. Auto-skipped if the exe is not present."
       }
     ]
   }
