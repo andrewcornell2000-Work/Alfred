@@ -341,7 +341,7 @@ ALFRED PACK (global provision — Andrew's real workflow is Cursor):
 MCP / CLI rules:
 - MCP: add to cursor/mcp.json with _requiresCommand guards; how-to skill required.
 - CLI: add to requirements manifests; setup.ps1 picks up python/npm lists automatically.
-- NEVER write API keys — use "${env:VAR}" + "_requires".
+- NEVER write API keys — use "${{env:VAR}}" + "_requires".
 - Destructive tools: note in skill + DANGEROUS_KEYWORDS gate in backend/main.py.
 - Do NOT duplicate existing catalog entries.
 
