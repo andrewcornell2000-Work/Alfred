@@ -25,11 +25,12 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 |------|------------|
 | LeanCTX | "Read `backend/main.py` in map mode — don't dump the whole file" |
 | Power BI MCP | "Add a measure for labour cost per FTE in the open Desktop model" |
-| Excel MCP | "Update the pivot on the open wages workbook" |
+| Excel (excellm) | "Update the pivot on the **open** wages workbook" |
+| Excel-mcp | "Inspect Power Query steps in the **closed** billing template xlsm" |
 | duckdb MCP | "Run SQL on last week's CSV export without opening Excel" |
-| sqlite MCP | "Create a table from this wages CSV and show top 10 sites by hours" |
 | markitdown MCP | "Convert this PDF brief to markdown so we can work from text" |
 | filesystem MCP | "List xlsx files in the finance folder modified this week" |
+| context7 MCP | "What's the current DAX syntax for SELECTCOLUMNS in Power BI?" |
 | GitHub MCP | "Open a PR for the DLP schema change" |
 | pbi CLI | "Add a matrix visual to the open PBIR report" |
 | Tavily (Alfred) | "What's the latest Power BI incremental refresh guidance?" |
@@ -47,8 +48,8 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **What it does:** A structured discipline for deciding what information goes into an agent's context window, in what order, and how to compress and manage it over long sessions — the layer above prompt engineering.
 - **Try asking:** "Use LeanCTX map mode on the backend folder, then pick the 3 files relevant to this change — don't open anything else yet"
 - **Try asking:** "Summarise what we've confirmed so far in 3 bullets so we can compress the context, then continue with step 4"
-- **Try asking:** "Store the TaskKey format convention we just confirmed in the memory MCP so I don't have to explain it next session"
-- **Try asking:** "Run sequential-thinking on this refactor before touching any file — give me a numbered plan to approve"
+- **Try asking:** "Store the TaskKey format convention we just confirmed in LeanCTX memory so I don't have to explain it next session"
+- **Try asking:** "Before editing files, outline a numbered plan in chat — don't use a planning MCP"
 - **Try asking:** "I'm handing this to Codex — write a clean handoff summary to SCRATCH.md covering what's been decided and what files to touch"
 - **Install:** Skill file — available in Cursor/Claude/Codex after next provision
 - **Status:** shipped

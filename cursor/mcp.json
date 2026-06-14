@@ -1,5 +1,12 @@
 {
   "$comment": "Alfred -> Cursor/Claude MCP source of truth. Template only: ${env:VAR} placeholders are resolved from Alfred's .env (or machine env) by Provision-Cursor.ps1. Path tokens (${repoRoot}, ${financeDir}, etc.) are resolved at provision time. Keys starting with _ are metadata used by the provisioner and are stripped before anything is written. NEVER put real tokens in this file.",
+  "_retiredServers": [
+    "sequential-thinking",
+    "memory",
+    "time",
+    "codegraph",
+    "sqlite"
+  ],
   "mcpServers": {
     "powerbi-modeling-mcp": {
       "command": "${powerBiMcp}",
@@ -11,7 +18,13 @@
       "command": "${repoRoot}\\.venv\\Scripts\\python.exe",
       "args": ["-m", "excellm"],
       "_requires": [],
-      "_note": "Read/write live open Excel workbooks. Auto-skipped if Alfred venv python or excellm is missing."
+      "_note": "Read/write live OPEN Excel workbooks only. Do NOT use with excel-mcp (opposite access model). Auto-skipped if Alfred venv python or excellm is missing."
+    },
+    "excel-mcp": {
+      "command": "${repoRoot}\\bin\\excel-mcp\\mcp-excel.exe",
+      "args": [],
+      "_requires": [],
+      "_note": "ExcelMcp — CLOSED workbook / exclusive COM only. Complements live 'excel' (excellm). Never alternate mid-task. Auto-skipped if exe missing."
     },
     "github": {
       "command": "npx",
@@ -33,79 +46,38 @@
       "env": { "CONTEXT7_API_KEY": "${env:CONTEXT7_API_KEY}" },
       "_requires": [],
       "_optionalEnv": ["CONTEXT7_API_KEY"],
-      "_note": "Up-to-date, version-specific library docs injected into context. Works without a key; a key raises rate limits."
+      "_note": "Library/SDK docs only — prefer over fetch/Tavily for API syntax. Do NOT use for repo code or general web search."
     },
     "markitdown": {
       "command": "uvx",
       "args": ["markitdown-mcp"],
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "Microsoft MarkItDown - converts PDF, Office docs, images, audio, HTML and more to clean Markdown. Auto-skipped if uvx is not on PATH."
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-      "_requires": [],
-      "_note": "Structured multi-step reasoning for complex Power BI, Office, and PC operator tasks."
-    },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"],
-      "env": { "MEMORY_FILE_PATH": "${memoryDir}\\mcp-knowledge-graph.json" },
-      "_requires": [],
-      "_note": "Persistent knowledge graph for entities, relationships, and facts across sessions."
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "${financeDir}",
-        "${repoRoot}"
-      ],
-      "_requires": [],
-      "_note": "Scoped read/write file access for the finance OneDrive folder and Alfred project."
+      "_note": "Local file URI conversion (PDF, Office, images). Do NOT use for library docs (context7) or live search (Tavily)."
     },
     "fetch": {
       "command": "uvx",
       "args": ["mcp-server-fetch"],
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "Clean web page fetching and HTML-to-Markdown conversion. Auto-skipped if uvx is not on PATH."
+      "_note": "Single known URL → markdown. Do NOT use for library docs (context7) or news/latest (Tavily)."
     },
-    "time": {
-      "command": "uvx",
-      "args": ["mcp-server-time"],
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${financeDir}"
+      ],
       "_requires": [],
-      "_requiresCommand": "uvx",
-      "_note": "Time and timezone conversion for scheduling and automation context."
-    },
-    "sqlite": {
-      "command": "uvx",
-      "args": ["mcp-server-sqlite", "--db-path", "${dataDir}\\alfred.db"],
-      "_requires": [],
-      "_requiresCommand": "uvx",
-      "_note": "Official SQLite MCP (PyPI). Local database — query and analyse without a server."
+      "_note": "Finance OneDrive folder ONLY — repo code uses LeanCTX ctx_read. Never double-read the same file."
     },
     "duckdb": {
       "command": "uvx",
       "args": ["mcp-server-duckdb", "--db-path", "${dataDir}\\analytics.duckdb"],
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "DuckDB MCP (PyPI). Fast SQL on CSV, Excel exports, and Parquet files."
-    },
-    "codegraph": {
-      "command": "codegraph",
-      "args": ["serve", "--mcp"],
-      "_requires": [],
-      "_requiresCommand": "codegraph",
-      "_note": "CodeGraph (colbymchenry/codegraph) - local, pre-indexed code knowledge graph for coding agents (explore/node/search/callers). 100% local, no key. Installed globally via npm-tools.txt; run 'codegraph init' in a repo to index it. Auto-skipped if the codegraph CLI is not on PATH."
-    },
-    "excel-mcp": {
-      "command": "${repoRoot}\\bin\\excel-mcp\\mcp-excel.exe",
-      "args": [],
-      "_requires": [],
-      "_note": "ExcelMcp (sbroenne/mcp-server-excel) - .NET Excel COM automation: 230 operations incl. Power Query, DAX, VBA, PivotTables, charts. Separate from the live 'excel' (excellm) MCP. Windows + Excel required; close open workbooks before use (needs exclusive access). Self-contained exe downloaded by setup.ps1 to Alfred\\bin\\excel-mcp\\. Auto-skipped if the exe is not present."
+      "_note": "SQL on CSV, Parquet, Excel exports, and local analytics DB. Replaces sqlite MCP."
     }
   }
 }

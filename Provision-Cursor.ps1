@@ -279,6 +279,10 @@ if (-not (Test-Path $McpTemplatePath)) {
     Write-Warn2 "cursor/mcp.json not found -- no MCP servers to provision."
 } else {
     $tpl = Get-Content $McpTemplatePath -Raw | ConvertFrom-Json
+    $retiredServers = @()
+    if ($tpl.PSObject.Properties.Name -contains '_retiredServers') {
+        $retiredServers = @($tpl._retiredServers)
+    }
     if ($tpl.mcpServers) {
         foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
             $name = $prop.Name
@@ -339,6 +343,7 @@ if (-not (Test-Path $McpTemplatePath)) {
             }
 
             $serverObj = [ordered]@{ command = $expandedCommand; args = $expandedArgs }
+            if ($defKeys -contains 'type' -and $def.type) { $serverObj.type = [string]$def.type }
             if ($resolvedEnv.Count -gt 0) { $serverObj.env = $resolvedEnv }
             $managed[$name] = $serverObj
             $managedEnvLists[$name] = $envList
@@ -370,6 +375,12 @@ if (-not $SkipCursor -and $managed.Count -gt 0) {
         }
     }
     foreach ($k in $managed.Keys) { $final[$k] = $managed[$k] }   # ours win
+    foreach ($r in $retiredServers) {
+        if ($final.Contains($r)) {
+            $final.Remove($r)
+            Write-Info "Removed retired MCP '$r' from Cursor config."
+        }
+    }
 
     $json = [ordered]@{ mcpServers = $final } | ConvertTo-Json -Depth 12
     Write-TextNoBom $cursorMcpPath $json
@@ -383,6 +394,9 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
     if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
         Write-Skip "claude CLI not found -- skipping Claude Code MCP registration."
     } else {
+        foreach ($r in $retiredServers) {
+            try { & claude mcp remove $r --scope user 2>$null | Out-Null } catch {}
+        }
         foreach ($name in $managed.Keys) {
             $srv = $managed[$name]
             try { & claude mcp remove $name --scope user 2>$null | Out-Null } catch {}
@@ -424,6 +438,12 @@ if (-not $SkipClaudeDesktop -and $managed.Count -gt 0) {
         $finalDesktop = [ordered]@{}
     }
     foreach ($k in $managed.Keys) { $finalDesktop[$k] = $managed[$k] }
+    foreach ($r in $retiredServers) {
+        if ($finalDesktop.Contains($r)) {
+            $finalDesktop.Remove($r)
+            Write-Info "Removed retired MCP '$r' from Claude Desktop config."
+        }
+    }
     $desktopRoot['mcpServers'] = $finalDesktop
 
     $json = $desktopRoot | ConvertTo-Json -Depth 30
@@ -439,6 +459,9 @@ if (-not $SkipCodex -and $managed.Count -gt 0) {
     if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
         Write-Skip "codex CLI not found -- skipping Codex MCP registration."
     } else {
+        foreach ($r in $retiredServers) {
+            try { & codex mcp remove $r 2>$null | Out-Null } catch {}
+        }
         foreach ($name in $managed.Keys) {
             $srv = $managed[$name]
             try { & codex mcp remove $name 2>$null | Out-Null } catch {}

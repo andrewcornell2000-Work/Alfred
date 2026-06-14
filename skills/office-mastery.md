@@ -15,8 +15,9 @@ Alfred should behave like an analyst, automation engineer, and document producer
 
 | Domain | Primary tool path | Use for |
 |---|---|---|
-| Excel live workbooks | `excel` MCP / `excellm` | Open workbook inspection, formulas, tables, pivots, formatting, charts, VBA |
-| Excel offline files | `openpyxl`, `pandas` | XLSX cleanup, transformations, exports, repeatable data prep |
+| Excel live workbooks | `excel` MCP / `excellm` | Workbook **already open** — cells, formulas, tables, pivots, formatting, charts, VBA |
+| Excel closed files / Power Query | `excel-mcp` | Workbook **closed** — M code, query steps, batch structure edits, exclusive COM session |
+| Excel offline files | `openpyxl`, `pandas` | XLSX cleanup, transformations, exports, repeatable data prep (no Excel app) |
 | Power BI models | `powerbi-modeling-mcp` | DAX, measures, columns, tables, relationships, model metadata |
 | Power BI visuals | `pbi-cli` | Creating and editing visuals while Power BI Desktop is open |
 | Word documents | `python-docx` | Reports, proposals, briefs, templates, structured deliverables |

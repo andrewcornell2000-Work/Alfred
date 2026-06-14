@@ -6,4 +6,3 @@
 @anthropic-ai/claude-code:claude:Claude Code CLI
 @openai/codex:codex:OpenAI Codex CLI
 lean-ctx-bin:lean-ctx:LeanCTX context compression layer (Alfred 2.0)
-@colbymchenry/codegraph:codegraph:CodeGraph - local code knowledge graph (CLI + MCP) for coding agents

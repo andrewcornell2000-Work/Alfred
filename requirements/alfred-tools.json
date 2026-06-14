@@ -181,15 +181,6 @@
         "loginRequired": false,
         "category": "CONTEXT",
         "trust": "community"
-      },
-      {
-        "package": "@colbymchenry/codegraph",
-        "command": "codegraph",
-        "description": "CodeGraph - local code knowledge graph (CLI + MCP)",
-        "purpose": "Pre-indexed code knowledge graph for coding agents - explore, node, search, callers across 20+ languages. 100% local (SQLite), no API key. Installed globally via npm; also registered as the 'codegraph' MCP. Run 'codegraph init' in a repo to index it.",
-        "loginRequired": false,
-        "category": "CODE",
-        "trust": "community"
       }
     ]
   },
@@ -235,6 +226,25 @@
         "trust": "official"
       },
       {
+        "name": "context7",
+        "source": "npx",
+        "package": "@upstash/context7-mcp",
+        "purpose": "Library/SDK docs — version-specific API reference",
+        "category": "EXECUTE",
+        "destructive": false,
+        "trust": "official"
+      },
+      {
+        "name": "markitdown",
+        "source": "uvx",
+        "package": "markitdown-mcp",
+        "purpose": "Convert local PDF/Office files to markdown",
+        "category": "EXECUTE",
+        "destructive": false,
+        "trust": "official",
+        "requires": "uvx"
+      },
+      {
         "name": "fetch",
         "source": "uvx",
         "package": "mcp-server-fetch",
@@ -248,13 +258,12 @@
         "name": "filesystem",
         "source": "npx",
         "package": "@modelcontextprotocol/server-filesystem",
-        "purpose": "Scoped read/write file access — configured for OneDrive finance folder and Alfred project",
+        "purpose": "Scoped read/write file access — finance OneDrive folder only (repo code via LeanCTX)",
         "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
         "allowedPaths": [
-          "C:\\Users\\ACO324\\OneDrive - Maersk Group\\MCL Finance - General",
-          "C:\\Users\\ACO324\\Alfred"
+          "C:\\Users\\ACO324\\OneDrive - Maersk Group\\MCL Finance - General"
         ]
       },
       {
@@ -265,7 +274,9 @@
         "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
-        "storage": "memory/mcp-knowledge-graph.json"
+        "storage": "memory/mcp-knowledge-graph.json",
+        "status": "retired",
+        "notes": "Removed from cursor/mcp.json — use LeanCTX ctx_knowledge for session memory."
       },
       {
         "name": "sequential-thinking",
@@ -274,7 +285,9 @@
         "purpose": "Structured multi-step reasoning for complex Power BI, Office, and PC operator tasks",
         "category": "EXECUTE",
         "destructive": false,
-        "trust": "official"
+        "trust": "official",
+        "status": "retired",
+        "notes": "Removed — caused long multi-tool planning loops; use native reasoning instead."
       },
       {
         "name": "time",
@@ -284,7 +297,9 @@
         "category": "EXECUTE",
         "destructive": false,
         "trust": "official",
-        "requires": "uvx"
+        "requires": "uvx",
+        "status": "retired",
+        "notes": "Removed — low value; agents infer timezones without a dedicated MCP."
       },
       {
         "name": "sqlite",
@@ -295,7 +310,9 @@
         "destructive": true,
         "trust": "official",
         "requires": "uvx",
-        "storage": "data/alfred.db"
+        "storage": "data/alfred.db",
+        "status": "retired",
+        "notes": "Removed — duckdb MCP covers CSV/Parquet analytics."
       },
       {
         "name": "duckdb",
@@ -347,13 +364,13 @@
         "name": "codegraph",
         "source": "npm",
         "package": "@colbymchenry/codegraph",
-        "command": "codegraph serve --mcp",
+        "command": "codegraph serve --mcp --path ${repoRoot}",
         "purpose": "Local code knowledge graph for coding agents - explore, node, search, callers across 20+ languages. 100% local (SQLite), no key.",
         "category": "CODE",
         "destructive": false,
         "trust": "community",
-        "install": "npm i -g @colbymchenry/codegraph (via npm-tools.txt); run 'codegraph init' per repo",
-        "notes": "Registered for Cursor + Claude + Codex via cursor/mcp.json. Auto-skipped if the codegraph CLI is not on PATH."
+        "status": "retired",
+        "notes": "Removed from cursor/mcp.json — LeanCTX ctx_search covers repo code exploration."
       },
       {
         "name": "excel-mcp",

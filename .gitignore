@@ -48,6 +48,9 @@ memory/mcp-knowledge-graph.json
 # Portable CLI binaries (downloaded at install time, not committed)
 bin/
 
+# CodeGraph local index (optional; MCP retired from Alfred stack)
+.codegraph/
+
 # Temporary files created by Alfred during task execution
 tmp_*.py
 tmp_*.json

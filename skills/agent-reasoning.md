@@ -19,16 +19,16 @@ Improves answer quality and reduces costly rework.
 4. **Act on one slice** — fix one measure / one query / one file first
 5. **Confirm** — re-run the same check; only then broaden scope
 
-## Use `sequential-thinking` MCP for step 2–3
+## Plan before editing (no planning MCP)
 
-When the problem has more than two plausible causes, call sequential-thinking *before* editing:
-- Forces explicit hypotheses
-- Surfaces dependencies (e.g. "refresh Silver before checking report")
-- Produces a short plan the user can approve
+When the problem has more than two plausible causes, write a short numbered plan in chat *before* editing:
+- State explicit hypotheses
+- Surface dependencies (e.g. "refresh Silver before checking report")
+- Ask the user to approve if the change is destructive
 
-## Use `memory` MCP for stable team knowledge
+## Use LeanCTX `ctx_knowledge` for stable team knowledge
 
-After confirming a convention (TaskKey format, dataflow order, folder layout), store it in memory
+After confirming a convention (TaskKey format, dataflow order, folder layout), store it with LeanCTX knowledge tools
 so future sessions do not re-derive it from scratch.
 
 ## Reasoning vs token spend

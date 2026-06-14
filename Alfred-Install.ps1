@@ -756,20 +756,20 @@ if ($NpxExe) {
 }
 
 # ── uv / uvx (markitdown, fetch, time, sqlite, duckdb MCPs) ───────────────────
-# These 5 MCP servers launch via `uvx`. Provision-Cursor.ps1 auto-skips them when
+# These 3 MCP servers launch via `uvx`. Provision-Cursor.ps1 auto-skips them when
 # uvx is missing (_requiresCommand: "uvx" in cursor/mcp.json), so install uv here
-# before Step 10 runs — otherwise a third of the stack silently never registers.
+# before Step 10 runs — otherwise part of the stack silently never registers.
 
 $uvxReady = $false
 if (Find-Command "uvx") {
-    Write-OK "uv / uvx already present — markitdown, fetch, time, sqlite, duckdb MCPs enabled."
+    Write-OK "uv / uvx already present — markitdown, fetch, duckdb MCPs enabled."
     $uvxReady = $true
 } else {
     if (Install-Uv) {
-        Write-Done "uv installed — markitdown, fetch, time, sqlite, duckdb MCPs enabled."
+        Write-Done "uv installed — markitdown, fetch, duckdb MCPs enabled."
         $uvxReady = $true
     } else {
-        Write-Warn "uv install failed — markitdown, fetch, time, sqlite, duckdb MCPs will be skipped."
+        Write-Warn "uv install failed — markitdown, fetch, duckdb MCPs will be skipped."
         Write-Host "  Install manually: irm https://astral.sh/uv/install.ps1 | iex   then re-run this installer." -ForegroundColor DarkGray
     }
 }
@@ -780,7 +780,7 @@ if (Find-Command "uvx") {
 # until a later restart. Fetching now makes the first real launch instant.
 if ($uvxReady) {
     $uvxExe = Find-Command "uvx"
-    $uvxPkgs = @("markitdown-mcp", "mcp-server-fetch", "mcp-server-time", "mcp-server-sqlite", "mcp-server-duckdb")
+    $uvxPkgs = @("markitdown-mcp", "mcp-server-fetch", "mcp-server-duckdb")
     Write-Host "  Pre-fetching uvx MCP packages (first run only — may take a minute)..." -ForegroundColor Cyan
     foreach ($pkg in $uvxPkgs) {
         try {
@@ -790,7 +790,7 @@ if ($uvxReady) {
         } catch {}
     }
     Remove-Item "$env:TEMP\uvx-warm.out","$env:TEMP\uvx-warm.err" -ErrorAction SilentlyContinue
-    Write-Done "uvx MCP packages cached — markitdown, fetch, time, sqlite, duckdb will connect on first launch."
+    Write-Done "uvx MCP packages cached — markitdown, fetch, duckdb will connect on first launch."
 }
 
 # ── Write settings.json (permissions only — MCPs come from Provision-Cursor.ps1) ──

@@ -390,6 +390,9 @@ if (-not $hasNpm) {
     }
 }
 
+# CodeGraph retired from Alfred MCP stack (LeanCTX ctx_search covers repo code).
+# Leave .codegraph/ on disk if present; it is no longer provisioned as an MCP.
+
 # Convenience flags used by login instructions below
 $hasClaude = $toolStatus["claude"] -eq $true
 $hasCodex  = $toolStatus["codex"]  -eq $true

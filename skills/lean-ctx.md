@@ -9,12 +9,16 @@ between your repo and the agent — it does not replace Power BI, Excel, or GitH
 |------|-----|
 | Read/search code in repo | `ctx_read` / `ctx_search` (LeanCTX) — map mode, cached re-reads |
 | Compressed git/npm/shell output | `lean-ctx -c "git status"` or shell hooks (auto) |
-| Session memory across chats | LeanCTX `ctx_*` memory tools |
-| Live Excel workbook | Alfred `excel` MCP (excellm) |
-| Power BI model | `powerbi-modeling-mcp` or `pbi` |
+| Session memory / agent diary | LeanCTX `ctx_knowledge`, `ctx_session` |
+| Durable business facts (entities, conventions) | LeanCTX `ctx_knowledge` — memory MCP retired |
+| Live Excel workbook (open) | Alfred `excel` MCP (excellm) |
+| Excel closed file / Power Query | Alfred `excel-mcp` — never ping-pong with excellm |
+| Power BI model | `powerbi-modeling-mcp` |
+| Power BI report visuals | `pbi-cli` (not the modeling MCP) |
 | GitHub PRs/issues | Alfred `github` MCP |
-| Web research | Alfred Tavily (direct API) |
-| Finance OneDrive files | Alfred `filesystem` MCP (scoped paths) |
+| Web research (live/news/latest) | Alfred Tavily (direct API) |
+| Library docs (React, DAX libs, SDKs) | Alfred `context7` MCP |
+| Finance OneDrive files (outside repo) | Alfred `filesystem` MCP — not for Alfred repo code (use LeanCTX there) |
 
 ## Key commands
 

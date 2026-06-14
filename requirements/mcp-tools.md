@@ -1,10 +1,40 @@
 # MCP Tools
 
 Documents MCP (Model Context Protocol) server tools used or evaluated for Alfred.
-Alfred uses Claude Code's built-in MCP runtime; MCP servers are configured per-session
-via `claude mcp add` rather than being hard-installed globally.
+Alfred provisions a **lean stack** via `cursor/mcp.json` and `Provision-Cursor.ps1`.
 
-## Currently Configured
+## Routing (avoid overlap)
+
+See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, and retired-server list.
+
+## Currently Configured (cursor/mcp.json)
+
+**10 domain MCPs** + **LeanCTX** (merged via `lean-ctx onboard`). Tavily web search is **not** an MCP — it runs from `backend/main.py`.
+
+| Server | Role |
+|--------|------|
+| powerbi-modeling-mcp | Live Desktop semantic model |
+| excel | Live **open** workbooks (excellm) |
+| excel-mcp | **Closed** workbook / Power Query / COM batch |
+| github | Remote GitHub API |
+| playwright | Browser automation |
+| context7 | Library/SDK docs |
+| markitdown | Local file → markdown |
+| fetch | Single URL → markdown |
+| filesystem | Finance OneDrive folder **only** |
+| duckdb | SQL on CSV/Parquet/exports |
+
+### Retired (removed from template — Provision-Cursor strips from machine configs)
+
+| Server | Why removed |
+|--------|-------------|
+| sequential-thinking | Inflated responses with multi-step planning loops |
+| memory | Overlapped LeanCTX `ctx_knowledge` |
+| time | Low value; native reasoning suffices |
+| codegraph | Overlapped LeanCTX `ctx_search`; required per-repo indexing |
+| sqlite | Overlapped duckdb for analytics workloads |
+
+**Not in template:** `ms365` (needs Graph key), `git` (overlaps bash git + github MCP).
 
 ### powerbi-modeling-mcp
 - **Source:** VS Code extension `analysis-services.powerbi-modeling-mcp` (Microsoft Analysis Services)
@@ -22,6 +52,13 @@ via `claude mcp add` rather than being hard-installed globally.
 - **Destructive:** true (can write to open workbooks)
 - **Install:** `pip install excellm` - Alfred installer handles this automatically
 
+### excel-mcp
+- **Source:** GitHub release `sbroenne/mcp-server-excel` → `Alfred\bin\excel-mcp\mcp-excel.exe`
+- **Purpose:** Closed-workbook COM automation — Power Query, M code, VBA, pivots (exclusive access)
+- **Trust:** community
+- **Destructive:** true
+- **Install:** `setup.ps1` downloads the self-contained exe
+
 ### github
 - **Source:** npm package `@modelcontextprotocol/server-github`
 - **Command:** `npx -y @modelcontextprotocol/server-github`
@@ -37,6 +74,36 @@ via `claude mcp add` rather than being hard-installed globally.
 - **Trust:** official
 - **Destructive:** false
 
+### context7
+- **Source:** npm `@upstash/context7-mcp`
+- **Purpose:** Version-specific library/SDK documentation
+- **Trust:** official
+- **Destructive:** false
+
+### markitdown
+- **Source:** uvx `markitdown-mcp`
+- **Purpose:** Local PDF/Office/image → markdown
+- **Trust:** official (Microsoft)
+- **Destructive:** false
+
+### fetch
+- **Source:** uvx `mcp-server-fetch`
+- **Purpose:** Single URL → markdown
+- **Trust:** official
+- **Destructive:** false
+
+### filesystem
+- **Install:** `npx -y @modelcontextprotocol/server-filesystem <finance-dir>`
+- **Purpose:** Scoped finance OneDrive access — **not** Alfred repo code (use LeanCTX there)
+- **Trust:** official
+- **Destructive:** true
+
+### duckdb
+- **Source:** uvx `mcp-server-duckdb`
+- **Purpose:** Fast SQL on CSV, Parquet, Excel exports
+- **Trust:** community
+- **Destructive:** false
+
 ### lean-ctx (Alfred 2.0)
 - **Source:** npm package `lean-ctx-bin` → local `lean-ctx` binary
 - **Install:** `npm install -g lean-ctx-bin` then `lean-ctx onboard` (runs automatically via `Provision-Cursor.ps1`)
@@ -45,83 +112,24 @@ via `claude mcp add` rather than being hard-installed globally.
 - **Destructive:** false (read/compress by default; some ctx_* tools can write memory)
 - **Requires:** No API keys or accounts for core use
 - **Skill:** `skills/lean-ctx.md`
-- **Note:** Merges into existing MCP configs after Alfred domain MCPs; does not replace them
 
 ### Web search (Tavily — not an MCP)
 - **Source:** Direct HTTP API from `backend/main.py` (not provisioned via `cursor/mcp.json`)
 - **Requires:** `TAVILY_API_KEY` in Alfred `.env`
 - **Purpose:** Live web search for latest docs, versions, news, and current public information
 - **Skill:** `skills/web-search.md`
-- **Note:** brave-search and exa MCPs were removed — Tavily is the single web-search path
 
 ---
-
-## Control Tower MCP Stack
-
-These are the next first-class MCP capabilities Alfred should grow into. They are tracked in
-`requirements/alfred-tools.json` as planned tools until the installer safely configures them.
-
-### filesystem
-- **Install:** `npx -y @modelcontextprotocol/server-filesystem <allowed-dir>`
-- **Purpose:** Scoped local file access for PC operator workflows
-- **Trust:** official
-- **Destructive:** true
-- **Safety:** Must always use explicit allowed directories. Never grant the whole home directory by default.
-
-### memory
-- **Install:** `npx -y @modelcontextprotocol/server-memory`
-- **Purpose:** Persistent knowledge graph memory across Alfred sessions and projects
-- **Trust:** official
-- **Destructive:** true
-- **Safety:** Store memory under Alfred-controlled paths and never commit secrets.
-
-### fetch
-- **Install:** `uvx mcp-server-fetch`
-- **Purpose:** Clean web page fetching and HTML-to-Markdown conversion for docs and research
-- **Trust:** official
-- **Destructive:** false
-
-### git
-- **Install:** `uvx mcp-server-git`
-- **Purpose:** Local repository inspection, history, diffs, and git operations
-- **Trust:** official
-- **Destructive:** true
-- **Safety:** Mutating git operations remain behind Alfred's dispatch safety gates.
-
-### sequential-thinking
-- **Install:** `npx -y @modelcontextprotocol/server-sequential-thinking`
-- **Purpose:** Structured multi-step reasoning for complex Office, BI, and PC operator tasks
-- **Trust:** official
-- **Destructive:** false
-
-### time
-- **Install:** `uvx mcp-server-time`
-- **Purpose:** Time and timezone conversion for scheduling and automation context
-- **Trust:** official
-- **Destructive:** false
 
 ## Learning Mode: Adding MCP Tools
 
 When Alfred encounters or learns about a new MCP server during a session:
 
-1. **Add an entry** in the [Candidate Tools](#candidate-tools) section below with:
-   - Install command (npm package, pip package, or Docker image)
-   - Purpose and which Alfred routing category it serves
-   - Trust level: `official` | `community` | `experimental`
-   - Whether it has destructive capabilities (`destructive: true/false`)
-
-2. **Update `alfred-tools.json`** — add the tool to the `mcp.tools` array.
-
-3. **Update install manifests** if a persistent install step is needed:
-   - npm package → add to `requirements/npm-tools.txt` and `alfred-tools.json`
-   - pip package → add to `requirements/python-requirements.txt` and `alfred-tools.json`
-
-4. **Update `setup.ps1`** only if a new install step is needed that the manifest loop
-   does not already handle automatically.
-
-5. **Update `README.md`** if the tool changes the user-facing setup flow (e.g. new
-   login step, new API key).
-
+1. **Check overlap first** — read `skills/mcp-routing.md`; do not add redundant servers.
+2. **Add an entry** in the Candidate Tools section below.
+3. **Update `alfred-tools.json`** — add the tool to the `mcp.tools` array.
+4. **Update install manifests** if a persistent install step is needed.
+5. **Update `README.md`** if the tool changes the user-facing setup flow.
 6. **Commit all manifest changes before the session ends.**
 
 ### Hard Rules
@@ -131,22 +139,9 @@ When Alfred encounters or learns about a new MCP server during a session:
   `backend/main.py` (`DANGEROUS_KEYWORDS` and dispatch checks) before they are
   allowed to dispatch.
 - Never auto-pull from GitHub or auto-install tools without explicit user approval.
-  The update flow in `check-updates.ps1` always prompts first.
 
 ---
 
 ## Candidate Tools
 
-Candidate tools now graduate into the Control Tower MCP Stack above before installer automation is added.
-
-<!--
-Example entry format:
-
-### mcp-server-filesystem
-- **Install:** `npm install -g @modelcontextprotocol/server-filesystem`
-- **Command:** `mcp-server-filesystem`
-- **Purpose:** Gives Claude Code scoped read/write access to local directories
-- **Trust:** official
-- **Destructive:** true (can write/delete files - represent in `DANGEROUS_KEYWORDS` and dispatch checks)
-- **Notes:** Requires explicit directory allow-list at runtime via --allowed-dir flag
--->
+Candidate tools must pass an overlap review before joining `cursor/mcp.json`.

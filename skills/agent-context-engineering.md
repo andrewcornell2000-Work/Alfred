@@ -86,8 +86,7 @@ traces should be summarised immediately. Example pattern:
 
 > "[Truncated to key lines] Error on line 47: KeyError 'site_id'. Full trace saved to SCRATCH.md."
 
-**Use the `sequential-thinking` MCP as a compressor.** Before a complex multi-file edit, call it
-to produce a numbered plan. The plan (~200 tokens) replaces pages of exploratory conversation.
+**Write a numbered plan in chat before complex edits.** Before a multi-file change, outline steps in ~200 tokens instead of exploratory tool churn.
 
 **KV-cache awareness.** If you're using a frontier model with KV-cache billing:
 - Keep the system prompt and memory blocks *identical* across turns — every character change
@@ -153,10 +152,10 @@ Cursor/Claude read the skill during provisioning. Write all six components in th
 
 Run through this before kicking off any multi-step agent task in Cursor:
 
-- [ ] **Write stable facts to memory** — has the `memory` MCP been primed with team conventions for this project?
+- [ ] **Write stable facts to memory** — primed LeanCTX `ctx_knowledge` with team conventions for this project?
 - [ ] **Scope the file set** — identified the 3–10 files this task actually touches (use LeanCTX map mode)?
 - [ ] **Clear irrelevant history** — opened a fresh Cursor composer for this sub-task?
-- [ ] **Plan before edit** — run `sequential-thinking` or write a step list before any file changes?
+- [ ] **Plan before edit** — write a short step list in chat before any file changes?
 - [ ] **Set a compress point** — decided at which step you'll summarise and discard raw tool output?
 - [ ] **KV-stable prefix** — system prompt and rules file unchanged from the last session?
 - [ ] **Handoff artefact** — if handing to another agent or Codex, is the handoff written to a file (not just in chat)?
@@ -208,8 +207,8 @@ Delete: at session end (or let .gitignore handle it)
 
 - "Use LeanCTX map mode on the backend folder, then pick the 3 files relevant to the routing change — don't open anything else yet"
 - "Summarise what we've confirmed so far in 3 bullets so we can compress the context, then continue with step 4"
-- "Store the TaskKey format convention we just confirmed in the memory MCP so I don't have to explain it next session"
-- "Run sequential-thinking on this refactor before touching any file — give me a numbered plan to approve"
+- "Store the TaskKey format convention we just confirmed in LeanCTX knowledge so I don't have to explain it next session"
+- "Outline a numbered plan in chat before touching any file on this refactor"
 - "I'm about to hand this plan to Codex — write a clean handoff summary to SCRATCH.md covering what's been decided and what files to touch"
 - "What MCP tools are available for this task? List them with their trigger conditions before you pick one"
 
