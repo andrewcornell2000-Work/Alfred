@@ -43,6 +43,18 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 
 <!-- loop appends below this line -->
 
+### parallel-agents-git-worktrees (technique)
+- **Category:** technique
+- **What it does:** Run multiple Cursor or Claude Code agents simultaneously on the same repo without file conflicts — each agent gets its own branch and directory via git worktrees (the same mechanism Cursor's built-in parallel agents use under the hood).
+- **Try asking:** "I need to refactor the auth module AND write billing API tests. These are independent — write me the git worktree setup commands and the starting instruction for each agent."
+- **Try asking:** "Task A just finished. Write a handoff file summarising what changed and what Task B needs to know before it starts."
+- **Try asking:** "List all worktrees in this repo and give me the commands to remove any that are on branches already merged to main."
+- **Try asking:** "I want to tackle these 3 tasks in parallel — tell me which can actually run in parallel (no shared files) and which must be sequential."
+- **Install:** No install — git worktrees are built into git. Cursor parallel agents are a Cursor UI feature (background agents panel).
+- **Status:** shipped
+- **Discovered:** 2026-06-15
+- **Skill:** `agent-parallel-worktrees.md`
+
 ### context-engineering (technique)
 - **Category:** technique
 - **What it does:** A structured discipline for deciding what information goes into an agent's context window, in what order, and how to compress and manage it over long sessions — the layer above prompt engineering.
@@ -71,15 +83,3 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **Install:** No install — rubric in `agent-context-engineering.md` Section 6
 - **Status:** shipped (covered in skill)
 - **Discovered:** 2026-06-15
-
-### AGENTS.md project context file (technique)
-- **Category:** technique
-- **What it does:** A plain Markdown file placed in a repo root that all major agents (Cursor, Claude Code, Codex CLI) auto-load at session start — containing build commands, test commands, frozen folders, and team conventions, so you never have to re-explain them.
-- **Try asking:** "Drop a starter AGENTS.md in this repo root — include the build command, test command, and set /legacy as a NEVER-touch zone"
-- **Try asking:** "Read our AGENTS.md and summarise what conventions an agent needs to follow before making any changes to this codebase"
-- **Try asking:** "Audit our AGENTS.md against the three-tier boundary checklist — are all destructive operations covered with NEVER or ASK before doing?"
-- **Try asking:** "Create a /backend/AGENTS.md for the Python FastAPI layer — include the alembic migration command, pytest run command, and the rule about never importing from /frontend"
-- **Install:** No install — drop a file in your repo root; agents pick it up automatically. Run `npx agentlint-ai` to lint it.
-- **Status:** shipped
-- **Discovered:** 2026-06-15
-- **Skill:** `agents-md-project-context.md`
