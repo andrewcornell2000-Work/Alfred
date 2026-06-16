@@ -28,7 +28,11 @@ powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCodex
 | `mcp.json` | MCP server template (`${env:VAR}` placeholders, no secrets) | `~/.cursor/mcp.json` + `claude mcp add --scope user` + `codex mcp add` |
 | `skills/*.md` (repo root) | Agent + tool how-to skills | `~/.cursor/skills/`, `~/.claude/skills/`, `~/.codex/skills/` |
 | `rules/*.mdc` | Cursor project rules | `<project>/.cursor/rules/` (with `-ProjectPath`) |
+| `rules/*.mdc` | Global agent-tooling + lean-ctx policy | `~/.cursor/rules/` (always synced; overrides lean-ctx onboard's aggressive rule) |
 | `AGENTS.shared.md` | Cross-tool rules | `<project>/AGENTS.md` (with `-ProjectPath`) |
+
+Third-party skills (e.g. Leonxlnx/taste-skill) install to `~/.agents/skills` via `npx skills add` during provision.
+Vendored `taste-*.md` copies in `skills/` are **not** synced — use the official install instead.
 
 Skills are wrapped as `alfred-<name>/SKILL.md`. Add once in `skills/` — all three agents get it on next provision.
 

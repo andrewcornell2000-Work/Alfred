@@ -31,6 +31,8 @@
     Skip Codex (codex mcp add) provisioning.
 .PARAMETER SkipLeanCtx
     Skip lean-ctx onboard and Cursor lean-ctx repair.
+.PARAMETER SkipThirdPartySkills
+    Skip npx install of third-party agent skills (e.g. Leonxlnx/taste-skill).
 #>
 [CmdletBinding()]
 param(
@@ -39,7 +41,8 @@ param(
     [switch]$SkipClaude,
     [switch]$SkipClaudeDesktop,
     [switch]$SkipCodex,
-    [switch]$SkipLeanCtx
+    [switch]$SkipLeanCtx,
+    [switch]$SkipThirdPartySkills
 )
 
 $ErrorActionPreference = "Continue"
@@ -153,6 +156,108 @@ function Sync-LeanCtxToClaudeDesktop {
         Write-OK "Claude Desktop: lean-ctx merged (no autoApprove)"
     } catch {
         Write-Warn2 "Could not merge lean-ctx into Claude Desktop: $_"
+    }
+}
+
+function Repair-LeanCtxForCursor {
+    if ($SkipCursor) { return }
+    $mcpPath = Join-Path $env:USERPROFILE ".cursor\mcp.json"
+    Repair-LeanCtxMcpFile $mcpPath 'Cursor'
+
+    $leanCtxBin = Get-LeanCtxBinaryPath
+    if (-not $leanCtxBin) { return }
+    $hooksPath = Join-Path $env:USERPROFILE ".cursor\hooks.json"
+    if (Test-Path $hooksPath) {
+        try {
+            $hooksRaw = Get-Content $hooksPath -Raw -Encoding UTF8
+            $fixed = $hooksRaw -replace '"command":\s*"lean-ctx', "`"command`": `"$leanCtxBin"
+            if ($fixed -ne $hooksRaw) {
+                Write-TextNoBom $hooksPath $fixed
+                Write-OK "Cursor hooks: lean-ctx uses absolute path (hooks run without user PATH)"
+            }
+        } catch {
+            Write-Warn2 "Could not repair hooks.json: $_"
+        }
+    }
+}
+
+function Sync-GlobalCursorRules {
+    if ($SkipCursor) { return }
+    $rulesSrc = Join-Path $Root "cursor\rules"
+    if (-not (Test-Path $rulesSrc)) { return }
+    $rulesDest = Join-Path $HOME ".cursor\rules"
+    if (-not (Test-Path $rulesDest)) { New-Item -ItemType Directory -Path $rulesDest -Force | Out-Null }
+    foreach ($f in Get-ChildItem $rulesSrc -Filter '*.mdc' -File) {
+        Copy-Item $f.FullName (Join-Path $rulesDest $f.Name) -Force
+    }
+    Write-OK "Synced global Cursor rules -> $rulesDest (overrides lean-ctx onboard's aggressive rule)"
+}
+
+function Remove-WorkspaceLeanCtxMcp([string]$repoPath) {
+    if (-not $repoPath -or -not (Test-Path $repoPath)) { return }
+    $wsMcp = Join-Path $repoPath ".cursor\mcp.json"
+    if (-not (Test-Path $wsMcp)) { return }
+    try {
+        $mcp = Get-Content $wsMcp -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not $mcp.mcpServers.'lean-ctx') { return }
+        $mcp.mcpServers.PSObject.Properties.Remove('lean-ctx')
+        Write-TextNoBom $wsMcp ($mcp | ConvertTo-Json -Depth 30)
+        Write-OK "Removed duplicate workspace lean-ctx from $wsMcp (keep user-scope only)"
+    } catch {
+        Write-Warn2 "Could not strip workspace lean-ctx from $wsMcp : $_"
+    }
+}
+
+function Remove-AlfredVendoredTasteSkills([string[]]$roots) {
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        Get-ChildItem $root -Directory -Filter 'alfred-taste-*' -ErrorAction SilentlyContinue | ForEach-Object {
+            Remove-Item $_.FullName -Recurse -Force
+            Write-OK "Removed duplicate vendored skill '$($_.Name)' from $root"
+        }
+    }
+}
+
+function Install-ThirdPartyAgentSkills {
+    if ($SkipThirdPartySkills) { return }
+    $agentsSkills = Join-Path $HOME ".agents\skills\design-taste-frontend\SKILL.md"
+    if (Test-Path $agentsSkills) {
+        Write-Skip "taste-skill already in ~/.agents/skills -- skipping npx install."
+        return
+    }
+    if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
+        Write-Skip "npx not on PATH -- skipping third-party skills install."
+        return
+    }
+    Write-Step "Third-party skills: Leonxlnx/taste-skill -> ~/.agents/skills"
+    Push-Location $HOME
+    try {
+        $job = Start-Job -ScriptBlock {
+            param($homeDir)
+            Set-Location $homeDir
+            & npx --yes skills add https://github.com/Leonxlnx/taste-skill --yes 2>&1
+        } -ArgumentList $HOME
+        if (-not (Wait-Job $job -Timeout 90)) {
+            Stop-Job $job -Force | Out-Null
+            Remove-Job $job -Force | Out-Null
+            Write-Warn2 "taste-skill install exceeded 90s -- run manually: npx skills add https://github.com/Leonxlnx/taste-skill"
+            return
+        }
+        $out = Receive-Job $job
+        Remove-Job $job -Force | Out-Null
+        foreach ($line in ($out | Out-String) -split "`r?`n") {
+            $t = $line.Trim()
+            if ($t) { Write-Info $t }
+        }
+        if (Test-Path $agentsSkills) {
+            Write-OK "taste-skill installed globally (~/.agents/skills)"
+        } else {
+            Write-Warn2 "taste-skill install finished but SKILL.md not found -- run manually if needed."
+        }
+    } catch {
+        Write-Warn2 "taste-skill install failed: $_"
+    } finally {
+        Pop-Location
     }
 }
 
@@ -485,6 +590,9 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
     }
     foreach ($f in $mdFiles) {
         $base = ($f.BaseName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
+        if ($base -like 'taste-*') {
+            continue   # installed via npx skills add (Leonxlnx/taste-skill), not vendored copies
+        }
         if ($base -like 'alfred-*') { $slug = $base } else { $slug = "alfred-$base" }
         $content = Get-Content $f.FullName -Raw
 
@@ -517,6 +625,9 @@ if (-not $SkipClaude) { $skillDests += (Join-Path $HOME ".claude\skills") }
 if (-not $SkipCodex)  { $skillDests += (Join-Path $HOME ".codex\skills") }
 if ($skillDests.Count -gt 0) { Sync-Skills (Join-Path $Root "skills") $skillDests }
 
+Remove-AlfredVendoredTasteSkills $skillDests
+Install-ThirdPartyAgentSkills
+
 # ── Rules: per-project seeding (opt-in via -ProjectPath) ──────────────────────
 if ($ProjectPath) {
     Write-Step "Rules: seeding into $ProjectPath"
@@ -530,6 +641,7 @@ if ($ProjectPath) {
             Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
             Write-OK "Copied Cursor rules -> $rulesDest"
         }
+        Remove-WorkspaceLeanCtxMcp $ProjectPath
         $agentsSrc  = Join-Path $Root "cursor\AGENTS.shared.md"
         $agentsDest = Join-Path $ProjectPath "AGENTS.md"
         if (Test-Path $agentsDest) {
@@ -541,28 +653,6 @@ if ($ProjectPath) {
     }
 } else {
     Write-Info "Rules are per-project. Re-run with -ProjectPath <repo> to seed Cursor rules + AGENTS.md."
-}
-
-function Repair-LeanCtxForCursor {
-    if ($SkipCursor) { return }
-    $mcpPath = Join-Path $env:USERPROFILE ".cursor\mcp.json"
-    Repair-LeanCtxMcpFile $mcpPath 'Cursor'
-
-    $leanCtxBin = Get-LeanCtxBinaryPath
-    if (-not $leanCtxBin) { return }
-    $hooksPath = Join-Path $env:USERPROFILE ".cursor\hooks.json"
-    if (Test-Path $hooksPath) {
-        try {
-            $hooksRaw = Get-Content $hooksPath -Raw -Encoding UTF8
-            $fixed = $hooksRaw -replace '"command":\s*"lean-ctx', "`"command`": `"$leanCtxBin"
-            if ($fixed -ne $hooksRaw) {
-                Write-TextNoBom $hooksPath $fixed
-                Write-OK "Cursor hooks: lean-ctx uses absolute path (hooks run without user PATH)"
-            }
-        } catch {
-            Write-Warn2 "Could not repair hooks.json: $_"
-        }
-    }
 }
 
 # ── LeanCTX: context compression (merge-based — runs AFTER Alfred MCPs) ───────
@@ -614,6 +704,7 @@ if (-not $SkipLeanCtx) {
             $leanOk = Invoke-LeanCtxGuarded -Arguments 'onboard' -TimeoutSec 120
             Repair-LeanCtxForCursor
             Sync-LeanCtxToClaudeDesktop
+            Sync-GlobalCursorRules
             if ($leanOk) {
                 Write-OK "LeanCTX connected (ctx_* tools + hooks). No API keys required."
             } else {
@@ -623,8 +714,11 @@ if (-not $SkipLeanCtx) {
             Write-Warn2 "lean-ctx onboard failed: $_ -- install continues."
             Repair-LeanCtxForCursor
             Sync-LeanCtxToClaudeDesktop
+            Sync-GlobalCursorRules
         }
     }
+} else {
+    Sync-GlobalCursorRules
 }
 
 # ── summary ───────────────────────────────────────────────────────────────────

@@ -1,0 +1,44 @@
+---
+description: How Alfred skills, native Cursor tools, domain MCPs, and lean-ctx work together without blocking each other.
+alwaysApply: true
+---
+
+# Agent tooling — Alfred stack
+
+Provisioned by Alfred. One primary path per task. No ping-pong between similar tools.
+
+## Layer 1 — Native Cursor tools (default)
+Use **Read, Grep, Glob, Shell, Edit, Write** for repo work unless a row below names a better primary tool.
+If any MCP call errors or takes more than ~5 seconds, **stop using that MCP for the rest of the turn** and fall back to native tools.
+
+## Layer 2 — Domain MCPs (task-specific, not interchangeable)
+| Task | Use | Never substitute |
+|------|-----|------------------|
+| Excel workbook **open** | `excel` (excellm) | excel-mcp |
+| Excel **closed** / Power Query / COM | excel-mcp | excel (excellm) |
+| Power BI semantic model | powerbi-modeling-mcp | pbi-cli |
+| Power BI report / visuals | pbi-cli | powerbi-modeling-mcp |
+| GitHub PRs / issues / API | github | filesystem |
+| Finance OneDrive (outside repo) | filesystem | lean-ctx |
+| Library / SDK docs | context7 | fetch, web search |
+| Single known URL | fetch | playwright |
+| Browser / login / JS UI | playwright | fetch |
+| Local PDF / Office → markdown | markitdown | fetch |
+| Ad-hoc SQL on CSV/Parquet | duckdb | Excel MCPs |
+
+## Layer 3 — lean-ctx (optional token saver)
+Use only when it helps: large file map reads, repeated re-reads, noisy shell output, session memory (`ctx_knowledge`).
+Do **not** route every read/search/shell through lean-ctx MCP — that causes hangs and silent failures.
+
+## Layer 4 — Skills
+- **Alfred skills** (`alfred-*` in `~/.cursor/skills`) — finance, Excel, Power BI, DLP, routing.
+- **Third-party skills** (`~/.agents/skills`) — e.g. `design-taste-frontend` from Leonxlnx/taste-skill.
+- **Project skills** (`.cursor/skills/` or `.agents/skills/` in repo) — repo-specific only.
+If the same skill exists in both Alfred and `.agents/skills`, prefer the **`.agents/skills`** copy (official install).
+
+## Anti-patterns (cause roadblocks)
+- Forcing lean-ctx on every tool call
+- Switching excel ↔ excel-mcp mid-task without user action
+- Reading the same file via filesystem + lean-ctx + native Read
+- Calling `ctx_overview` / `ctx_compose` on trivial tasks
+- Duplicate MCP registration at user + workspace scope (keep user `~/.cursor/mcp.json` only)

@@ -6,7 +6,8 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 
 1. **Pick one primary path per task** — do not chain similar MCPs unless the first path explicitly failed for a documented reason.
 2. **Never alternate Excel MCPs** — `excel` (excellm) and `excel-mcp` have opposite file-access rules; switching between them usually wastes turns.
-3. **LeanCTX owns repo reads and session memory** — use `ctx_read` / `ctx_search` / `ctx_knowledge`; do not also read the same file via filesystem MCP.
+3. **Cursor: native Read/Grep/Shell first** — lean-ctx is optional for large files, re-reads, or compressed shell. If lean-ctx MCP hangs (>5s) or errors, fall back to native tools immediately.
+4. **LeanCTX for session memory and heavy reads** — use `ctx_knowledge`, `ctx_read` map mode, `ctx_search`; do not also read the same file via filesystem MCP.
 4. **One web/doc path per question** — library docs → context7; live news/versions → Tavily (Alfred); single URL → fetch; local PDF/Office file → markitdown; interactive web UI → playwright.
 5. **Plan in native reasoning** — Alfred no longer ships sequential-thinking, memory, time, codegraph, or sqlite MCPs.
 
@@ -30,7 +31,7 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 
 | Task | Use | Do NOT use |
 |------|-----|------------|
-| Read/search Alfred repo code | LeanCTX `ctx_read`, `ctx_search` | filesystem, raw Read/Grep when LeanCTX is available |
+| Read/search Alfred repo code | Native Read/Grep (Cursor) or LeanCTX for large files | filesystem, double-read via MCP + native |
 | Finance OneDrive files | filesystem MCP (finance path only) | LeanCTX (repo-oriented) |
 | Excel — workbook already open | `excel` (excellm) | excel-mcp |
 | Excel — Power Query, closed file | excel-mcp | `excel` (excellm) |

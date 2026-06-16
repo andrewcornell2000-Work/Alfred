@@ -7,7 +7,7 @@ between your repo and the agent — it does not replace Power BI, Excel, or GitH
 
 | Task | Use |
 |------|-----|
-| Read/search code in repo | `ctx_read` / `ctx_search` (LeanCTX) — map mode, cached re-reads |
+| Read/search code in repo | Native Read/Grep (Cursor default); LeanCTX `ctx_read` map mode for large files / re-reads |
 | Compressed git/npm/shell output | `lean-ctx -c "git status"` or shell hooks (auto) |
 | Session memory / agent diary | LeanCTX `ctx_knowledge`, `ctx_session` |
 | Durable business facts (entities, conventions) | LeanCTX `ctx_knowledge` — memory MCP retired |
@@ -38,8 +38,19 @@ Installed automatically by `Alfred-Install.exe` / `setup.ps1`:
 1. `npm install -g lean-ctx-bin`
 2. Alfred provisions domain MCPs first (`Provision-Cursor.ps1`)
 3. `lean-ctx onboard` merges LeanCTX into Cursor + Claude + Codex configs
+4. `Provision-Cursor.ps1` re-applies Alfred's cooperative `lean-ctx.mdc` rule (lean-ctx onboard alone installs an aggressive always-on rule that can hang Cursor)
 
-**No API keys or accounts required** for core use. Optional opt-ins during setup:
+**No API keys or accounts required** for core use.
+
+## Cursor hang / silent failures
+
+If agents stop responding or tool calls hang for minutes, lean-ctx was likely forced on every read. Alfred sets `lean-ctx.mdc` to **optional** (`alwaysApply: false`) and `00-agent-tooling.mdc` makes native tools the default. Re-run:
+
+```powershell
+.\Provision-Cursor.ps1 -SkipClaude -SkipCodex
+```
+
+Optional opt-ins during setup:
 anonymous telemetry, auto-updates, external providers — all declined by default in Alfred's bootstrap path.
 
 ## After install
