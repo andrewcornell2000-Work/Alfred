@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-06-16 (Iteration #10) — Agent Loop Debugging & Recovery Skill
+
+**Category:** Agent skills / Debugging
+**Mode:** New skill — diagnosing and recovering from stuck/broken Cursor and Claude Code agent sessions
+
+**Searches performed:**
+1. `agent loop stuck recovery patterns "tool call" "infinite loop" "max iterations" cursor claude code debugging checklist 2025`
+   → Sources: Cursor community forum (infinite loop bug thread), Claude Code GitHub issues (#30014), n8n community (tool call loop), Galileo blog (retry loop token burn), Zylos AI (trace-driven debugging for agents)
+2. `agent debugging techniques "agent loop" failure modes hallucination tool error retry backoff practical 2025`
+   → Sources: buildmvpfast.com (error recovery patterns), latitude.so (6 failure modes framework), aispaces substack, mindstudio.ai (6 failure patterns)
+3. `"tool misuse" "context loss" "goal drift" "retry loop" agent failure modes checklist diagnosis 2025 2026`
+   → Sources: latitude.so (confirmed 6-mode taxonomy), mindstudio.ai (context degradation, specification drift, sycophantic confirmation, tool errors, cascading failure, silent failure), Partnership on AI PDF (real-time failure detection)
+
+**Change summary:**
+- Created `skills/agent-loop-debugging.md` — a complete, actionable skill covering all 6 agent failure modes with symptoms, diagnosis questions, recovery prompts, and prevention patterns.
+- Structured as: failure mode taxonomy table → 5 diagnosis questions → per-mode recovery playbook → pre-flight checklist → universal recovery template → structured output enforcement → 6 "Try asking:" prompts → quick reference card.
+- The six failure modes covered: tool misuse, context loss, goal drift, retry loop, cascading failure, sycophantic confirmation.
+- Recovery prompts are paste-ready — Andrew can copy them into Cursor chat when an agent gets stuck.
+- Pre-flight checklist is a 7-item list to run before any task > 10 tool calls.
+- Structured output section covers: markdown tables, code-only fences, JSON action arrays, DAX-only, and Claude Code SDK jsonSchema pattern.
+- Positioned explicitly relative to companion skills: `agent-reasoning.md`, `agent-context-engineering.md`, `agent-token-efficiency.md`.
+- Appended `agent-loop-debugging` entry to `requirements/discovered-tools.md`.
+
+**Why this matters:**
+This is the missing complement to context engineering and reasoning patterns. Knowing how to plan and manage context helps avoid failures — but when things go wrong mid-session (which they will), there's been no skill covering how to recognise the specific failure mode and apply the right recovery. The quick-reference card at the bottom lets Andrew diagnose in seconds without re-reading the whole skill.
+
+**Files modified:**
+- `skills/agent-loop-debugging.md` (new, ~9.5k chars)
+- `requirements/discovered-tools.md` (appended 1 technique entry)
+- `memory/learning-log.md` (this entry)
+
+**Complementary skills:** `agent-reasoning.md`, `agent-context-engineering.md`, `agent-token-efficiency.md`
+
+---
+
 ## 2026-06-15 (Iteration #10) — Context Engineering Skill
 
 **Category:** Agent skills / Context architecture
@@ -52,44 +87,4 @@ The skill gives Andrew a concrete pre-task checklist and compress-point pattern 
 - Identifies 13 missing destructive verbs tha
 - Identifies routing keyword problems: bare `document`, `report`, `open`, `code` over-trigger; Power Query is only correctly routed because of a hard short-circuit (made explicit); fallback sets have drifted from the Tool Registry.
 - Provides a target **routing decision matrix** — for each request shape, the right category, provider, MCP, and whether the safety gate fires (pattern: read+draft = no gate; send/delete/overwrite/publish/refresh = gate).
-- Concrete proposed diff to `backend/main.py` (documented only — Andrew approves before applying): expanded `DANGEROUS_KEYWORDS_V2`, tightened fallback sets, generation of fallback sets from the Tool Registry (single source of truth), Tool Registry summary injected into `ALFRED_BRAIN_PROMPT`.
-- Adds a "How to add a new tool without breaking routing" 5-step procedure so future MCP/CLI additions wire keywords + safety gate consistently.
-
-**Use case:** Reference for any future change that touches routing — Andrew (or Alfred in a later iteration) can look up exactly which keyword set governs which behaviour, which destructive verbs are still ungated, and the standard procedure for adding a new tool without creating dead keywords or unsafe paths.
-
-**Key findings worth flagging:**
-- The safety gate is currently *too narrow* — 9 of Alfred's installed tools have destructive verbs that the gate doesn't catch. This is the highest-priority follow-up.
-- The Tool Registry should be the single source of truth for keywords; today the fallback sets are hand-maintained in a second place and have already drifted.
-- The brain prompt doesn't list the actual tools — it routes by category alone. A small change to inject the registry summary improves tool-name accuracy in user-visible plans.
-
-**Files modified:** `skills/alfred-routing-keywords.md` (new, 16k chars), `memory/learning-log.md`
-
-**Complementary skills:** `skills/github.md`, `skills/browser-automation.md`, `skills/office-mastery.md` (per-tool how-tos that should match the routing matrix).
-
----
-
-
----
-
-## 2026-06-07 (Iteration #12) — Power Query Error Diagnostic Playbook (rewrite)
-
-**Category:** Skills / Power Query & Data Engineering
-**Mode:** Rewrite of broken/stub file
-
-**Change summary:**
-- Rewrote `skills/powerquery-column-errors.md` from a thin, escaped-character-corrupted stub into a complete, structured error diagnostic playbook
-- Positioned explicitly as the *companion* to `power-query-transformations.md`: transformations skill = building queries, this skill = fixing broken queries. No content overlap.
-- Covers a structured 6-step diagnostic workflow (read error → find failing step → check last good state → inspect formula → compare to source → fix at right layer)
-- Error catalogue with cause + fix recipe for the 8 most common Power Query errors:
-  1. `Expression.Error: column not found`
-  2. `Column1/Column18 not found` (CSV column drift)
-  3. `DataFormat.Error: We couldn't convert to Number`
-  4. `Formula.Firewall: Query references other queries`
-  5. `Expression.Error: The key didn't match any rows in the table`
-  6. `OLE DB error` / gateway timeout
-  7. `Value.Error: Cannot convert to logical`
-  8. `Expression.Error: name isn't recognized`
-- Prevention section: lock column positions with `Table.SelectColumns([], {"col1","col2"})` + named step pattern + parameterised source paths
-- Try asking prompts for each diagnostic stage
-
-**Files modified:** `skills/powerquery-column-errors.md` (rewrite), `memory/learning-log.md`
+- Concrete proposed diff to `backend/main.py` (documented only — Andrew approves before applying): expanded `DANGEROUS_KEYWORDS_V2`, tightened fallback sets, generation of

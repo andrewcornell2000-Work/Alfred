@@ -83,3 +83,16 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **Install:** No install — rubric in `agent-context-engineering.md` Section 6
 - **Status:** shipped (covered in skill)
 - **Discovered:** 2026-06-15
+
+### agent-loop-debugging (technique)
+- **Category:** technique
+- **What it does:** A six-failure-mode taxonomy (tool misuse, context loss, goal drift, retry loop, cascading failure, sycophantic confirmation) with paste-ready recovery prompts, a pre-flight checklist, and structured output enforcement — for when a Cursor or Claude Code agent goes wrong mid-task.
+- **Try asking:** "My agent keeps calling the filesystem tool in a loop and not finishing — how do I stop it?"
+- **Try asking:** "Give me a pre-flight checklist prompt I can paste before I start a long Cursor agent session"
+- **Try asking:** "My agent said 'done' but the output file is empty — how do I debug that?"
+- **Try asking:** "Write me a recovery checkpoint prompt — the agent drifted off from the original goal halfway through"
+- **Try asking:** "I want the agent to return a markdown table and nothing else — how do I enforce that?"
+- **Install:** Skill file — available in Cursor/Claude/Codex after next provision
+- **Status:** shipped
+- **Discovered:** 2026-06-16
+- **Skill:** `agent-loop-debugging.md`
