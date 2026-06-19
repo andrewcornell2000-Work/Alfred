@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 12] TECHNIQUE — Spec-Driven Development with AI Agents
+**Date:** 2026-06-18
+**Type:** TECHNIQUE
+**What I found:** Spec-driven development (SDD) — writing a SPEC.md file before any prompt — is now the dominant professional pattern for multi-file agent work in 2026. GitHub Spec Kit (open-source), AWS Kiro IDE, and Claude Code all ship native spec tooling. The core discipline: the spec is always updated to reflect decisions (not the chat), and the agent implements against SPEC.md, not against conversation history. The four-phase loop is: SPECIFY → PLAN → IMPLEMENT → VERIFY. Key anti-pattern caught: "updating rules in conversation" fails because the next session doesn't know about the conversation; all rules go in the spec file.
+**Why it matters:** Andrew's agent sessions fail not because the model is bad but because business rules, edge cases, and success criteria live only in his head or in chat history that doesn't survive a context reset. A SPEC.md forces him to write those rules once, in a file, so every future session (and any collaborator) reads the same truth.
+**What it unlocks:** Reliable multi-session tasks. Paste-ready VERIFY prompt that makes the agent check its own output against explicit success criteria. Finance-specific SPEC.md template for Excel/Power BI report work. "Out of scope" section pattern that prevents agents from helpfully adding unrequested features.
+**Artifact:** `skills/agent-spec-driven.md`
+
+---
+
 ### [ITERATION 11] TECHNIQUE — Agent Workflow Orchestration Patterns
 **Date:** 2026-06-17
 **Type:** TECHNIQUE

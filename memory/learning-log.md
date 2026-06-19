@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-06-18 (Iteration #12) — Spec-Driven Development Skill
+
+**Category:** Agent skills / Workflow design
+**Mode:** New skill — spec-driven development with AI agents
+
+**Searches performed:**
+1. Fetched `addyosmani.com/blog/good-spec` — Addy Osmani (Google) guide on writing effective specifications for AI coding agents; covers spec structure, what to include, and the discipline of not letting chat replace the spec.
+2. Fetched `productbuilder.net/learn/spec-driven-development` — 2026 survey of spec-driven development patterns across Claude Code, GitHub Spec Kit, and Kiro; confirmed SDD is the dominant professional pattern for multi-file agent work.
+3. Fetched `augmentcode.com/guides/automating-spec-driven-development-with-ai-agents` — Augment Code practical guide; confirmed four-phase loop (SPECIFY→PLAN→IMPLEMENT→VERIFY), the "out of scope" section pattern, and VERIFY-against-criteria as the missing step most people skip.
+
+**Change summary:**
+- Created `skills/agent-spec-driven.md` (9.1k chars) — a complete, actionable skill covering:
+  - The core insight: agents fail not because the model is bad but because business rules live in chat history, not files
+  - "When to use spec-driven" decision checklist (6 criteria; use if 2+ are true)
+  - Four-phase workflow: SPECIFY → PLAN → IMPLEMENT → VERIFY, with paste-ready prompts for phases 2–4
+  - Full SPEC.md template (What this builds / Inputs / Expected output / Business rules / Edge cases / Success criteria / Out of scope)
+  - Finance-specific SPEC.md template for Excel/Power BI report work (labour variance report example)
+  - Anti-patterns table: 6 common failures with root cause and fix
+  - Connection to existing skills (orchestration, context engineering, agents-md, data analysis)
+  - 6 paste-ready "Try asking:" prompts covering: spec creation, plan phase, verify phase, mid-task rule change, Q&A spec interview, scope creep check
+
+**Key insight from research:**
+The VERIFY phase is the most consistently skipped step. Most people ask "does this look right?" instead of having the agent check against explicit success criteria. The discipline of writing testable criteria (row counts, totals match, no hardcoded values) and then having the agent VERIFY against them turns a fragile "looks about right" into a genuine pass/fail check.
+
+**Why this matters:**
+Andrew writes multi-phase reports (Excel + Power BI) where business rules are typically held in his head. When a session resets, those rules disappear and the agent starts making plausible-sounding guesses. A SPEC.md written before the task starts means every future session — and any collaborator — reads the same truth. The "Out of scope" section alone prevents the agent from helpfully adding unrequested features (a common problem on report tasks).
+
+**How it connects to existing skills:**
+- `agent-workflow-orchestration.md`: SPEC.md is the "brief" each phase of a chain reads; HANDOFF.md captures runtime state, SPEC.md captures design intent
+- `agents-md-project-context.md`: CLAUDE.md sets agent defaults; SPEC.md is task-specific — don't mix them
+- `agent-context-engineering.md`: SDD is context engineering applied at design-time
+- `data-analysis-planning.md`: for exploratory data work, a lightweight spec (just "What questions" + "Expected output format") is enough
+
+**Files modified:**
+- `skills/agent-spec-driven.md` (new, 9.1k chars)
+- `memory/learning-log.md` (this entry)
+- `memory/discoveries.md` (appended entry)
+
+---
+
 ## 2026-06-17 (Iteration #11) — Agent Workflow Orchestration Skill
 
 **Category:** Agent skills / Workflow design
@@ -43,54 +83,4 @@ Andrew regularly does multi-phase tasks that touch Excel + Power BI + code. With
 
 **Searches performed:**
 1. `agent loop stuck recovery patterns "tool call" "infinite loop" "max iterations" cursor claude code debugging checklist 2025`
-   → Sources: Cursor community forum (infinite loop bug thread), Claude Code GitHub issues (#30014), n8n community (tool call loop), Galileo blog (retry loop token burn), Zylos AI (trace-driven debugging for agents)
-2. `agent debugging techniques "agent loop" failure modes hallucination tool error retry backoff practical 2025`
-   → Sources: buildmvpfast.com (error recovery patterns), latitude.so (6 failure modes framework), aispaces substack, mindstudio.ai (6 failure patterns)
-3. `"tool misuse" "context loss" "goal drift" "retry loop" agent failure modes checklist diagnosis 2025 2026`
-   → Sources: latitude.so (confirmed 6-mode taxonomy), mindstudio.ai (context degradation, specification drift, sycophantic confirmation, tool errors, cascading failure, silent failure), Partnership on AI PDF (real-time failure detection)
-
-**Change summary:**
-- Created `skills/agent-loop-debugging.md` — a complete, actionable skill covering all 6 agent failure modes with symptoms, diagnosis questions, recovery prompts, and prevention patterns.
-- Structured as: failure mode taxonomy table → 5 diagnosis questions → per-mode recovery playbook → pre-flight checklist → universal recovery template → structured output enforcement → 6 "Try asking:" prompts → quick reference card.
-- The six failure modes covered: tool misuse, context loss, goal drift, retry loop, cascading failure, sycophantic confirmation.
-- Recovery prompts are paste-ready — Andrew can copy them into Cursor chat when an agent gets stuck.
-- Pre-flight checklist is a 7-item list to run before any task > 10 tool calls.
-- Structured output section covers: markdown tables, code-only fences, JSON action arrays, DAX-only, and Claude Code SDK jsonSchema pattern.
-- Positioned explicitly relative to companion skills: `agent-reasoning.md`, `agent-context-engineering.md`, `agent-token-efficiency.md`.
-- Appended `agent-loop-debugging` entry to `requirements/discovered-tools.md`.
-
-**Why this matters:**
-This is the missing complement to context engineering and reasoning patterns. Knowing how to plan and manage context helps avoid failures — but when things go wrong mid-session (which they will), there's been no skill covering how to recognise the specific failure mode and apply the right recovery. The quick-reference card at the bottom lets Andrew diagnose in seconds without re-reading the whole skill.
-
-**Files modified:**
-- `skills/agent-loop-debugging.md` (new, ~9.5k chars)
-- `requirements/discovered-tools.md` (appended 1 technique entry)
-- `memory/learning-log.md` (this entry)
-
-**Complementary skills:** `agent-reasoning.md`, `agent-context-engineering.md`, `agent-token-efficiency.md`
-
----
-
-## 2026-06-15 (Iteration #10) — Context Engineering Skill
-
-**Category:** Agent skills / Context architecture
-**Mode:** New skill — context engineering for Cursor + Claude + Codex sessions
-
-**Searches performed:**
-1. `context engineering window management tool call planning agent loop 2025 practical techniques`
-   → Sources: Haystack blog (deepset), LangChain blog, Manus blog (Peak Ji), Letta blog
-2. `"context engineering" agent practical checklist KV cache tool description quality MCP 2025`
-   → Sources: arXiv 2602.14878 (MCP tool description smells), Marina Wyss Medium course, Cursor Directory plugin, Manus Reddit thread
-
-**Change summary:**
-- Created `skills/agent-context-engineering.md` — a complete, actionable skill covering context window anatomy, write/select/compress/isolate patterns, KV-cache awareness, MCP tool description quality, and an Alfred-specific checklist.
-- Structured as 8 sections, each with a practical checklist or action.
-- Appended `context-engineering` technique entry to `requirements/discovered-tools.md`.
-
-**Why this matters:**
-Context engineering is the most direct lever for making Cursor and Claude Code sessions more reliable and cheaper. Without this knowledge, Andrew will hit context limit failures, redundant re-reads, and stale instructions at the worst moments.
-
-**Files modified:**
-- `skills/agent-context-engineering.md` (new)
-- `requirements/discovered-tools.md` (appended 1 technique entry)
-- `memory/learning-log.md` (this entry)
+   → Sources: Cursor community forum (infinite loop bug thread), Claude Code GitHub issues (#30014), n8n community (tool call lo
