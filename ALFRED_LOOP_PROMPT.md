@@ -87,15 +87,22 @@ Minimum depth: 3 layers.
 
 ══ STEP 3: BUILD ══════════════════════════════════════════
 
-Every run MUST call write_file at least once. Analysis-only runs are failures.
+Every run MUST produce a useful change OR document "no ship" in memory/learning-log.md.
 
 At minimum ONE of:
 
-  → Append to requirements/discovered-tools.md (with "Try asking:" prompts)
-  → Add MCP to cursor/mcp.json + requirements/mcp-tools.md + skill
+  → Append to requirements/discovered-tools.md (with "Try asking:" prompts) — merge duplicates, never duplicate ### slugs
+  → Add MCP to cursor/mcp.json + requirements/mcp-tools.md + skill (not lean-ctx.md or mcp-routing.md — those are rules)
   → Add CLI to requirements/npm-tools.txt or python-requirements.txt + alfred-tools.json + skill
-  → Improve skills/tool-discovery.md or an agent-* skill
+  → Improve skills/tool-discovery.md or an agent-* skill (IMPROVE existing — do NOT create near-duplicate agent-* files)
   → Update memory/discoveries.md + memory/learning-log.md
+
+NEVER write:
+  - skills/taste-*.md (third-party — npx Leonxlnx/taste-skill only)
+  - skills/lean-ctx.md or skills/mcp-routing.md as new skills (covered by cursor/rules/)
+  - Duplicate MCP keys or retired servers in cursor/mcp.json
+
+Read requirements/catalog-index.json before any catalog write.
 
 Every deliverable needs "Try asking:" example prompts Andrew can paste into Cursor.
 

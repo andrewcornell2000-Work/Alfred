@@ -57,5 +57,15 @@ tmp_*.json
 tmp_*.xlsx
 tmp_*.csv
 
+# Runtime data (DuckDB MCP, local DBs) — never block git pull
+data/*
+!data/.gitkeep
+
+# Session-local memory — pack docs (learning-log.md etc.) stay tracked
+memory/workspace.md
+memory/notes.md
+memory/session-summary.md
+memory/current-focus.md
+
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 

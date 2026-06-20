@@ -52,11 +52,16 @@ if ($response -notmatch "^[Yy]") {
 }
 
 Write-Host "  Pulling updates..." -ForegroundColor Cyan
-git -C $Root pull origin main
+git -C $Root fetch origin main 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  Fetch failed. Check your network and try again." -ForegroundColor Red
+    exit 1
+}
+git -C $Root reset --hard origin/main 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  Updates applied. Setup will re-run to apply any new requirements." -ForegroundColor Green
     exit 10
 } else {
-    Write-Host "  Pull failed. Resolve any issues above and try again." -ForegroundColor Red
-    exit 0
+    Write-Host "  Update failed. Resolve any issues above and try again." -ForegroundColor Red
+    exit 1
 }

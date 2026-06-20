@@ -75,12 +75,6 @@ goto RunInstaller
 :UpdateRepo
 echo.
 echo Existing Alfred checkout found.
-set "DIRTY="
-for /f "delims=" %%S in ('git -C "%TARGET%" status --porcelain 2^>nul') do set "DIRTY=1"
-if defined DIRTY (
-    echo Local changes are present, so the bootstrap will not pull automatically.
-    goto RunInstaller
-)
 
 choice /C YN /M "Pull latest Alfred changes from GitHub now"
 if errorlevel 2 goto RunInstaller
@@ -91,12 +85,13 @@ if errorlevel 1 (
     goto RunInstaller
 )
 
-git -C "%TARGET%" pull --ff-only origin "%BRANCH%"
+git -C "%TARGET%" reset --hard "origin/%BRANCH%"
 if errorlevel 1 (
-    echo [ERROR] Pull failed. Resolve the Git output above, then run this again.
+    echo [ERROR] Update failed. Resolve the Git output above, then run this again.
     pause
     exit /b 5
 )
+goto RunInstaller
 
 :RunInstaller
 if not exist "%TARGET%\Install-Alfred.bat" (

@@ -8,10 +8,12 @@ import anthropic
 import os
 import sys
 import json
+import re
 import shlex
 import subprocess
 import requests
 from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from email_utils import OWNER_EMAIL, send_alfred_email
@@ -129,6 +131,9 @@ def handle_tool(name, inp):
 
         elif name == "write_file":
             p = inp["path"]
+            err = validate_write(p, inp["content"])
+            if err:
+                return f"Rejected: {err}"
             d = os.path.dirname(p)
             if d:
                 os.makedirs(d, exist_ok=True)
@@ -233,6 +238,71 @@ def read_file_safe(path, limit=1500):
         return f"(not found: {path})"
 
 
+def validate_write(path: str, content: str) -> str | None:
+    """Return error string if write should be rejected, else None."""
+    norm = path.replace("\\", "/").lstrip("./")
+
+    if norm.startswith("skills/taste-") or "/taste-" in norm:
+        return "NEVER write skills/taste-*.md — use Leonxlnx/taste-skill via npx on user machines."
+
+    if norm == "skills/lean-ctx.md" or norm == "skills/mcp-routing.md":
+        return (
+            f"{norm} is repo documentation only — covered by cursor/rules/. "
+            "Improve cursor/rules/ instead of syncing as a skill."
+        )
+
+    if norm.startswith("skills/agent-") and os.path.exists(norm):
+        stem = Path(norm).stem
+        for existing in os.listdir("skills"):
+            if not existing.endswith(".md") or existing == Path(norm).name:
+                continue
+            if existing.startswith("agent-") and existing != Path(norm).name:
+                # block near-duplicate agent-* filenames
+                a = stem.replace("agent-", "")
+                b = existing.replace(".md", "").replace("agent-", "")
+                if a in b or b in a:
+                    return (
+                        f"Topic overlaps skills/{existing}. IMPROVE that file instead of creating {norm}."
+                    )
+
+    if norm == "cursor/mcp.json":
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            return f"Invalid JSON for cursor/mcp.json: {e}"
+        servers = data.get("mcpServers", {})
+        retired = set(data.get("_retiredServers", []))
+        keys = list(servers.keys())
+        if len(keys) != len(set(keys)):
+            return "Duplicate MCP server keys in mcp.json"
+        for r in retired:
+            if r in servers:
+                return f"Retired server '{r}' must not appear in mcpServers"
+        fps = {}
+        for name, cfg in servers.items():
+            fp = f"{cfg.get('command')}:{cfg.get('args', [])[:2]}"
+            if fp in fps:
+                return f"MCP '{name}' duplicates fingerprint of '{fps[fp]}'"
+            fps[fp] = name
+
+    if norm == "requirements/discovered-tools.md":
+        new_slugs = set(re.findall(r"^###\s+([a-z0-9-]+)", content, flags=re.MULTILINE))
+        if os.path.exists(norm):
+            old = open(norm, encoding="utf-8").read()
+            old_slugs = set(re.findall(r"^###\s+([a-z0-9-]+)", old, flags=re.MULTILINE))
+            added = new_slugs - old_slugs
+            if len(added) > 3:
+                return (
+                    f"Too many new catalog slugs in one write ({len(added)}). "
+                    "Merge into existing ### blocks or run CATALOG refresh mission."
+                )
+
+    if norm.startswith("skills/") and len(content) > 20000:
+        return f"{norm} exceeds 20KB — trim reference material into docs/ or merge with existing skill."
+
+    return None
+
+
 def run():
     import time
 
@@ -241,9 +311,16 @@ def run():
     iteration_num = subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
     active_projects = read_file_safe("memory/active-projects.md")
     recent_log = read_file_safe("memory/learning-log.md", limit=800)
-    discovered = read_file_safe("requirements/discovered-tools.md", limit=2000)
-    mcp_catalog = read_file_safe("cursor/mcp.json", limit=2000)
-    skills_list = ", ".join(sorted(os.listdir("skills"))) if os.path.exists("skills") else "none"
+    discovered = read_file_safe("requirements/discovered-tools.md", limit=12000)
+    mcp_catalog = read_file_safe("cursor/mcp.json", limit=8000)
+    catalog_index = read_file_safe("requirements/catalog-index.json", limit=4000)
+    tool_discovery = read_file_safe("skills/tool-discovery.md", limit=4000)
+    skills_list = ", ".join(
+        sorted(
+            f for f in os.listdir("skills")
+            if f.endswith(".md") and not f.startswith("taste-")
+        )
+    ) if os.path.exists("skills") else "none"
 
     # Alfred Pack growth loop: DISCOVER tools Andrew wouldn't find himself.
     # Ship to manifests so Provision-Cursor.ps1 wires Cursor + Claude + Codex globally.
@@ -279,7 +356,9 @@ def run():
         "Never edit finance/domain skills (cash-flow*, labour*, data-*, excel-financial*, powerbi-*, powerquery-*). "
         "Tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
         "DISCOVER missions: at least 2 web_search calls before write_file. "
-        "Every run MUST call write_file at least once. Analysis-only runs are failures."
+        "Every run MUST produce a useful change OR document 'no ship' in memory/learning-log.md "
+        "(duplicate blocked is OK — do not invent stubs). "
+        "NEVER write skills/taste-*.md. NEVER duplicate MCP keys or catalog slugs."
     )
 
     messages = [
@@ -304,6 +383,12 @@ Existing skills: {skills_list}
 
 === DISCOVERED TOOLS CATALOG ===
 {discovered}
+
+=== CATALOG INDEX (canonical slugs — do not duplicate) ===
+{catalog_index}
+
+=== TOOL DISCOVERY CHECKLIST ===
+{tool_discovery}
 
 === YOUR MISSION THIS ITERATION ===
 {focus}
@@ -344,6 +429,9 @@ MCP / CLI rules:
 - NEVER write API keys — use "${{env:VAR}}" + "_requires".
 - Destructive tools: note in skill + DANGEROUS_KEYWORDS gate in backend/main.py.
 - Do NOT duplicate existing catalog entries.
+- NEVER write skills/taste-*.md (third-party — npx install only).
+- NEVER create a new agent-* skill if an existing one covers the topic — IMPROVE it.
+- If nothing new passes the tool-discovery checklist, update memory/learning-log.md only.
 
 Start immediately. Pick your mission and begin.
 """

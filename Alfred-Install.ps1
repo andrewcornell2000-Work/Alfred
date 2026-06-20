@@ -285,24 +285,17 @@ Write-Step "Step 2: Alfred repository"
 
 if (Test-Path (Join-Path $InstallPath ".git")) {
     Write-OK "Existing checkout found — updating to latest..."
-    $dirty = & git -C $InstallPath status --porcelain 2>$null
-    if ($dirty) {
-        & git -C $InstallPath add -A
-        & git -C $InstallPath commit -m "Alfred auto-save before update $(Get-Date -Format 'yyyy-MM-dd HH:mm')" 2>$null
-    }
     & git -C $InstallPath fetch origin $Branch 2>&1 | Write-CommandOutput
     $fetchExitCode = $LASTEXITCODE
     if ($fetchExitCode -ne 0) {
         Write-Warn "Could not fetch latest Alfred — continuing with local version."
     } else {
-        & git -C $InstallPath rebase "origin/$Branch" 2>&1 | Write-CommandOutput
-        $rebaseExitCode = $LASTEXITCODE
-        if ($rebaseExitCode -ne 0) {
-            & git -C $InstallPath rebase --abort 2>$null
+        # Pack updates: prefer upstream. Runtime paths (data/, session memory) are gitignored.
+        & git -C $InstallPath reset --hard "origin/$Branch" 2>&1 | Write-CommandOutput
+        if ($LASTEXITCODE -ne 0) {
             Write-Warn "Update could not be applied automatically — continuing with local version."
-            Write-Host "  Your local changes were preserved. If this repeats, reinstall to a fresh folder." -ForegroundColor DarkGray
         } else {
-            Write-Done "Repository updated."
+            Write-Done "Repository updated to origin/$Branch."
         }
     }
 } else {

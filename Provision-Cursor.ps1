@@ -402,8 +402,22 @@ if (-not (Test-Path $McpTemplatePath)) {
             }
 
             if ($requiresCmd -and -not (Get-Command $requiresCmd -ErrorAction SilentlyContinue)) {
-                $skippedServers += "$name (needs '$requiresCmd' on PATH)"
-                continue
+                if ($defKeys -contains '_fallback' -and $def._fallback) {
+                    Write-Info "$name : '$requiresCmd' not on PATH — using _fallback config."
+                    $fb = $def._fallback
+                    $def = [pscustomobject]@{
+                        command = $fb.command
+                        args    = @($fb.args)
+                        env     = $def.env
+                        _requires = $def._requires
+                        _aliases  = $def._aliases
+                    }
+                    $defKeys = @($def.PSObject.Properties.Name)
+                    $requiresCmd = $null
+                } else {
+                    $skippedServers += "$name (needs '$requiresCmd' on PATH)"
+                    continue
+                }
             }
 
             $resolvedEnv = [ordered]@{}
@@ -581,6 +595,15 @@ if (-not $SkipCodex -and $managed.Count -gt 0) {
 }
 
 # ── Skills: sync skills/*.md into both tools as alfred-<name>/SKILL.md ─────────
+$script:SkillSkipPatterns = @('taste-*', 'lean-ctx', 'mcp-routing')
+
+function Test-SkillSkipped([string]$base) {
+    foreach ($pat in $script:SkillSkipPatterns) {
+        if ($base -like $pat) { return $true }
+    }
+    return $false
+}
+
 function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
     if (-not (Test-Path $srcDir)) { Write-Skip "No skills/ directory at $srcDir"; return }
     $mdFiles = @(Get-ChildItem -Path $srcDir -Filter *.md -File)
@@ -588,16 +611,21 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
     foreach ($root in $destRoots) {
         if (-not (Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
     }
+    $expectedSlugs = [System.Collections.Generic.HashSet[string]]::new()
+    $synced = 0
+    $skipped = 0
     foreach ($f in $mdFiles) {
         $base = ($f.BaseName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
-        if ($base -like 'taste-*') {
-            continue   # installed via npx skills add (Leonxlnx/taste-skill), not vendored copies
+        if (Test-SkillSkipped $base) {
+            $skipped++
+            continue
         }
         if ($base -like 'alfred-*') { $slug = $base } else { $slug = "alfred-$base" }
+        [void]$expectedSlugs.Add($slug)
         $content = Get-Content $f.FullName -Raw
 
         if ($content -match '^\s*---') {
-            $skillBody = $content                      # already has frontmatter
+            $skillBody = $content -replace '(?m)^name:\s*.+$', "name: $slug"
         } else {
             $lines = $content -split "`n"
             $titleLine = $lines | Where-Object { $_ -match '^\s*#\s+\S' } | Select-Object -First 1
@@ -605,7 +633,7 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
             $descLine = $lines | Where-Object { $_.Trim() -ne '' -and $_ -notmatch '^\s*#' -and $_ -notmatch '^\s*---' } | Select-Object -First 1
             if (-not $descLine) { $descLine = "Alfred skill: $title" }
             $descLine = ($descLine.Trim() -replace '"', '')
-            if ($descLine.Length -gt 200) { $descLine = $descLine.Substring(0, 200) }
+            if ($descLine.Length -gt 120) { $descLine = $descLine.Substring(0, 120) }
             $skillBody = "---`nname: $slug`ndescription: $descLine`n---`n`n" + $content
         }
 
@@ -614,8 +642,18 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
             if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
             Write-TextNoBom (Join-Path $dir "SKILL.md") $skillBody
         }
+        $synced++
     }
-    Write-OK "Synced $($mdFiles.Count) skill(s) -> $($destRoots -join ', ')"
+    foreach ($root in $destRoots) {
+        if (-not (Test-Path $root)) { continue }
+        Get-ChildItem $root -Directory -Filter 'alfred-*' -ErrorAction SilentlyContinue | ForEach-Object {
+            if (-not $expectedSlugs.Contains($_.Name)) {
+                Remove-Item $_.FullName -Recurse -Force
+                Write-OK "Removed orphan skill '$($_.Name)' from $root"
+            }
+        }
+    }
+    Write-OK "Synced $synced skill(s), skipped $skipped (taste/lean-ctx/mcp-routing) -> $($destRoots -join ', ')"
 }
 
 Write-Step "Skills: syncing Alfred skills into Cursor + Claude Code + Codex"
@@ -623,9 +661,8 @@ $skillDests = @()
 if (-not $SkipCursor) { $skillDests += (Join-Path $HOME ".cursor\skills") }
 if (-not $SkipClaude) { $skillDests += (Join-Path $HOME ".claude\skills") }
 if (-not $SkipCodex)  { $skillDests += (Join-Path $HOME ".codex\skills") }
-if ($skillDests.Count -gt 0) { Sync-Skills (Join-Path $Root "skills") $skillDests }
-
 Remove-AlfredVendoredTasteSkills $skillDests
+if ($skillDests.Count -gt 0) { Sync-Skills (Join-Path $Root "skills") $skillDests }
 Install-ThirdPartyAgentSkills
 
 # ── Rules: per-project seeding (opt-in via -ProjectPath) ──────────────────────

@@ -60,8 +60,9 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 - **Install:** `setup.ps1` downloads the self-contained exe
 
 ### github
-- **Source:** npm package `@modelcontextprotocol/server-github`
-- **Command:** `npx -y @modelcontextprotocol/server-github`
+- **Source:** Official [github/github-mcp-server](https://github.com/github/github-mcp-server) (`ghcr.io/github/github-mcp-server`)
+- **Command:** `docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server`
+- **Fallback (no Docker):** `npx -y @modelcontextprotocol/server-github` (deprecated but still works)
 - **Purpose:** GitHub operations - PRs, issues, repo search, file operations, diffs
 - **Trust:** official
 - **Destructive:** true

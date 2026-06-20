@@ -1,0 +1,58 @@
+{
+  "skills": {
+    "agent-context-engineering": {
+      "path": "skills/agent-context-engineering.md",
+      "aliases": ["context-engineering", "kv-cache", "mcp-tool-description-audit"]
+    },
+    "agent-loop-debugging": {
+      "path": "skills/agent-loop-debugging.md",
+      "aliases": ["agent-loop-debugging", "retry-loop", "goal-drift"]
+    },
+    "agent-parallel-worktrees": {
+      "path": "skills/agent-parallel-worktrees.md",
+      "aliases": ["parallel-agents-git-worktrees", "git-worktrees"]
+    },
+    "agent-reasoning": {
+      "path": "skills/agent-reasoning.md",
+      "aliases": []
+    },
+    "agent-spec-driven": {
+      "path": "skills/agent-spec-driven.md",
+      "aliases": ["spec-driven", "spec-md"]
+    },
+    "agent-token-efficiency": {
+      "path": "skills/agent-token-efficiency.md",
+      "aliases": []
+    },
+    "agent-workflow-orchestration": {
+      "path": "skills/agent-workflow-orchestration.md",
+      "aliases": ["workflow-orchestration", "multi-step-agent"]
+    },
+    "agents-md-project-context": {
+      "path": "skills/agents-md-project-context.md",
+      "aliases": ["agents-md", "project-context"]
+    },
+    "mcp-routing": {
+      "path": "skills/mcp-routing.md",
+      "aliases": ["routing-keywords", "tool-routing"]
+    },
+    "lean-ctx": {
+      "path": "skills/lean-ctx.md",
+      "aliases": ["alfred-lean-ctx"],
+      "sync_as_skill": false
+    }
+  },
+  "mcp_fingerprints": {
+    "fetch": "uvx:mcp-server-fetch",
+    "markitdown": "uvx:markitdown-mcp",
+    "duckdb": "uvx:mcp-server-duckdb",
+    "github": "ghcr.io/github/github-mcp-server",
+    "github-legacy": "npx:@modelcontextprotocol/server-github",
+    "filesystem": "npx:@modelcontextprotocol/server-filesystem",
+    "playwright": "npx:@playwright/mcp",
+    "context7": "npx:@upstash/context7-mcp"
+  },
+  "retired_mcp": ["sequential-thinking", "memory", "time", "codegraph", "sqlite", "powerbi"],
+  "never_sync_skills": ["taste-*", "lean-ctx", "mcp-routing"],
+  "never_write_skills": ["taste-*"]
+}

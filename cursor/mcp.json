@@ -5,7 +5,8 @@
     "memory",
     "time",
     "codegraph",
-    "sqlite"
+    "sqlite",
+    "powerbi"
   ],
   "mcpServers": {
     "powerbi-modeling-mcp": {
@@ -27,12 +28,17 @@
       "_note": "ExcelMcp — CLOSED workbook / exclusive COM only. Complements live 'excel' (excellm). Never alternate mid-task. Auto-skipped if exe missing."
     },
     "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"],
       "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}" },
       "_requires": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+      "_requiresCommand": "docker",
+      "_fallback": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"]
+      },
       "_aliases": { "GITHUB_PERSONAL_ACCESS_TOKEN": ["GITHUB_TOKEN"] },
-      "_note": "GitHub repos, PRs, issues, code search. Token read from GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN in Alfred .env."
+      "_note": "Official GitHub MCP (ghcr.io/github/github-mcp-server). Falls back to legacy npx package when Docker is not installed. Token from GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN in Alfred .env."
     },
     "playwright": {
       "command": "npx",

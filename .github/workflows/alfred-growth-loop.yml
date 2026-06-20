@@ -37,12 +37,15 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: python .github/scripts/alfred_loop.py
 
+      - name: Validate catalog (dedup)
+        run: python .github/scripts/validate_catalog.py
+
       - name: Commit and push improvements
         run: |
           git config user.name "Alfred"
           git config user.email "alfredTCP2000@gmail.com"
           # Stage only pack-safe paths — never git add -A (secrets/backend surprises).
-          ALLOW_RE='^(memory/|skills/|requirements/|cursor/|PACK\.md|README\.md|ALFRED_LOOP_PROMPT\.md)'
+          ALLOW_RE='^(memory/|skills/|requirements/|cursor/|docs/vendor/|PACK\.md|README\.md|ALFRED_LOOP_PROMPT\.md|\.github/scripts/)'
           while IFS= read -r line; do
             [ -z "$line" ] && continue
             path="${line:3}"

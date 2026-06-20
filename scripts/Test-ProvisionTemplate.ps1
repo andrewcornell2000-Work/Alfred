@@ -18,11 +18,19 @@ if (-not $tpl.mcpServers) {
     Write-Error 'cursor/mcp.json has no mcpServers block'
 }
 
-$required = @('excel', 'github', 'filesystem', 'fetch', 'time', 'sqlite', 'duckdb')
+$required = @('excel', 'excel-mcp', 'github', 'filesystem', 'fetch', 'duckdb', 'playwright', 'context7', 'markitdown', 'powerbi-modeling-mcp')
+$retired = @('time', 'sqlite', 'sequential-thinking', 'memory', 'codegraph', 'powerbi')
 $names = @($tpl.mcpServers.PSObject.Properties.Name)
 $missing = $required | Where-Object { $_ -notin $names }
 if ($missing.Count -gt 0) {
     Write-Error "Template missing expected servers: $($missing -join ', ')"
+}
+$presentRetired = $retired | Where-Object { $_ -in $names }
+if ($presentRetired.Count -gt 0) {
+    Write-Error "Retired servers must not be in mcpServers: $($presentRetired -join ', ')"
+}
+if (-not $tpl._retiredServers) {
+    Write-Error 'cursor/mcp.json must define _retiredServers'
 }
 
 foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
