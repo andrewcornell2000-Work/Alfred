@@ -96,3 +96,16 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **Status:** shipped
 - **Discovered:** 2026-06-16
 - **Skill:** `agent-loop-debugging.md`
+
+### agent-self-check (technique)
+- **Category:** technique
+- **What it does:** Four escalating patterns — inline critique, output contracts, reflection pass, and test-first loop — that make an agent verify its own work before declaring done, catching errors proactively rather than reactively.
+- **Try asking:** "Before you write this DAX measure — state what the correct output should be for the IT department filter, then write it and verify."
+- **Try asking:** "Review what you just produced as a sceptical colleague who will stake their reputation on it. List 3 things that could still be wrong."
+- **Try asking:** "Write a test case FIRST: what input and expected output would expose a bug in this formula? Then write the formula and verify it passes."
+- **Try asking:** "You're not done until you've shown me the row count before and after this Power Query merge step, and confirmed no unexpected NULLs appeared."
+- **Try asking:** "After completing this report section — flag every number that is an estimate or assumption rather than a hard figure from the source data."
+- **Install:** Skill file — available in Cursor/Claude/Codex after next provision
+- **Status:** shipped
+- **Discovered:** 2026-06-19
+- **Skill:** `agent-self-check.md`
