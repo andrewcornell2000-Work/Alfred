@@ -656,13 +656,37 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
     Write-OK "Synced $synced skill(s), skipped $skipped (taste/lean-ctx/mcp-routing) -> $($destRoots -join ', ')"
 }
 
+# Folder skills (a directory with SKILL.md + bundled references) are copied whole,
+# preserving structure and frontmatter. Used for vendored multi-file skill packs
+# under skills/_packs/<pack>/<skill>/ (e.g. Microsoft skills-for-fabric).
+function Sync-SkillFolders([string]$packsDir, [string[]]$destRoots) {
+    if (-not (Test-Path $packsDir)) { Write-Skip "No skill packs at $packsDir"; return }
+    $skillDirs = @(Get-ChildItem $packsDir -Recurse -Directory -ErrorAction SilentlyContinue |
+                   Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') })
+    if ($skillDirs.Count -eq 0) { return }
+    foreach ($root in $destRoots) {
+        if (-not (Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
+    }
+    foreach ($sd in $skillDirs) {
+        foreach ($root in $destRoots) {
+            $dest = Join-Path $root $sd.Name
+            if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+            Copy-Item $sd.FullName $dest -Recurse -Force
+        }
+    }
+    Write-OK "Synced $($skillDirs.Count) folder skill(s) -> $($destRoots -join ', ')"
+}
+
 Write-Step "Skills: syncing Alfred skills into Cursor + Claude Code + Codex"
 $skillDests = @()
 if (-not $SkipCursor) { $skillDests += (Join-Path $HOME ".cursor\skills") }
 if (-not $SkipClaude) { $skillDests += (Join-Path $HOME ".claude\skills") }
 if (-not $SkipCodex)  { $skillDests += (Join-Path $HOME ".codex\skills") }
 Remove-AlfredVendoredTasteSkills $skillDests
-if ($skillDests.Count -gt 0) { Sync-Skills (Join-Path $Root "skills") $skillDests }
+if ($skillDests.Count -gt 0) {
+    Sync-Skills (Join-Path $Root "skills") $skillDests
+    Sync-SkillFolders (Join-Path $Root "skills\_packs") $skillDests
+}
 Install-ThirdPartyAgentSkills
 
 # ── Rules: per-project seeding (opt-in via -ProjectPath) ──────────────────────
