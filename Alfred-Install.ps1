@@ -804,10 +804,32 @@ $settingsObj = [ordered]@{
         )
         deny  = @()
     }
+    # Continuous-learning + guardrail hooks (scripts live in the repo; $CLAUDE_PROJECT_DIR
+    # resolves to the repo root when working in Alfred). Python, stdlib-only, fail-safe.
+    hooks = [ordered]@{
+        SessionStart = @(
+            [ordered]@{ hooks = @(
+                [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/session-start-instincts.py"' }
+            ) }
+        )
+        PreToolUse = @(
+            [ordered]@{ matcher = "Edit|Write|MultiEdit"; hooks = @(
+                [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/config-protection.py"' }
+            ) }
+            [ordered]@{ matcher = "Bash"; hooks = @(
+                [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/pre-commit-quality.py"' }
+            ) }
+        )
+        Stop = @(
+            [ordered]@{ hooks = @(
+                [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/observe-session.py"' }
+            ) }
+        )
+    }
 }
-$settingsJson = $settingsObj | ConvertTo-Json -Depth 5
+$settingsJson = $settingsObj | ConvertTo-Json -Depth 10
 Set-Content $settingsPath $settingsJson -Encoding UTF8
-Write-Done ".claude\settings.json written (CLI permissions; MCPs provisioned in Step 10)."
+Write-Done ".claude\settings.json written (permissions + continuous-learning/guardrail hooks; MCPs in Step 10)."
 if ($mcpServers.Count -gt 0) {
     Write-Host "  Detected $($mcpServers.Count) local MCP prerequisite(s) — full stack registered via Provision-Cursor.ps1" -ForegroundColor DarkGray
 } else {

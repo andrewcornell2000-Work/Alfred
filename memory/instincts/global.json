@@ -1,0 +1,41 @@
+[
+  {
+    "id": "network-git-npm-curl-fails-with--77a159",
+    "domain": "network",
+    "trigger": "git/npm/curl fails with 'could not resolve host'",
+    "guidance": "It's DNS, not the tool. Suspect VPN first (NordVPN ThreatProtection/kill-switch mangles DNS even when disconnected). Isolate with: ping 1.1.1.1 (raw IP) vs nslookup github.com. Both fail = outage/router; only nslookup fails = DNS.",
+    "confidence": 0.55,
+    "observations": 1,
+    "scope": "global",
+    "source": "seed",
+    "created": "2026-06-23T06:26:48.825809+00:00",
+    "last_reinforced": "2026-06-23T06:26:48.825818+00:00",
+    "status": "active"
+  },
+  {
+    "id": "git-a-local-checkout-has-div-6b4dab",
+    "domain": "git",
+    "trigger": "a local checkout has diverged from origin with throwaway local edits",
+    "guidance": "Don't fight a merge. Back up local state to a branch (or stash -u), then 'git reset --hard origin/main'. Confirm with the user before discarding tracked work.",
+    "confidence": 0.55,
+    "observations": 1,
+    "scope": "global",
+    "source": "seed",
+    "created": "2026-06-23T06:26:48.952286+00:00",
+    "last_reinforced": "2026-06-23T06:26:48.952297+00:00",
+    "status": "active"
+  },
+  {
+    "id": "harness-before-installing-a-big--6df64c",
+    "domain": "harness",
+    "trigger": "before installing a big third-party agent framework (e.g. ECC) into an existing setup",
+    "guidance": "Clone read-only and cherry-pick. Don't bulk-install — it fights existing CLAUDE.md/hooks and bloats context. Port the few mechanisms that beat what you have.",
+    "confidence": 0.55,
+    "observations": 1,
+    "scope": "global",
+    "source": "seed",
+    "created": "2026-06-23T06:26:49.078042+00:00",
+    "last_reinforced": "2026-06-23T06:26:49.078052+00:00",
+    "status": "active"
+  }
+]

@@ -35,6 +35,11 @@ Read these files to remember where you left off:
 Run: git log --oneline -5
 Count iterations: git rev-list --count HEAD
 
+Surface what you've already learned, then age out stale lessons:
+  python scripts/instinct-cli.py status
+  python scripts/instinct-cli.py decay
+  python scripts/instinct-cli.py prune
+
 You are Alfred Pack Iteration [N].
 
 ══ STEP 1: CHOOSE YOUR MISSION ════════════════════════════
@@ -117,6 +122,11 @@ NEVER commit:
 memory/learning-log.md — new entry with files modified
 memory/discoveries.md — if genuine breakthrough
 memory/active-projects.md — next discovery mission
+
+Capture any reusable lesson from this run as an instinct (reinforces if it
+already exists; surfaces automatically next session):
+  python scripts/instinct-cli.py record --domain "<d>" \
+    --trigger "when <situation>" --guidance "do <action>" --scope global
 
 ══ STEP 5: EMAIL YOUR OWNER ══════════════════════════════
 

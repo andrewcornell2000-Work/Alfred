@@ -84,6 +84,32 @@
       "_requires": [],
       "_requiresCommand": "uvx",
       "_note": "SQL on CSV, Parquet, Excel exports, and local analytics DB. Replaces sqlite MCP."
+    },
+    "fal-ai": {
+      "command": "npx",
+      "args": ["-y", "fal-ai-mcp-server"],
+      "env": { "FAL_KEY": "${env:FAL_KEY}" },
+      "_requires": ["FAL_KEY"],
+      "_note": "AI image/video/audio generation via fal.ai models — ad creative, thumbnails, b-roll. Auto-skipped unless FAL_KEY is set in Alfred .env (get one at fal.ai/dashboard/keys)."
+    },
+    "magic": {
+      "command": "npx",
+      "args": ["-y", "@magicuidesign/mcp@latest"],
+      "_requires": [],
+      "_note": "Magic UI components — generate animated React/Tailwind UI blocks (hero, marquee, bento, etc.). No key required. Frontend/landing-page work."
+    },
+    "parallel-search": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://search.parallel.ai/mcp"],
+      "_requires": [],
+      "_note": "LLM-optimized web search + fetch (citation-backed excerpts in one call). Works key-free for anonymous use via the mcp-remote stdio bridge. Prefer over fetch for research after context7/docs. For higher rate limits set PARALLEL_API_KEY and add an Authorization header."
+    },
+    "longhand": {
+      "command": "longhand",
+      "args": ["mcp-server"],
+      "_requires": [],
+      "_requiresCommand": "longhand",
+      "_note": "Lossless Claude Code session history — verbatim recall of tool calls, file edits, and thinking blocks from ~/.claude/projects/*.jsonl into local SQLite + ChromaDB before Claude rotates them. Install: pip install longhand && longhand setup. Auto-skipped if 'longhand' is not on PATH."
     }
   }
 }

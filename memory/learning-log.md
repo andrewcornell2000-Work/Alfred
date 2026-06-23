@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-06-23 — ECC cherry-pick: 4 MCPs + continuous-learning instinct engine
+
+**Category:** Harness upgrade / MCPs + continuous learning
+**Mode:** Read-only review of `affaan-m/ECC`, ported only what beat current Alfred
+
+**Source:** Cloned ECC read-only to `C:\Users\Andre\_ecc-review` (220k-star agent
+harness). Reviewed its 28-MCP catalog, ~250 skills, 67 subagents, hook system,
+and the continuous-learning-v2 "instinct" engine. Skipped 80% (language/crypto/
+healthcare/enterprise boilerplate + the commercial layer); took the high-value bits.
+
+**Change summary:**
+- **MCPs** added to `cursor/mcp.json` (provisioner auto-skips if key/command missing):
+  - `fal-ai` — image/video/audio generation (needs `FAL_KEY`)
+  - `magic` — Magic UI components (no key)
+  - `parallel-search` — citation-backed web search/fetch via `mcp-remote` (key-free)
+  - `longhand` — lossless Claude Code session history → SQLite+ChromaDB (`pip install longhand`)
+  - Note: parallel-search is HTTP-only upstream; Alfred's provisioner is command-based,
+    so it's wired through the `mcp-remote` stdio bridge.
+- **Instinct engine** — `scripts/instinct-cli.py` (lean, stdlib-only reimplementation of
+  ECC's 1,914-line continuous-learning-v2; stores confidence-scored `when X → do Y`
+  lessons in `memory/instincts/`, project + global scope, decay + TTL prune).
+- **Hooks** wired in `.claude/settings.json` (Python, no node dep):
+  - `SessionStart` → `session-start-instincts.py` surfaces active/strong instincts into context
+  - `PreToolUse(Edit|Write|MultiEdit)` → `config-protection.py` blocks weakening linter configs
+  - `PreToolUse(Bash)` → `pre-commit-quality.py` secret/debugger/console scan before commit
+  - `Stop` → `observe-session.py` (opt-in `ALFRED_INSTINCT_OBSERVE=1`) cheap observation log
+- Seeded 3 curated global instincts; added `/instinct-status` + `/instinct-learn` commands,
+  `skills/continuous-learning.md`, and wired the loop prompt (STEP 0 surface/decay/prune,
+  STEP 4 record lessons).
+- Smoke-tested: JSON valid, CLI add/dedupe/reinforce/status, all three hooks (block + allow paths).
+
+**Files modified:** `cursor/mcp.json`, `.claude/settings.json`, `.gitignore`,
+`ALFRED_LOOP_PROMPT.md`, `README.md`, `scripts/instinct-cli.py`,
+`scripts/hooks/{session-start-instincts,config-protection,pre-commit-quality,observe-session}.py`,
+`skills/continuous-learning.md`, `.claude/commands/{instinct-status,instinct-learn}.md`,
+`memory/instincts/{README.md,global.json}`.
+
+---
+
 ## 2026-06-18 (Iteration #12) — Spec-Driven Development Skill
 
 **Category:** Agent skills / Workflow design

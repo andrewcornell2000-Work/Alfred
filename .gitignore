@@ -67,5 +67,9 @@ memory/notes.md
 memory/session-summary.md
 memory/current-focus.md
 
+# Instinct engine — ship seed global.json + README; per-project + runtime stay local
+memory/instincts/projects/
+memory/instincts/observations.jsonl
+
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 

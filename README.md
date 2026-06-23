@@ -130,6 +130,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 TAVILY_API_KEY=tvly-...
 GITHUB_TOKEN=ghp_...
+FAL_KEY=...            # optional — enables the fal-ai MCP (image/video/audio generation)
 ```
 
 Save, then run `Alfred-Install.exe` or `run-alfred.bat` again.
@@ -223,6 +224,38 @@ You can't find every useful MCP yourself. Alfred's GitHub Actions loop runs dail
 
 See `requirements/discovered-tools.md` for the living catalog.
 
+### MCPs added in v2.2.0
+
+Cherry-picked from a read-only review of the ECC harness (`affaan-m/ECC`) — only the ones that beat what Alfred already had:
+
+| MCP | What it adds | Key |
+|-----|--------------|-----|
+| `fal-ai` | AI image/video/audio generation — ad creative, thumbnails, b-roll | `FAL_KEY` in `.env` |
+| `magic` | Magic UI components — animated React/Tailwind blocks | none |
+| `parallel-search` | Citation-backed web search + fetch in one call (via `mcp-remote`) | none (key-free) |
+| `longhand` | Lossless Claude Code session history → local SQLite+ChromaDB | `pip install longhand && longhand setup` |
+
+Each is auto-skipped by `Provision-Cursor.ps1` if its key/command is missing, so they never break a provision.
+
+---
+
+## Continuous Learning (instincts)
+
+Alfred now learns **instincts** — confidence-scored `when X → do Y` lessons that
+**surface automatically at the start of every session** (via a `SessionStart`
+hook), instead of sitting inert in a memory file.
+
+```powershell
+python scripts/instinct-cli.py status     # see what Alfred has learned
+```
+
+Slash commands `/instinct-status` and `/instinct-learn` drive it; the autonomous
+loop records a lesson each iteration and ages out stale ones. Two guardrail hooks
+ship alongside (wired in `.claude/settings.json`): **config-protection** (blocks
+weakening linter configs) and **pre-commit-quality** (secret/debugger scan before
+`git commit`). Details: `skills/continuous-learning.md` and
+`memory/instincts/README.md`.
+
 ---
 
 ## Running In Development
@@ -249,6 +282,9 @@ plugins/quant/                   Quant Intelligence Flask plugin
 requirements/                    Python, npm, MCP, and tool manifests
 skills/                          Markdown skill modules
 memory/                          Conversation memory, routing notes, learning log
+memory/instincts/                Confidence-scored learned instincts (continuous learning)
+scripts/instinct-cli.py          Instinct engine (status/record/decay/prune)
+scripts/hooks/                   Claude Code hooks (instinct surfacing + guardrails)
 logs/                            Interaction logs
 Alfred-Install.ps1               Source script compiled into Alfred-Install.exe for releases
 Install-Alfred.bat               Repo-local installer and launcher fallback
