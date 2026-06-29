@@ -104,6 +104,13 @@
       "_requires": [],
       "_note": "LLM-optimized web search + fetch (citation-backed excerpts in one call). Works key-free for anonymous use via the mcp-remote stdio bridge. Prefer over fetch for research after context7/docs. For higher rate limits set PARALLEL_API_KEY and add an Authorization header."
     },
+    "firecrawl": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": { "FIRECRAWL_API_KEY": "${env:FIRECRAWL_API_KEY}" },
+      "_requires": ["FIRECRAWL_API_KEY"],
+      "_note": "Firecrawl — web scraping, crawling, site mapping, structured extraction, and deep research (scrape/crawl/map/extract/search). Returns clean markdown/JSON from JS-heavy pages. Auto-skipped unless FIRECRAWL_API_KEY (fc-...) is set in Alfred .env. Get one at https://www.firecrawl.dev/app/api-keys"
+    },
     "longhand": {
       "command": "longhand",
       "args": ["mcp-server"],

@@ -677,6 +677,79 @@ function Sync-SkillFolders([string]$packsDir, [string[]]$destRoots) {
     Write-OK "Synced $($skillDirs.Count) folder skill(s) -> $($destRoots -join ', ')"
 }
 
+# Impeccable (pbakaus/impeccable) — a multi-file design skill vendored under
+# skills/_vendor/impeccable. Unlike _packs folder skills (copied verbatim to every
+# harness), impeccable's SKILL.md and reference docs hard-code the skill's own script
+# path (".claude/skills/impeccable/scripts/..."). We copy the canonical build per
+# harness and rewrite that prefix so `node ...` script calls resolve correctly under
+# Cursor (.cursor), Claude Code (.claude), and Codex (.codex).
+function Sync-Impeccable([hashtable]$harnessRoots) {
+    $src = Join-Path $Root "skills\_vendor\impeccable"
+    if (-not (Test-Path (Join-Path $src 'SKILL.md'))) { Write-Skip "impeccable not vendored at $src"; return }
+    foreach ($harness in $harnessRoots.Keys) {
+        $root = $harnessRoots[$harness]
+        if (-not $root) { continue }
+        if (-not (Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
+        $dest = Join-Path $root 'impeccable'
+        if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+        Copy-Item $src $dest -Recurse -Force
+        # Drop the Alfred-only provenance note from the live skill.
+        $prov = Join-Path $dest '.alfred-source.md'
+        if (Test-Path $prov) { Remove-Item $prov -Force }
+        # Rewrite the script-path prefix for non-Claude harnesses (canonical build is Claude).
+        if ($harness -ne 'claude') {
+            $fromPrefix = ".claude/skills/impeccable"
+            $toPrefix   = ".$harness/skills/impeccable"
+            Get-ChildItem $dest -Recurse -Filter *.md -File | ForEach-Object {
+                $txt = Get-Content $_.FullName -Raw -Encoding UTF8
+                if ($txt.Contains($fromPrefix)) {
+                    Write-TextNoBom $_.FullName ($txt.Replace($fromPrefix, $toPrefix))
+                }
+            }
+        }
+    }
+    Write-OK "Synced impeccable design skill -> $($harnessRoots.Values -join ', ')"
+}
+
+# Wire impeccable's deterministic pre-edit detector hook into Cursor's GLOBAL hooks.json
+# (preToolUse), with an absolute node path so it runs without relying on the user's PATH.
+# Merges into the existing file (preserves lean-ctx and any other hooks). Idempotent.
+# Runs LAST (after lean-ctx onboard) so onboard's merge can't drop it.
+function Wire-ImpeccableCursorHook {
+    if ($SkipCursor) { return }
+    $cursorDir   = Join-Path $HOME ".cursor"
+    $skillScript = Join-Path $cursorDir "skills\impeccable\scripts\hook-before-edit.mjs"
+    if (-not (Test-Path $skillScript)) { return }
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        Write-Skip "node not on PATH -- impeccable Cursor hook not wired (skill still works; deterministic pre-edit checks disabled)."
+        return
+    }
+    $hooksPath = Join-Path $cursorDir "hooks.json"
+    $cmd = 'node "' + ($skillScript -replace '\\', '/') + '"'
+    $hooks = $null
+    if (Test-Path $hooksPath) {
+        try { $hooks = Get-Content $hooksPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $hooks = $null }
+    }
+    if (-not $hooks) { $hooks = [pscustomobject]@{ version = 1; hooks = [pscustomobject]@{} } }
+    if (-not ($hooks.PSObject.Properties.Name -contains 'hooks') -or -not $hooks.hooks) {
+        $hooks | Add-Member -NotePropertyName hooks -NotePropertyValue ([pscustomobject]@{}) -Force
+    }
+    $pre = @()
+    if (($hooks.hooks.PSObject.Properties.Name -contains 'preToolUse') -and $hooks.hooks.preToolUse) {
+        $pre = @($hooks.hooks.preToolUse)
+    }
+    if (-not ($pre | Where-Object { $_.command -eq $cmd })) {
+        $pre += [pscustomobject]@{ command = $cmd; timeout = 5 }
+    }
+    if ($hooks.hooks.PSObject.Properties.Name -contains 'preToolUse') {
+        $hooks.hooks.preToolUse = $pre
+    } else {
+        $hooks.hooks | Add-Member -NotePropertyName preToolUse -NotePropertyValue $pre -Force
+    }
+    Write-TextNoBom $hooksPath ($hooks | ConvertTo-Json -Depth 30)
+    Write-OK "Wired impeccable pre-edit detector hook into Cursor hooks.json (absolute node path)"
+}
+
 Write-Step "Skills: syncing Alfred skills into Cursor + Claude Code + Codex"
 $skillDests = @()
 if (-not $SkipCursor) { $skillDests += (Join-Path $HOME ".cursor\skills") }
@@ -686,6 +759,11 @@ Remove-AlfredVendoredTasteSkills $skillDests
 if ($skillDests.Count -gt 0) {
     Sync-Skills (Join-Path $Root "skills") $skillDests
     Sync-SkillFolders (Join-Path $Root "skills\_packs") $skillDests
+    $impeccableRoots = @{}
+    if (-not $SkipCursor) { $impeccableRoots['cursor'] = (Join-Path $HOME ".cursor\skills") }
+    if (-not $SkipClaude) { $impeccableRoots['claude'] = (Join-Path $HOME ".claude\skills") }
+    if (-not $SkipCodex)  { $impeccableRoots['codex']  = (Join-Path $HOME ".codex\skills") }
+    if ($impeccableRoots.Count -gt 0) { Sync-Impeccable $impeccableRoots }
 }
 Install-ThirdPartyAgentSkills
 
@@ -781,6 +859,9 @@ if (-not $SkipLeanCtx) {
 } else {
     Sync-GlobalCursorRules
 }
+
+# ── Impeccable Cursor hook (runs after lean-ctx so onboard's merge can't drop it) ──
+Wire-ImpeccableCursorHook
 
 # ── summary ───────────────────────────────────────────────────────────────────
 if ($skippedServers.Count -gt 0) {

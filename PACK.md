@@ -26,6 +26,8 @@
 ```
 cursor/mcp.json          → MCP template (no secrets)
 skills/*.md              → agent how-to skills
+skills/_packs/**/SKILL.md→ vendored multi-file skill packs (copied verbatim)
+skills/_vendor/impeccable→ impeccable design skill (per-harness path rewrite + Cursor hook)
 cursor/rules/*.mdc       → Cursor rules (optional -ProjectPath)
 Provision-Cursor.ps1     → ~/.cursor/mcp.json
                          → claude mcp add --scope user
