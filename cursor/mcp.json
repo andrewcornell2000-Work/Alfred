@@ -117,6 +117,14 @@
       "_requires": [],
       "_requiresCommand": "longhand",
       "_note": "Lossless Claude Code session history — verbatim recall of tool calls, file edits, and thinking blocks from ~/.claude/projects/*.jsonl into local SQLite + ChromaDB before Claude rotates them. Install: pip install longhand && longhand setup. Auto-skipped if 'longhand' is not on PATH."
+    },
+    "outlook-calendar": {
+      "command": "npx",
+      "args": ["-y", "outlook-calendar-mcp"],
+      "_requires": [],
+      "_requiresCommand": "npx",
+      "_windowsOnly": true,
+      "_note": "Read and manage local Microsoft Outlook calendar on Windows — list events in a date range, create/update meetings, find free time slots, check attendee status, access multiple calendars. Requires Outlook desktop client installed. Windows 11 24H2+ users must enable VBScript via Settings → Apps → Optional features → VBScript before this server will work. No API key needed."
     }
   }
 }
