@@ -1,43 +1,39 @@
-# Active Projects — Alfred Pack discovery loop
-*Last updated: 2026-06-10*
+# Active Projects — Alfred learning queue
+*Last updated: 2026-07-04*
 
-## What Alfred is now
-A **toolchain pack** — installs MCPs, skills, rules globally for Cursor + Claude + Codex.
-The **discovery loop** is the primary value: find tools Andrew wouldn't search for himself.
+## Workflow
 
-## LOOP MISSIONS (rotate daily)
-1. **DISCOVER MCP** — finance/office angle; web search → ship or candidate
+Learning runs in **Cursor sessions** per `docs/LEARNING-WORKFLOW.md` (not the old daily GitHub loop).
+
+## Missions (pick one per session)
+
+1. **DISCOVER MCP** — finance/office angle; 1–3 searches → ship or candidate
 2. **DISCOVER CLI** — day-to-day tools; ship or candidate
-3. **DISCOVER technique** — agent skill with "Try asking:" prompts
-4. **SHIP candidate** — promote from discovered-tools.md
-5. **MCP / CLI HOW-TO** — deepen with real Cursor prompts
-6. **CATALOG refresh** — curate discovered-tools.md
-7. **CONSOLIDATE** — merge duplicate skills
+3. **IMPROVE skill** — update existing file (prefer over new `agent-*` skills)
+4. **SHIP candidate** — promote from `discovered-tools.md`
+5. **CATALOG refresh** — curate duplicates, add missing "Try asking:" lines
 
-## Every run must include
-- ≥2 `web_search` calls on DISCOVER missions
-- `write_file` with complete deliverable
-- `Try asking:` examples (in skill or discovered-tools.md)
-- `memory/learning-log.md` + `memory/discoveries.md` update
-- `send_email` daily to Andrew (subject prefixed "Alfred daily —")
-- Weekly digest is separate workflow (Monday) — compiles last 7 days
+## Every session should
+
+- Check `catalog-index.json` before writing
+- Produce one complete deliverable OR log "no ship" in `learning-log.md`
+- Include **"Try asking:"** examples
+- Run `validate_catalog.py` before commit
 
 ## Discovery targets (rotate)
+
 - SharePoint / Graph file access
 - PDF table extraction beyond markitdown
-- Outlook / calendar MCPs
+- Outlook / calendar MCPs (outlook-calendar shipped — deepen skill)
 - Power BI Service REST via az
 - Parquet / CSV fast analytics
 - Clipboard / screenshot / OCR workflows
-- Scheduling / automation without admin
 
-## DONE
-- [x] Alfred reframed as Pack (PACK.md, README)
-- [x] discovered-tools.md catalog
-- [x] Loop preloads mcp.json + discovered catalog
-- [x] DISCOVER missions with mandatory web search
+## Never edit in routine learning
 
-## NOTES
-- Andrew works in Cursor — pack provisions globally; loop finds what to provision next
-- Never edit finance/domain skills in the loop
-- `Provision-Cursor.ps1` + `lean-ctx onboard` = install path
+Finance/domain skills: `cash-flow*`, `labour*`, `data-*`, `excel-financial*`, `powerbi-*`, `powerquery-*`
+
+## Notes
+
+- Andrew works in Cursor — `Provision-Cursor.ps1` + `lean-ctx onboard` = install path
+- Agent guidance consolidated in `skills/agent-playbook.md`

@@ -5,7 +5,7 @@
 1. Installs CLIs (Claude Code, Codex, gh, pbi, LeanCTX, …)
 2. Provisions **MCP servers** globally into Cursor, Claude Code, and Codex
 3. Syncs **skills** and **rules** into all three agents
-4. Runs a **discovery loop** (GitHub Actions) that finds new MCPs and tools you wouldn't think to search for
+4. **Learning workflow** — Cursor sessions per `docs/LEARNING-WORKFLOW.md` (replaces daily GitHub loop)
 
 ## What you do day-to-day
 
@@ -36,17 +36,18 @@ Provision-Cursor.ps1     → ~/.cursor/mcp.json
                          → lean-ctx onboard (merge, not replace)
 ```
 
-## Discovery loop (the real value)
+## Discovery & learning (Cursor)
 
-Every day, cloud Alfred:
+Use Cursor in the Alfred repo with **`docs/LEARNING-WORKFLOW.md`**:
 
-1. Searches the web for new MCPs, CLIs, and techniques for finance/office/AI-dev work
-2. Compares against what's already in `cursor/mcp.json` and `discovered-tools.md`
-3. Ships a **complete** skill or catalog entry with **"Try asking:"** example prompts
-4. Commits to GitHub → you pull / re-run installer → provision picks it up
-5. Emails you a **daily** update (noon AEST) and a **weekly digest** (Monday noon) with tools to try
+1. Research one new MCP, CLI, or technique for finance/office work (1–3 web searches when needed)
+2. Compare against `cursor/mcp.json` and `discovered-tools.md`
+3. Ship a complete skill or catalog entry with **"Try asking:"** prompts
+4. Commit → pull / re-run installer → provision picks it up
 
-You don't hunt for tools. The loop brings them to you.
+The scheduled GitHub Actions loop is **disabled**. Manual workflow dispatch remains for emergencies.
+
+Weekly digest email (Mondays) still summarizes recent learning-log entries.
 
 ## Optional: Alfred CLI
 

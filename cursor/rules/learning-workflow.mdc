@@ -1,0 +1,18 @@
+---
+description: Controlled skill and tool learning in Cursor — use when adding MCPs, skills, or catalog entries.
+alwaysApply: false
+---
+
+# Learning workflow (Cursor)
+
+When the user asks to teach Alfred, add a tool/MCP/skill, or run discovery:
+
+1. Read `docs/LEARNING-WORKFLOW.md` and `docs/ALFRED-STRUCTURE.md`
+2. Check `requirements/catalog-index.json` and `cursor/mcp.json` — **update before create**
+3. Web search: **1–3 targeted queries** only when external facts are needed (DISCOVER missions)
+4. Do **not** search for normal coding tasks or timeless explanations
+5. Ship one complete deliverable with **"Try asking:"** examples
+6. Run `python .github/scripts/validate_catalog.py` before commit
+
+Never duplicate `skills/mcp-routing.md` or lean-ctx rules into new skills.
+Prefer `skills/agent-playbook.md` over creating new `agent-*` files.

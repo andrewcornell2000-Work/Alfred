@@ -1,13 +1,16 @@
-# lean-ctx — Context Engineering Layer
+# Alfred Pack — Cursor rules (repo root)
 
-CRITICAL: ALWAYS use lean-ctx tools instead of native equivalents. This is NOT optional.
+Native Cursor tools (Read, Grep, Glob, Shell, Edit, Write) are the **default** for repo work.
 
-| MUST USE | NEVER USE | Why |
-|----------|-----------|-----|
-| `ctx_read(path, mode)` | `Read` / `cat` / `head` / `tail` | Cached, 10 read modes, re-reads ~13 tokens |
-| `ctx_search(pattern, path)` | `Grep` / `rg` | Compact, token-efficient results |
-| `lean-ctx -c "<cmd>"` (via Shell) | `ctx_shell` / raw `Shell` | CLI compression, no MCP overhead |
+## Tool layers (one primary path per task)
+1. **Native tools** — code, config, git, tests in this repo
+2. **Domain MCPs** — Excel, Power BI, GitHub, browser, etc. (see `skills/mcp-routing.md`)
+3. **lean-ctx** — optional for large file maps, compressed shell, session memory (`skills/lean-ctx.md`)
 
-File editing: use native Edit/StrReplace. Write, Delete, Glob → use normally.
-NEVER loop on Edit failures — switch to ctx_edit immediately.
-REMINDER: You MUST use lean-ctx tools. NEVER use native Read, Grep, or Shell directly.
+If any MCP errors or exceeds ~5 seconds, stop using it for the rest of the turn and use native tools.
+
+## Coding
+Follow `AGENTS.md` and `skills/karpathy-coding-guidelines.md`. Smallest change that solves the task.
+
+## Structure
+Rules, skills, MCP usage, and learning workflow: **`docs/ALFRED-STRUCTURE.md`**

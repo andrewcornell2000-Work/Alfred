@@ -1,36 +1,30 @@
 {
   "skills": {
-    "agent-context-engineering": {
-      "path": "skills/agent-context-engineering.md",
-      "aliases": ["context-engineering", "kv-cache", "mcp-tool-description-audit"]
+    "agent-playbook": {
+      "path": "skills/agent-playbook.md",
+      "aliases": [
+        "agent-reasoning",
+        "agent-token-efficiency",
+        "agent-loop-debugging",
+        "agent-workflow-orchestration",
+        "agent-context-engineering",
+        "agent-self-check",
+        "agent-spec-driven",
+        "agent-parallel-worktrees",
+        "agents-md",
+        "project-context",
+        "context-engineering",
+        "retry-loop",
+        "goal-drift",
+        "workflow-orchestration",
+        "multi-step-agent",
+        "spec-driven",
+        "spec-md"
+      ]
     },
-    "agent-loop-debugging": {
-      "path": "skills/agent-loop-debugging.md",
-      "aliases": ["agent-loop-debugging", "retry-loop", "goal-drift"]
-    },
-    "agent-parallel-worktrees": {
-      "path": "skills/agent-parallel-worktrees.md",
-      "aliases": ["parallel-agents-git-worktrees", "git-worktrees"]
-    },
-    "agent-reasoning": {
-      "path": "skills/agent-reasoning.md",
-      "aliases": []
-    },
-    "agent-spec-driven": {
-      "path": "skills/agent-spec-driven.md",
-      "aliases": ["spec-driven", "spec-md"]
-    },
-    "agent-token-efficiency": {
-      "path": "skills/agent-token-efficiency.md",
-      "aliases": []
-    },
-    "agent-workflow-orchestration": {
-      "path": "skills/agent-workflow-orchestration.md",
-      "aliases": ["workflow-orchestration", "multi-step-agent"]
-    },
-    "agents-md-project-context": {
-      "path": "skills/agents-md-project-context.md",
-      "aliases": ["agents-md", "project-context"]
+    "learning-workflow": {
+      "path": "skills/learning-workflow.md",
+      "aliases": ["tool-discovery", "growth-loop", "discovery"]
     },
     "mcp-routing": {
       "path": "skills/mcp-routing.md",
@@ -42,6 +36,17 @@
       "sync_as_skill": false
     }
   },
+  "archived_skills": {
+    "agent-context-engineering": "skills/_archive/agent/agent-context-engineering.md",
+    "agent-loop-debugging": "skills/_archive/agent/agent-loop-debugging.md",
+    "agent-parallel-worktrees": "skills/_archive/agent/agent-parallel-worktrees.md",
+    "agent-reasoning": "skills/_archive/agent/agent-reasoning.md",
+    "agent-self-check": "skills/_archive/agent/agent-self-check.md",
+    "agent-spec-driven": "skills/_archive/agent/agent-spec-driven.md",
+    "agent-token-efficiency": "skills/_archive/agent/agent-token-efficiency.md",
+    "agent-workflow-orchestration": "skills/_archive/agent/agent-workflow-orchestration.md",
+    "agents-md-project-context": "skills/_archive/agent/agents-md-project-context.md"
+  },
   "mcp_fingerprints": {
     "fetch": "uvx:mcp-server-fetch",
     "markitdown": "uvx:markitdown-mcp",
@@ -50,7 +55,11 @@
     "github-legacy": "npx:@modelcontextprotocol/server-github",
     "filesystem": "npx:@modelcontextprotocol/server-filesystem",
     "playwright": "npx:@playwright/mcp",
-    "context7": "npx:@upstash/context7-mcp"
+    "context7": "npx:@upstash/context7-mcp",
+    "parallel-search": "mcp-remote:parallel-search",
+    "firecrawl": "firecrawl-mcp",
+    "fal-ai": "fal-ai/mcp-server",
+    "magic": "magicuidesign/mcp"
   },
   "retired_mcp": ["sequential-thinking", "memory", "time", "codegraph", "sqlite", "powerbi"],
   "never_sync_skills": ["taste-*", "lean-ctx", "mcp-routing"],
