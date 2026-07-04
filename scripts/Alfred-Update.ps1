@@ -12,7 +12,8 @@
 #>
 param(
     [string]$AlfredRoot = (Split-Path $PSScriptRoot -Parent),
-    [switch]$SkipPull
+    [switch]$SkipPull,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Continue"
@@ -58,21 +59,39 @@ Log "Config backup: $backupTarget"
 
 # ── Pull updates (with approval) ──────────────────────────────────────────────
 if (-not $SkipPull) {
-    $checkScript = Join-Path $AlfredRoot "check-updates.ps1"
-    if (Test-Path $checkScript) {
-        & $checkScript
-        $pullExit = $LASTEXITCODE
-        if ($pullExit -eq 1) {
-            Log "Update pull failed."
+    if ($Force) {
+        Log "Force update — pulling origin/main without prompt..."
+        git -C $AlfredRoot fetch origin main 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Log "Fetch failed."
             exit 1
         }
-        if ($pullExit -ne 10) {
-            Log "No updates applied (declined or already current)."
-        } else {
+        git -C $AlfredRoot reset --hard origin/main 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
             Log "Git pull applied — running setup..."
             $setup = Join-Path $AlfredRoot "setup.ps1"
-            if (Test-Path $setup) {
-                & $setup
+            if (Test-Path $setup) { & $setup }
+        } else {
+            Log "Pull failed."
+            exit 1
+        }
+    } else {
+        $checkScript = Join-Path $AlfredRoot "check-updates.ps1"
+        if (Test-Path $checkScript) {
+            & $checkScript
+            $pullExit = $LASTEXITCODE
+            if ($pullExit -eq 1) {
+                Log "Update pull failed."
+                exit 1
+            }
+            if ($pullExit -ne 10) {
+                Log "No updates applied (declined or already current)."
+            } else {
+                Log "Git pull applied — running setup..."
+                $setup = Join-Path $AlfredRoot "setup.ps1"
+                if (Test-Path $setup) {
+                    & $setup
+                }
             }
         }
     }
@@ -89,6 +108,8 @@ if (-not $SkipPull) {
 $validate = Join-Path $AlfredRoot "scripts\Validate-Install.ps1"
 if (Test-Path $validate) {
     & $validate -AlfredRoot $AlfredRoot -LogFile $LogFile
+    $stateFile = Join-Path $LogDir "update-available.json"
+    if (Test-Path $stateFile) { Remove-Item $stateFile -Force -ErrorAction SilentlyContinue }
     exit $LASTEXITCODE
 }
 

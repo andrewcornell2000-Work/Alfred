@@ -967,8 +967,37 @@ Write-Host "  Next steps:" -ForegroundColor White
 Write-Host "    1. Restart Cursor, Claude Code, and Codex" -ForegroundColor DarkGray
 Write-Host "    2. Run 'claude auth login' and 'codex login' if not done yet" -ForegroundColor DarkGray
 Write-Host "    3. Optional: add API keys to .env, then re-run Provision-Cursor.ps1" -ForegroundColor DarkGray
-Write-Host "    4. Updates: re-run this installer or scripts\\Alfred-Update.ps1" -ForegroundColor DarkGray
+Write-Host "    4. Updates: Alfred.exe or scripts\\Alfred-Update.ps1 (notifications enabled)" -ForegroundColor DarkGray
+Write-Host "    5. Launch UI: Alfred.exe on desktop or ui\\Alfred-App.ps1" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  Launch Alfred CLI: double-click Alfred on your desktop, or:" -ForegroundColor DarkGray
+Write-Host "  Launch CLI: double-click Alfred on desktop, or:" -ForegroundColor DarkGray
 Write-Host "    $LauncherPs" -ForegroundColor DarkGray
+Write-Host ""
+
+# Register update notifications (idempotent)
+$registerTask = Join-Path $InstallPath "scripts\Register-AlfredNotifyTask.ps1"
+if (Test-Path $registerTask) {
+    try {
+        & $registerTask -Root $InstallPath
+        Write-OK "Update notifications registered (check on logon + every 6h)."
+    } catch {
+        Write-Warn "Could not register update notifications: $_"
+    }
+}
+
+# Build UI shortcut if Alfred.exe exists
+$alfredUi = Join-Path $InstallPath "Alfred.exe"
+if (Test-Path $alfredUi) {
+    try {
+        $uiShortcut = Join-Path $Desktop "Alfred Manager.lnk"
+        $wsh = New-Object -ComObject WScript.Shell
+        $lnk = $wsh.CreateShortcut($uiShortcut)
+        $lnk.TargetPath = $alfredUi
+        $lnk.WorkingDirectory = $InstallPath
+        $lnk.Description = "Alfred AI Capability Manager"
+        $lnk.Save()
+        Write-OK "Desktop shortcut: Alfred Manager.lnk"
+    } catch { }
+}
+
 Write-Host ""

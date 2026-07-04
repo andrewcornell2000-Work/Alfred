@@ -93,4 +93,28 @@ Copy-Item "$bak\mcp.json" "$env:USERPROFILE\.cursor\mcp.json" -Force
 - Review queue: `requirements/review-queue.json`
 - Candidate validation: `python .github/scripts/review_candidate.py <candidate.json>`
 
-See `docs/LEARNING-WORKFLOW.md` for how new capabilities are reviewed before install.
+## Update notifications
+
+After install, Alfred registers a **Windows scheduled task** (logon + every 6 hours):
+
+- Checks GitHub for new commits on `main`
+- Shows a **toast notification** when updates are available
+- Click **Install update** → runs `Alfred-Update.ps1 -Force` (with config backup)
+
+**Manual check:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Check-AlfredUpdates.ps1 -Notify
+```
+
+**Desktop UI:** `Alfred.exe` (built from `ui/Alfred-App.ps1`) — Install update, Validate, Repair provision.
+
+Build both exes: `.\build-installer.ps1`
+
+## Cloud learning loop
+
+Automated secure learning runs **Monday & Thursday** via GitHub Actions (`alfred-secure-learning.yml`).
+
+See **`docs/CLOUD-LEARNING.md`**.
+
+---

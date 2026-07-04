@@ -1,16 +1,18 @@
-name: Alfred Growth Loop (legacy)
+name: Alfred Secure Learning Loop
 
 on:
-  # Superseded by alfred-secure-learning.yml (Mon/Thu with review pipeline).
+  schedule:
+    # Mon + Thu 02:00 UTC (~noon AEST) — controlled learning, not daily spam
+    - cron: '0 2 * * 1,4'
   workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  alfred-loop:
+  secure-learning:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     permissions:
       contents: write
@@ -19,7 +21,7 @@ jobs:
       - name: Checkout Alfred
         uses: actions/checkout@v4
         with:
-          fetch-depth: 10
+          fetch-depth: 15
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,22 +31,24 @@ jobs:
       - name: Install dependencies
         run: pip install anthropic requests
 
-      - name: Run Alfred Growth Loop
+      - name: Run secure learning loop
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALFRED_SECURE_MODE: '1'
         run: python .github/scripts/alfred_loop.py
 
-      - name: Validate catalog (dedup)
-        run: python .github/scripts/validate_catalog.py
+      - name: Validate catalog and review candidates
+        run: |
+          python .github/scripts/validate_catalog.py
+          python .github/scripts/validate_review_queue.py
 
-      - name: Commit and push improvements
+      - name: Commit learning proposals
         run: |
           git config user.name "Alfred"
           git config user.email "alfredTCP2000@gmail.com"
-          # Stage only pack-safe paths — never git add -A (secrets/backend surprises).
-          ALLOW_RE='^(memory/|skills/|requirements/|cursor/|docs/vendor/|PACK\.md|README\.md|ALFRED_LOOP_PROMPT\.md|\.github/scripts/)'
+          ALLOW_RE='^(memory/|skills/|requirements/|cursor/rules/|docs/|PACK\.md|README\.md|\.github/(scripts|prompts)/)'
           while IFS= read -r line; do
             [ -z "$line" ] && continue
             path="${line:3}"
@@ -55,6 +59,6 @@ jobs:
             fi
           done < <(git status --porcelain)
           git diff --staged --quiet && echo "Nothing to commit" || \
-            git commit -m "Alfred loop: autonomous improvement [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+            git commit -m "Alfred learning: secure review proposals [$(date -u '+%Y-%m-%d %H:%M UTC')]"
           git pull --rebase origin main
           git push origin main
