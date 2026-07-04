@@ -1,114 +1,83 @@
 # Alfred Worker Routing Rules
-*Version: 2026-05-24*
+*Version: 2026-07-04*
 
 ## Purpose
 
-Alfred routes each user request to the cheapest capable path. Heavy providers are used only when the request needs code execution, file work, deep inspection, or a specialist plugin.
+Alfred routes each request to the cheapest capable path. Heavy providers (Codex, Claude Code) are used only when the task needs code execution, file work, MCP tools, or Power BI.
 
-## Categories
+## Categories (`alfred_brain()`)
 
-| Category | Meaning | Default path |
-|---|---|---|
-| `GENERAL` | Conversation, explanation, planning, lightweight memory notes | `openai_mini` |
-| `POWERBI` | Power BI, Power Query, dashboards, models, DAX, refresh issues | `claude_code` |
-| `CLAUDE_EXECUTION` | File, folder, code, command, repo, or implementation work | Provider scoring |
-| `QUANT` | Stocks, tickers, trading opportunities, market analysis, backtests | Quant plugin |
-
-## Providers
-
-| Provider | Handles |
-|---|---|
-| `openai_mini` | Classification, general chat, low-cost planning, non-dispatched execution plans with weak signals |
-| `codex` | Alfred code changes, Python refactors, tests, implementation, UI/app/dashboard/frontend work |
-| `claude_code` | Power BI investigations, MCP-heavy work, file-system exploration, broad execution tasks, deep tool use |
-| `quant_tool` | Quant Intelligence Flask API under `plugins/quant` or `QUANT_BASE_URL` |
+| Category | Meaning | Default provider |
+|----------|---------|------------------|
+| `GENERAL` | Conversation, explanation, planning | `claude` |
+| `SEARCH` | Live/current data (news, versions, prices, docs) | `claude` + Tavily |
+| `CODE` | Repo code, tests, refactors, Alfred self-modification | `codex` |
+| `EXECUTE` | Files, scripts, Excel, browser, GitHub, Office | `claude_code` |
+| `POWERBI` | Models, DAX, Power Query, visuals | `claude_code` |
 
 ## Routing Priority
 
-1. Explicit provider override wins when the user starts with phrases such as `use claude`, `use claude code`, `with claude`, `with claude code`, `via claude`, `via claude code`, `ask claude`, `ask claude code`, `use codex`, `with codex`, `via codex`, or `ask codex`.
-2. `GENERAL` always routes to `openai_mini`.
-3. `QUANT` routes directly to the Quant plugin API; it does not generate a Claude/Codex scope.
-4. `POWERBI` routes to `claude_code`.
-5. `CLAUDE_EXECUTION` compares Codex and Claude keyword scores:
-   - Codex score greater than Claude score -> `codex`
-   - Claude score greater than or equal to Codex score -> `claude_code`
-   - Both scores zero -> `openai_mini`, plan only, no auto-dispatch
+1. **Explicit override** — `use claude`, `use codex`, `with claude`, `via codex`, etc. (`detect_provider_override()`)
+2. **Brain JSON** — `alfred_brain()` category + provider (primary)
+3. **Keyword fallback** — if brain unavailable: Power BI keywords → `POWERBI`; Codex vs Claude keyword scores → `CODE` / `EXECUTE`; else `GENERAL`
+
+## Web Search (Tavily)
+
+Search runs when:
+- Category is `SEARCH`, or
+- Brain sets `needs_search: true`, or
+- `_should_search()` matches **explicit** recency/lookup keywords (not every question)
+
+Search does **not** run for meta commands (`back`, `menu`, `exit`) or short inputs.
+
+See `skills/web-search.md` for Alfred CLI rules. In Cursor, use `parallel-search` or `fetch` MCP per `skills/mcp-routing.md`.
 
 ## Auto-Dispatch Gate
 
-Alfred may auto-dispatch to Codex or Claude Code only when:
+Auto-dispatch to Codex or Claude Code when:
+- Provider is `codex` or `claude_code`
+- Category is `CODE`, `EXECUTE`, or `POWERBI`
+- No dangerous keyword in user input
 
-- The selected provider is `codex` or `claude_code`
-- The category is `CLAUDE_EXECUTION`, or the category is `POWERBI` with an action keyword
-- No dangerous keyword is present
-
-Auto-dispatch is blocked when the request contains:
+Blocked keywords (require explicit confirmation):
 
 `delete`, `remove`, `overwrite`, `credentials`, `password`, `entire onedrive`, `all folders`, `whole workspace`
 
-When blocked, Alfred should show the plan and wait for a safer user instruction.
-
 ## Learning / Creator Mode
 
-Menu option `8. Dev Portal` opens a dedicated Learning / Creator prompt. Requests entered there are forced through the guarded learning flow even if they do not contain trigger phrases.
+**Menu option 5 — Dev Portal.** Requests there use `force_learning=True`.
 
-Triggered phrases include:
+Trigger phrases (`LEARNING_MODE_KEYWORDS`):
 
-`add a rule`, `new rule`, `add rule`, `routing rule`, `update alfred`, `modify alfred`, `change alfred`, `teach alfred`, `add to alfred`, `add feature`, `new feature`, `add behavior`, `update routing`, `add routing`, `update dispatch`, `add dispatch`, `save this rule`, `remember this rule`, `add this rule`, `creator mode`, `learning mode`
+`add a rule`, `new rule`, `learning mode`, `creator mode`, `teach alfred`, `update alfred`, `add feature`, …
 
 Flow:
+1. `generate_learning_discussion()` — discuss proposed change (no file writes)
+2. User confirms `y` / declines `n`
+3. Confirmed → `CLAUDE_EXECUTION` routed to **`claude_code`**
+4. Declined → logged as `LEARNING_DECLINED`
 
-1. Alfred discusses the proposed change with `openai_mini`.
-2. Alfred ends with a `Proposed change:` line.
-3. Alfred asks for confirmation.
-4. Confirmed changes are routed as `CLAUDE_EXECUTION` to `codex`.
-5. Declined changes are logged as `LEARNING_DECLINED`; nothing is written or dispatched.
+See `docs/LEARNING-WORKFLOW.md` for Cursor-based skill learning (replaces the old daily GitHub loop).
 
-Current limitation: Dev Portal routes implementation work, but deterministic first-class editing flows for skills, routing rules, tool manifests, and project files are still planned.
+## Quant Plugin
 
-## Quant Routing
+Optional. Set `QUANT_BASE_URL` for local Flask (`plugins/quant/app.py`). Menu **9. Quant Dashboard**.
 
-Quant requests include:
-
-- Specific ticker analysis such as `analyze NVDA`
-- Trading opportunities
-- Market, macro, institutional, smart-money, options, alerts, backtest, paper portfolio, or learning-stat requests
-
-Quant command parser output maps to these endpoints:
-
-| Command | Endpoint |
-|---|---|
-| `analyze` | `/api/analyze/<ticker>` |
-| `backtest` | `/api/backtest/<ticker>` |
-| `institutional` | `/api/institutional/<ticker>` |
-| `opportunities` | `/api/opportunities` |
-| `macro` | `/api/macro` |
-| `paper` | `/api/paper` |
-| `alerts` | `/api/alerts` |
-| `learning` | `/api/learning` |
-| `refresh` | `/api/refresh` |
-
-`QUANT_BASE_URL` controls whether Alfred talks to a cloud deployment or a local Flask server.
+Not part of `alfred_brain()` categories — accessed via dedicated menu path when implemented.
 
 ## Keyword Reference
 
-### Codex trigger keywords
+### Codex (`CODEX_ROUTING_KEYWORDS`)
 
-`alfred code`, `alfred update`, `app design`, `bug fix`, `class`, `clean up`, `code cleanup`, `code review`, `coverage`, `dashboard design`, `dead code`, `debug code`, `dependency`, `docstring`, `extract method`, `fix bug`, `frontend`, `function`, `implement`, `implementation`, `import`, `lint`, `linting`, `method`, `module`, `package`, `pytest`, `refactor`, `refactoring`, `rename`, `repo`, `repository`, `review code`, `test suite`, `tests pass`, `type hint`, `typing`, `ui design`, `unit test`, `unit tests`, `update alfred`, `web app`, `web application`, `website design`, `write code`
+`refactor`, `unit test`, `implement`, `fix bug`, `alfred code`, `update alfred`, `frontend`, …
 
-### Claude Code trigger keywords
+### Claude Code (`CLAUDE_CODE_ROUTING_KEYWORDS`)
 
-`database`, `deep tool`, `execute`, `explore`, `file exploration`, `file system`, `filesystem`, `folder`, `inspect file`, `mcp`, `onedrive`, `power bi`, `power query`, `powerbi`, `read file`, `repository exploration`, `run script`, `scan`, `sharepoint`, `workspace`
-
-### Power BI action keywords
-
-`inspect`, `run`, `edit`, `use mcp`, `use claude`
+`mcp`, `excel`, `power bi`, `playwright`, `pull request`, `read file`, `execute`, …
 
 ## Files To Keep In Sync
 
-- `backend/main.py`
-- `memory/routing-rules.md`
-- `README.md`
-- `CLAUDE.md`
+- `backend/main.py` (constants + `alfred_brain()`)
+- `memory/routing-rules.md` (this file)
+- `CLAUDE.md`, `README.md`
 - `requirements/alfred-tools.json`
-- Any relevant skill file under `skills/`

@@ -1,0 +1,34 @@
+{
+  "$schema": "Alfred global capability registry — single index for skills, MCPs, rules, workflows",
+  "updated": "2026-07-04",
+  "version": "2.0.0",
+  "install_targets": {
+    "cursor": {
+      "mcp": "%USERPROFILE%\\.cursor\\mcp.json",
+      "skills": "%USERPROFILE%\\.cursor\\skills\\alfred-*\\",
+      "rules": "%USERPROFILE%\\.cursor\\rules\\*.mdc",
+      "hooks": "%USERPROFILE%\\.cursor\\hooks.json"
+    },
+    "claude_code": {
+      "mcp": "claude mcp add --scope user",
+      "skills": "%USERPROFILE%\\.claude\\skills\\",
+      "settings": "<alfred_repo>\\.claude\\settings.json"
+    },
+    "claude_desktop": {
+      "mcp": "%APPDATA%\\Claude\\claude_desktop_config.json"
+    },
+    "codex": {
+      "mcp": "codex mcp add",
+      "skills": "%USERPROFILE%\\.codex\\skills\\"
+    }
+  },
+  "provision_script": "Provision-Cursor.ps1",
+  "source_of_truth": {
+    "mcp_template": "cursor/mcp.json",
+    "skills": "skills/",
+    "rules": "cursor/rules/",
+    "catalog_index": "requirements/catalog-index.json",
+    "review_queue": "requirements/review-queue.json"
+  },
+  "capabilities": []
+}

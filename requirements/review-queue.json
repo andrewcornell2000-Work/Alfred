@@ -1,0 +1,27 @@
+{
+  "$schema": "Alfred capability review queue — items require security review before install",
+  "updated": "2026-07-04",
+  "pipeline": [
+    "discovered",
+    "source_validation",
+    "security_review",
+    "duplication_check",
+    "test_install",
+    "approved",
+    "staged",
+    "installed",
+    "rejected"
+  ],
+  "stop_conditions": {
+    "max_candidates_per_run": 5,
+    "max_web_searches_per_run": 3,
+    "skip_if_status": ["installed", "rejected", "duplicate"],
+    "require_security_resolved": true
+  },
+  "trusted_source_tiers": {
+    "official": ["microsoft.com", "github.com/anthropics", "github.com/github", "github.com/modelcontextprotocol"],
+    "verified_community": [],
+    "untrusted": "default — manual review required"
+  },
+  "items": []
+}

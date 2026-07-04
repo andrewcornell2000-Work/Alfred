@@ -1,142 +1,98 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code and other coding agents working in this repository.
+Guidance for Claude Code and other coding agents working in this repository.
 
 ## Project Overview
 
-Alfred is a CLI-based AI task routing and prompt optimization orchestrator. It accepts natural-language task descriptions, classifies them with OpenAI, and routes work to one of four paths:
+Alfred is a **global AI capability installer and updater** for Windows. It provisions skills, rules, MCP configs, and workflows globally to Cursor, Claude Code, Claude Desktop, and Codex via `Provision-Cursor.ps1`.
 
-- `GENERAL` -> OpenAI Mini response in the terminal
-- `POWERBI` -> scoped Claude Code execution plan and dispatch
-- `CLAUDE_EXECUTION` -> Codex or Claude Code, chosen by deterministic keyword scoring
-- `QUANT` -> Quant Intelligence plugin API
+The optional Alfred CLI (`python backend/main.py`) routes natural-language tasks when you are not working directly in Cursor.
 
-Claude Code and Codex are invoked through their local CLIs. Alfred currently uses CLI login for those providers, not provider API keys.
+| Category | Meaning | Provider |
+|----------|---------|----------|
+| `GENERAL` | Conversation, explanation, planning | `claude` (chat) |
+| `SEARCH` | Live/current data (news, versions, prices) | `claude` + Tavily |
+| `CODE` | Repo code, tests, refactors | `codex` |
+| `EXECUTE` | Files, scripts, Excel, browser, GitHub | `claude_code` |
+| `POWERBI` | Models, DAX, Power Query | `claude_code` |
+
+Claude Code and Codex are invoked through local CLIs (`claude auth login`, `codex login`).
 
 ## Running the App
 
 ```powershell
-# Activate the virtual environment (Windows)
 .venv\Scripts\activate
-
-# Run Alfred
 python backend\main.py
 ```
 
-At the `Alfred >` prompt, type a task description. Enter `back`, `menu`, or `exit` to return to the main menu.
+At the `Alfred >` prompt, type a task. Use `back`, `menu`, or `exit` to return to the main menu.
 
-## Environment Setup
+## Environment
 
-The core app expects:
-
-```text
-OPENAI_API_KEY=...
-```
-
-Optional Quant configuration:
+Optional keys in `.env` (see `.env.template`):
 
 ```text
-QUANT_BASE_URL=http://127.0.0.1:5000
+ANTHROPIC_API_KEY=...    # faster chat if set
+TAVILY_API_KEY=...       # web search
+GITHUB_TOKEN=...         # GitHub MCP
+QUANT_BASE_URL=...       # local Quant plugin
 ```
 
-Use `claude auth login` and `codex login` for Claude Code and Codex authentication.
+## Architecture (`backend/main.py`)
 
-Python packages for Alfred core are declared in `requirements/python-requirements.txt` and installed into `.venv` by `setup.ps1`. Quant plugin packages are declared separately in `plugins/quant/requirements.txt`.
+1. **Route** — `alfred_brain()` returns category, provider, `needs_search`, optional plan/steps.
+2. **Search** — `_tavily_search()` when category is `SEARCH` or brain/heuristics say live data is needed.
+3. **Skills** — `load_relevant_skills()` injects matching top-level `skills/*.md` into execution prompts.
+4. **Dispatch** — `run_codex()` or `run_claude()` with `_build_execution_prompt()` when auto-dispatch gates allow.
+5. **Log** — Rich panels; autosave under `logs/` and `memory/`.
 
-## Architecture
-
-Most orchestration logic lives in `backend/main.py`.
-
-1. **Classify** - `classify_task()` sends input to OpenAI with `CLASSIFIER_PROMPT`, returning `GENERAL`, `POWERBI`, `CLAUDE_EXECUTION`, or `QUANT`.
-2. **Choose provider** - `choose_provider()` routes by category plus keyword scoring:
-   - `GENERAL` -> `openai_mini`
-   - `POWERBI` -> `claude_code`
-   - `CLAUDE_EXECUTION` -> `codex`, `claude_code`, or `openai_mini`
-   - `QUANT` -> Quant API path
-3. **Scope** - `generate_claude_scope()` asks Claude CLI to produce a constrained execution plan for `POWERBI` and `CLAUDE_EXECUTION` tasks.
-4. **Dispatch** - `run_claude()` or `run_codex()` executes the scoped prompt when auto-dispatch gates allow it.
-5. **Render/log** - Rich terminal panels display results; logs and autosave entries are written under `logs/` and `memory/`.
-
-The Quant plugin lives in `plugins/quant` and exposes Flask routes for analysis, opportunities, macro, alerts, paper trading, institutional flow, and learning stats.
+Quant plugin: `plugins/quant/` (Flask API). Menu option **9. Quant Dashboard**.
 
 ## Routing Rules
 
-Routing documentation lives in `memory/routing-rules.md`. Keep it aligned with these constants/functions in `backend/main.py`:
+Canonical doc: `memory/routing-rules.md`. Keep aligned with:
 
-- `CLASSIFIER_PROMPT`
+- `ALFRED_BRAIN_PROMPT`
 - `DANGEROUS_KEYWORDS`
-- `CODEX_ROUTING_KEYWORDS`
-- `CLAUDE_CODE_ROUTING_KEYWORDS`
+- `CODEX_ROUTING_KEYWORDS` / `CLAUDE_CODE_ROUTING_KEYWORDS`
 - `LEARNING_MODE_KEYWORDS`
-- `choose_provider()`
-- `should_send_to_claude()`
 - `detect_provider_override()`
 
-Explicit provider override phrases such as `use claude ...` and `use codex ...` should bypass normal keyword scoring when present.
+Explicit overrides (`use claude ...`, `use codex ...`) bypass keyword scoring.
 
-## Prompt Engineering Conventions
+## Execution Scoping Principles
 
-`CLAUDE_SCOPE_PROMPT` encodes rules for generated Claude Code prompts:
+When building or modifying execution prompts:
 
-- Minimize MCP usage
-- Avoid broad scans
-- Inspect minimum necessary scope before acting
+- Minimize MCP usage; one primary path per task (`skills/mcp-routing.md`)
+- Avoid broad repo scans — inspect minimum necessary scope first
 - Stop after diagnosis unless the user asked for fixes
 - For Power Query column errors, inspect query steps before source files
-- Include hard stop conditions
-- Never tell Claude to scan all source files indiscriminately
-
-When modifying or extending this prompt, preserve these scoping principles.
+- Include hard stop conditions for destructive actions
 
 ## Tool Manifests
 
-Tool and dependency metadata is tracked in `requirements/`:
-
 | File | Purpose |
-|---|---|
-| `python-requirements.txt` | Core Alfred pip packages used by `setup.ps1` |
-| `npm-tools.txt` | npm global CLI tools; format `package:command:description` |
-| `alfred-tools.json` | Reference manifest for tool/plugin metadata |
-| `mcp-tools.md` | MCP server documentation and candidate registry |
+|------|---------|
+| `cursor/mcp.json` | MCP template (source of truth) |
+| `requirements/mcp-tools.md` | Human MCP catalog |
+| `requirements/alfred-tools.json` | CLI/package reference |
+| `requirements/python-requirements.txt` | Core pip packages |
+| `requirements/npm-tools.txt` | Global npm CLIs |
 
-`setup.ps1` reads `requirements/python-requirements.txt` and `requirements/npm-tools.txt`. It does not currently install `plugins/quant/requirements.txt`; install that separately when running the local Quant plugin.
+Provision: `Provision-Cursor.ps1` → Cursor, Claude Code, Codex user configs.
 
-## Learning Mode: Adding External Tools
+## Learning / Dev Portal
 
-When Alfred learns about a new external tool:
+Menu option **5. Dev Portal** — discuss changes before dispatch. See `docs/LEARNING-WORKFLOW.md`.
 
-1. Add the tool to the appropriate install manifest when persistent installation is required.
-2. Update `alfred-tools.json` with the full tool entry.
-3. Update `requirements/mcp-tools.md` if it is an MCP server.
-4. Update `README.md` if the tool changes setup, login, API key, or local dependency steps.
-5. Commit manifest and documentation changes before the session ends.
+Adding external tools: update manifests + `mcp-tools.md` + skill; never commit secrets.
 
-Rules:
+## Repo Structure
 
-- Never add API keys, tokens, or credentials to committed files.
-- Never auto-pull from GitHub or auto-install tools without explicit user approval.
-- New tools with file-write or destructive capabilities must be represented in the safety gates before dispatch is allowed.
-
-## Update Flow
-
-`run-alfred.bat` calls `check-updates.ps1` on each startup:
-
-1. Runs `git fetch origin main`.
-2. Compares local HEAD with `origin/main`.
-3. If behind, shows the commit list and asks before pulling.
-4. If updates are pulled, `run-alfred.bat` re-runs `setup.ps1`.
-
-`backend/main.py` also has a startup update check when run directly, and it follows the same approval-before-pull rule.
-
-## Current Known Gaps
-
-- Project Mode is planned but not implemented yet.
-- Learning / Creator Mode exists as Dev Portal, but deterministic file-writing workflows for skills/rules/tools are still evolving.
-- Quant plugin dependencies are separate from the core setup manifest.
+Full map: **`docs/ALFRED-STRUCTURE.md`**
 
 ## Coding Guidelines
-
-For coding, refactoring, debugging, architecture, UI/app design, and Alfred self-improvement tasks, apply:
 
 - `skills/karpathy-coding-guidelines.md`
 - `AGENTS.md`

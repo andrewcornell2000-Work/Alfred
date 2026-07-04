@@ -1,33 +1,41 @@
-# Tool Discovery (for the growth loop)
+# Tool Discovery (Cursor learning)
 
-When Alfred's cloud loop searches for new tools, prioritize **day-to-day finance & office work**
-over generic dev tooling.
+Use when a **Cursor session** in the Alfred repo is tasked with finding new tools for the pack.
+Playbook: **`docs/LEARNING-WORKFLOW.md`**
 
-## Search angles (rotate)
+## Search angles (pick one per session)
 
 - `MCP server` + finance / Excel / Power BI / SharePoint / PDF / scheduling
-- `modelcontextprotocol` new servers 2026
-- `npx mcp` OR `uvx mcp` office productivity
-- CLI tools for CSV / parquet / markdown / email / calendar without admin install
-- Token-efficient alternatives to browser automation
+- `modelcontextprotocol` office productivity (npx / uvx install)
+- CLI tools for CSV / parquet / markdown / calendar without admin install
+- Agent skill patterns — update `skills/agent-playbook.md` instead of new `agent-*` files
 
 ## Evaluation checklist (must pass 3+)
 
-1. **Installable** without admin on Windows (npx, uvx, pip, winget user, portable zip)
-2. **Distinct** — not duplicate of something in `cursor/mcp.json` or `discovered-tools.md`
-3. **Actionable** — you can write a concrete "Try asking:" prompt
-4. **Trust** — official or well-maintained community; note if destructive
-5. **No secret** — or document key source in `_requires` / `.env.template` only
+1. **Installable** without admin on Windows (npx, uvx, pip, winget user)
+2. **Distinct** — not in `cursor/mcp.json` or `discovered-tools.md`
+3. **Actionable** — concrete "Try asking:" prompt
+4. **Trust** — official or well-maintained; note if destructive
+5. **No secret** in committed files — document keys in `.env.template` only
 
-## What to ship each run
+## What to ship
 
-- **If installable MCP:** add to `cursor/mcp.json` + `requirements/mcp-tools.md` + skill
-- **If CLI only:** add to npm/python requirements + `alfred-tools.json` + skill
-- **If not ready:** add to `discovered-tools.md` as `candidate` with why it's promising
-- **Always:** append `memory/discoveries.md` and update `memory/learning-log.md`
-- **Email Andrew:** include 2–3 "Try asking:" examples in plain English
+| Outcome | Action |
+|---------|--------|
+| Installable MCP | `cursor/mcp.json` + `mcp-tools.md` + skill |
+| CLI only | manifest + `alfred-tools.json` + skill |
+| Not ready | `discovered-tools.md` as `candidate` |
+| Always | `memory/learning-log.md` entry |
+
+**Update existing skills before creating new ones.** Check `requirements/catalog-index.json`.
+
+## Web search discipline
+
+- **1–3 searches** per DISCOVER session — enough to verify install path and docs
+- No automatic daily search loop
+- Log queries in `learning-log.md`
 
 ## Domains Andrew cares about
 
 Power BI · Excel · labour planning · DLP · OneDrive/SharePoint · Azure dataflows ·
-reports (Word/PDF/PPT) · git/PR workflows · token-efficient code reading
+reports (Word/PDF/PPT) · git/PR workflows · token-efficient repo reading

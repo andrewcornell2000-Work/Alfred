@@ -51,6 +51,7 @@ if ($response -notmatch "^[Yy]") {
     exit 0
 }
 
+Write-Host "  Tip: run scripts\Alfred-Update.ps1 for config backup before major updates." -ForegroundColor DarkGray
 Write-Host "  Pulling updates..." -ForegroundColor Cyan
 git -C $Root fetch origin main 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {

@@ -1200,8 +1200,6 @@ SEARCH_TRIGGER_KEYWORDS = {
     "what version", "current version", "just released", "just launched",
     # News / events
     "news about", "what happened", "recently announced", "just announced",
-    # General knowledge gaps
-    "who is", "what is", "where is", "when did", "how does",
 }
 
 
@@ -1530,28 +1528,29 @@ def alfred_brain(user_input: str) -> dict:
 
 
 def _should_search(query: str) -> bool:
-    """Return True if this query likely benefits from live web context.
-    Intentionally broad — Tavily's free tier covers ~1,000 requests/month."""
+    """Return True if this query likely needs live web context.
+    Prefer alfred_brain needs_search; this is a conservative keyword fallback."""
     lowered = query.lower().strip()
     # Skip meta / navigation commands
     if lowered in {"back", "menu", "home", "exit", "help", "clip", "paste", "done"}:
         return False
     if len(lowered) < 8:
         return False
-    # Current-data or explicit lookup phrasing should use web context.
+    # Explicit recency / lookup phrasing only — not every question.
     if any(kw in lowered for kw in SEARCH_TRIGGER_KEYWORDS):
         return True
 
-    # Question-pattern prefix for factual lookup. Avoid "explain"/"tell me"
-    # here; those are often timeless chat questions and should stay fast.
-    if any(lowered.startswith(w) for w in (
-        "what ", "who ", "when ", "where ", "why ", "how ", "is ", "are ",
-        "was ", "were ",
-        "find ", "search ", "look up",
-    )):
-        return True
-    # Explicit question mark → user is asking something
-    if "?" in lowered:
+    # Strong explicit search intent (user asked to search, not just asked a question).
+    if any(
+        phrase in lowered
+        for phrase in (
+            "search the web",
+            "search online",
+            "look up online",
+            "find online",
+            "google ",
+        )
+    ):
         return True
     return False
 

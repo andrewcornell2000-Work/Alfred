@@ -1,0 +1,16 @@
+---
+description: Secure cloud learning for Alfred — research and propose capability updates via review queue.
+alwaysApply: false
+---
+
+# Cloud learning (automated)
+
+When running as a Cursor cloud agent to learn new capabilities for Alfred:
+
+1. Read `.cursor/cloud-learning.md` and `docs/CURSOR-CLOUD-AGENT.md`
+2. Follow the secure review pipeline — **never blind install**
+3. New MCPs → `requirements/review-queue.json` via proposal, not direct `cursor/mcp.json`
+4. Max 3 web searches · max 2 new candidates per run
+5. Improve existing skills before creating new files
+
+Local users install approved updates via **Alfred.exe** or toast notification.

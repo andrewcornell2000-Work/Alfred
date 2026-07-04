@@ -255,11 +255,21 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 
-Write-Banner "Alfred Installer"
+$AlfredVersion = "2.0.0"
+$versionFile = Join-Path (Split-Path $MyInvocation.MyCommand.Path -Parent) "VERSION"
+if (Test-Path $versionFile) { $AlfredVersion = (Get-Content $versionFile -Raw).Trim() }
+
+Write-Banner "Alfred — Global AI Capability Installer v$AlfredVersion"
+Write-Host ""
+Write-Host "  Alfred installs skills, rules, MCPs, and workflows globally for:" -ForegroundColor White
+Write-Host "    • Cursor          (~/.cursor/mcp.json, skills, rules)" -ForegroundColor DarkGray
+Write-Host "    • Claude Code     (user-scope MCP + ~/.claude/skills)" -ForegroundColor DarkGray
+Write-Host "    • Claude Desktop  (Connectors config)" -ForegroundColor DarkGray
+Write-Host "    • Codex           (global MCP + ~/.codex/skills)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  Install path : $InstallPath" -ForegroundColor White
 Write-Host "  Repository   : $RepoUrl" -ForegroundColor White
-Write-Host "  No admin required — falls back to portable/user installs automatically." -ForegroundColor DarkGray
+Write-Host "  Security     : per-user installs only — no admin required" -ForegroundColor DarkGray
 Write-Host ""
 
 $confirm = Read-Host "  Install / update Alfred here? (Y/n)"
@@ -308,6 +318,12 @@ if (Test-Path (Join-Path $InstallPath ".git")) {
     }
     Write-Done "Repository cloned."
 }
+
+# Install log (per-user, under Alfred repo)
+$LogDir = Join-Path $InstallPath "logs"
+New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+$InstallLog = Join-Path $LogDir ("install-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
+"Alfred install v$AlfredVersion started $(Get-Date -Format o)" | Set-Content $InstallLog -Encoding UTF8
 
 # ── Step 3: Python ────────────────────────────────────────────────────────────
 
@@ -410,6 +426,16 @@ if (Find-Command "node") {
             Write-Done "Codex CLI installed."
         } else {
             Write-OK "Codex CLI already present."
+        }
+
+        if (-not (Find-Command "lean-ctx")) {
+            Write-Host "  Installing lean-ctx-bin (optional context compression)..." -ForegroundColor Cyan
+            & $NpmExe install -g lean-ctx-bin
+            Refresh-Path
+            if (Find-Command "lean-ctx") { Write-Done "lean-ctx installed." }
+            else { Write-Warn "lean-ctx-bin install may need a new terminal." }
+        } else {
+            Write-OK "lean-ctx already present."
         }
     }
 } else {
@@ -911,14 +937,67 @@ if (Test-Path $provisionScript) {
     Write-Warn "Provision-Cursor.ps1 not found — update Alfred (git pull) and re-run the installer."
 }
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary & validation ──────────────────────────────────────────────────────
 
-Write-Banner "Alfred is ready"
+$validateScript = Join-Path $InstallPath "scripts\Validate-Install.ps1"
+$validateOk = $true
+if (Test-Path $validateScript) {
+    Write-Step "Validating install..."
+    & $validateScript -AlfredRoot $InstallPath -LogFile $InstallLog
+    $validateOk = ($LASTEXITCODE -eq 0)
+}
+
+Write-Banner "Alfred installed successfully"
 Write-Host ""
-Write-Host "  Launch: double-click Alfred on your desktop" -ForegroundColor Green
-Write-Host "  Or run: $LauncherPs" -ForegroundColor DarkGray
+Write-Host "  Skills, rules, and MCPs are now available to supported AI tools on this machine." -ForegroundColor Green
 Write-Host ""
-Write-Host "  Quant plugin running at: $QuantUrl" -ForegroundColor DarkGray
+Write-Host "  Configured targets:" -ForegroundColor White
+Write-Host "    Cursor       — ~/.cursor/mcp.json, skills, rules" -ForegroundColor DarkGray
+Write-Host "    Claude Code  — user-scope MCPs + ~/.claude/skills" -ForegroundColor DarkGray
+Write-Host "    Claude Desktop — Connectors (restart Claude app if open)" -ForegroundColor DarkGray
+Write-Host "    Codex        — global MCPs + ~/.codex/skills" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  To update Alfred in future: re-run this installer." -ForegroundColor DarkGray
+Write-Host "  Version      : v$AlfredVersion" -ForegroundColor DarkGray
+Write-Host "  Install log  : $InstallLog" -ForegroundColor DarkGray
+Write-Host ""
+if (-not $validateOk) {
+    Write-Host "  Some checks reported warnings — re-run Provision-Cursor.ps1 to repair." -ForegroundColor Yellow
+}
+Write-Host "  Next steps:" -ForegroundColor White
+Write-Host "    1. Restart Cursor, Claude Code, and Codex" -ForegroundColor DarkGray
+Write-Host "    2. Run 'claude auth login' and 'codex login' if not done yet" -ForegroundColor DarkGray
+Write-Host "    3. Optional: add API keys to .env, then re-run Provision-Cursor.ps1" -ForegroundColor DarkGray
+Write-Host "    4. Updates: Alfred.exe or scripts\\Alfred-Update.ps1 (notifications enabled)" -ForegroundColor DarkGray
+Write-Host "    5. Launch UI: Alfred.exe on desktop or ui\\Alfred-App.ps1" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  Launch CLI: double-click Alfred on desktop, or:" -ForegroundColor DarkGray
+Write-Host "    $LauncherPs" -ForegroundColor DarkGray
+Write-Host ""
+
+# Register update notifications (idempotent)
+$registerTask = Join-Path $InstallPath "scripts\Register-AlfredNotifyTask.ps1"
+if (Test-Path $registerTask) {
+    try {
+        & $registerTask -Root $InstallPath
+        Write-OK "Update notifications registered (check on logon + every 6h)."
+    } catch {
+        Write-Warn "Could not register update notifications: $_"
+    }
+}
+
+# Build UI shortcut if Alfred.exe exists
+$alfredUi = Join-Path $InstallPath "Alfred.exe"
+if (Test-Path $alfredUi) {
+    try {
+        $uiShortcut = Join-Path $Desktop "Alfred Manager.lnk"
+        $wsh = New-Object -ComObject WScript.Shell
+        $lnk = $wsh.CreateShortcut($uiShortcut)
+        $lnk.TargetPath = $alfredUi
+        $lnk.WorkingDirectory = $InstallPath
+        $lnk.Description = "Alfred AI Capability Manager"
+        $lnk.Save()
+        Write-OK "Desktop shortcut: Alfred Manager.lnk"
+    } catch { }
+}
+
 Write-Host ""

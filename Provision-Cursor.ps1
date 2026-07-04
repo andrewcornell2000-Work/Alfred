@@ -401,6 +401,13 @@ if (-not (Test-Path $McpTemplatePath)) {
                 foreach ($ap in $def._aliases.PSObject.Properties) { $aliases[$ap.Name] = @($ap.Value) }
             }
 
+            if ($defKeys -contains '_windowsOnly' -and $def._windowsOnly) {
+                if ($env:OS -notlike "*Windows*") {
+                    $skippedServers += "$name (Windows only)"
+                    continue
+                }
+            }
+
             if ($requiresCmd -and -not (Get-Command $requiresCmd -ErrorAction SilentlyContinue)) {
                 if ($defKeys -contains '_fallback' -and $def._fallback) {
                     Write-Info "$name : '$requiresCmd' not on PATH — using _fallback config."
@@ -499,6 +506,10 @@ if (-not $SkipCursor -and $managed.Count -gt 0) {
             $final.Remove($r)
             Write-Info "Removed retired MCP '$r' from Cursor config."
         }
+    }
+
+    if (Test-Path $cursorMcpPath) {
+        Copy-Item $cursorMcpPath "$cursorMcpPath.bak" -Force -ErrorAction SilentlyContinue
     }
 
     $json = [ordered]@{ mcpServers = $final } | ConvertTo-Json -Depth 12

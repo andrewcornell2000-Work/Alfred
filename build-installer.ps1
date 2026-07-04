@@ -1,21 +1,19 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Compiles Alfred-Install.ps1 into Alfred-Install.exe using ps2exe.
-.DESCRIPTION
-    Installs ps2exe if not present, then compiles the installer.
-    Upload Alfred-Install.exe to a GitHub Release so users can download and
-    double-click it without needing PowerShell execution policy changes.
-.EXAMPLE
-    .\build-installer.ps1
+    Builds Alfred-Install.exe and Alfred.exe (desktop UI) via ps2exe.
 #>
 
 param(
-    # Version stamped into the .exe metadata. CI passes the git tag (without the leading "v").
-    [string]$Version = "2.0.0"
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $Version) {
+    $versionFile = Join-Path $PSScriptRoot "VERSION"
+    $Version = if (Test-Path $versionFile) { (Get-Content $versionFile -Raw).Trim() } else { "2.0.0" }
+}
 
 Write-Host ""
 Write-Host "Alfred Installer Builder" -ForegroundColor Cyan
@@ -49,6 +47,9 @@ Import-Module ps2exe -Force
 # Build
 $InputFile  = Join-Path $PSScriptRoot "Alfred-Install.ps1"
 $OutputFile = Join-Path $PSScriptRoot "Alfred-Install.exe"
+$IconFile   = Join-Path $PSScriptRoot "assets\alfred.ico"
+$iconArg    = @{}
+if (Test-Path $IconFile) { $iconArg["icon"] = $IconFile }
 
 if (-not (Test-Path $InputFile)) {
     Write-Host "ERROR: Alfred-Install.ps1 not found at $InputFile" -ForegroundColor Red
@@ -61,8 +62,25 @@ Invoke-ps2exe `
     -InputFile  $InputFile `
     -OutputFile $OutputFile `
     -Title       "Alfred Installer" `
-    -Description "Alfred AI Assistant - one-click installer" `
-    -Version     $Version
+    -Description "Alfred global AI capability installer" `
+    -Version     $Version `
+    @iconArg
+
+$UiInput  = Join-Path $PSScriptRoot "ui\Alfred-App.ps1"
+$UiOutput = Join-Path $PSScriptRoot "Alfred.exe"
+
+if (Test-Path $UiInput) {
+    Write-Host "Compiling $UiInput -> $UiOutput ..." -ForegroundColor Cyan
+    Invoke-ps2exe `
+        -InputFile  $UiInput `
+        -OutputFile $UiOutput `
+        -noConsole `
+        -Title       "Alfred" `
+        -Description "Alfred AI Capability Manager — updates, validate, repair" `
+        -Version     $Version `
+        @iconArg
+    Write-Host "Done: $UiOutput" -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green
@@ -74,5 +92,5 @@ Write-Host "  and attaches it to the matching release:" -ForegroundColor Yellow
 Write-Host "    git tag v$Version; git push origin v$Version" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  To publish a manual local build instead:" -ForegroundColor DarkGray
-Write-Host "    gh release create v$Version Alfred-Install.exe --title `"Alfred v$Version`" --generate-notes" -ForegroundColor DarkGray
+    Write-Host "    gh release create v$Version Alfred-Install.exe Alfred.exe --title `"Alfred v$Version`" --generate-notes" -ForegroundColor DarkGray
 Write-Host ""

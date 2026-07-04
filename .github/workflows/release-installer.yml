@@ -45,10 +45,10 @@ jobs:
           gh release view $tag --repo "$env:GITHUB_REPOSITORY" 1>$null 2>$null
           if ($LASTEXITCODE -eq 0) {
             Write-Host "Release $tag exists - replacing asset."
-            gh release upload $tag Alfred-Install.exe --repo "$env:GITHUB_REPOSITORY" --clobber
+            gh release upload $tag Alfred-Install.exe Alfred.exe --repo "$env:GITHUB_REPOSITORY" --clobber
           } else {
             Write-Host "Creating release $tag."
-            gh release create $tag Alfred-Install.exe `
+            gh release create $tag Alfred-Install.exe Alfred.exe `
               --repo "$env:GITHUB_REPOSITORY" `
               --title "Alfred $tag" `
               --generate-notes

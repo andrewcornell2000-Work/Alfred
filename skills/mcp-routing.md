@@ -8,10 +8,12 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 2. **Never alternate Excel MCPs** — `excel` (excellm) and `excel-mcp` have opposite file-access rules; switching between them usually wastes turns.
 3. **Cursor: native Read/Grep/Shell first** — lean-ctx is optional for large files, re-reads, or compressed shell. If lean-ctx MCP hangs (>5s) or errors, fall back to native tools immediately.
 4. **LeanCTX for session memory and heavy reads** — use `ctx_knowledge`, `ctx_read` map mode, `ctx_search`; do not also read the same file via filesystem MCP.
-4. **One web/doc path per question** — library docs → context7; live news/versions → Tavily (Alfred); single URL → fetch; local PDF/Office file → markitdown; interactive web UI → playwright.
-5. **Plan in native reasoning** — Alfred no longer ships sequential-thinking, memory, time, codegraph, or sqlite MCPs.
+5. **One web/doc path per question** — library docs → context7; live news/versions → parallel-search or Tavily (Alfred CLI); single URL → fetch; local PDF/Office file → markitdown; interactive web UI → playwright.
+6. **Plan in native reasoning** — Alfred no longer ships sequential-thinking, memory, time, codegraph, or sqlite MCPs.
 
-## Active MCP stack (10 + LeanCTX)
+## Active MCP stack (16 + LeanCTX)
+
+Core 10 + optional 6 (auto-skipped when keys/commands missing):
 
 | Server | Use for |
 |--------|---------|
@@ -25,7 +27,13 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 | fetch | Single known URL → markdown |
 | filesystem | Finance OneDrive folder only |
 | duckdb | SQL on CSV, Parquet, exports |
-| lean-ctx | Repo code, compressed shell, session memory |
+| parallel-search | Citation-backed web search (Cursor) |
+| firecrawl | Crawl/scrape/deep research (needs key) |
+| fal-ai | Image/video/audio generation (needs key) |
+| magic | Magic UI React components |
+| longhand | Claude session history recall |
+| outlook-calendar | Local Outlook calendar (Windows) |
+| lean-ctx | Optional: large reads, compressed shell, session memory |
 
 ## Decision table
 
@@ -39,7 +47,8 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 | Power BI semantic model | powerbi-modeling-mcp | pbi-cli |
 | Power BI report visuals | pbi-cli | powerbi-modeling-mcp |
 | Library/framework API docs | context7 | fetch, Tavily |
-| Live web search | Tavily via Alfred | fetch, context7 |
+| Live web search (Cursor) | parallel-search | fetch, context7, firecrawl |
+| Live web search (Alfred CLI) | Tavily via Alfred | fetch, context7 |
 | Single URL to markdown | fetch | playwright (unless JS/login needed) |
 | Local PDF/Word/PPT | markitdown | fetch |
 | Browser automation | playwright | fetch |
@@ -69,7 +78,7 @@ Interactive web page     → playwright only
 
 ## Context cost
 
-Alfred ships **10 domain MCPs + LeanCTX**. Prefer one tool from the table above — do not probe multiple servers for the same task.
+Alfred ships **16 domain MCPs + LeanCTX** (optional). Prefer one tool from the table above — do not probe multiple servers for the same task.
 
 ## When a tool fails
 

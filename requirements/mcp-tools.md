@@ -9,7 +9,9 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 
 ## Currently Configured (cursor/mcp.json)
 
-**10 domain MCPs** + **LeanCTX** (merged via `lean-ctx onboard`). Tavily web search is **not** an MCP — it runs from `backend/main.py`.
+**16 domain MCPs** + **LeanCTX** (merged via `lean-ctx onboard`). Tavily web search is **not** an MCP — it runs from `backend/main.py`.
+
+### Core 10
 
 | Server | Role |
 |--------|------|
@@ -23,6 +25,17 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 | fetch | Single URL → markdown |
 | filesystem | Finance OneDrive folder **only** |
 | duckdb | SQL on CSV/Parquet/exports |
+
+### Optional 6 (auto-skipped when key/command missing)
+
+| Server | Role | Key / prereq |
+|--------|------|--------------|
+| parallel-search | Citation-backed web search (Cursor) | none (optional `PARALLEL_API_KEY`) |
+| firecrawl | Crawl/scrape/deep research | `FIRECRAWL_API_KEY` |
+| fal-ai | Image/video/audio generation | `FAL_KEY` |
+| magic | Magic UI React components | none |
+| longhand | Claude session history recall | `longhand` on PATH |
+| outlook-calendar | Local Outlook calendar | Windows + Outlook |
 
 ### Retired (removed from template — Provision-Cursor strips from machine configs)
 
@@ -124,7 +137,7 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 
 ## Learning Mode: Adding MCP Tools
 
-When Alfred encounters or learns about a new MCP server during a session:
+When adding a new MCP during a **Cursor learning session** (`docs/LEARNING-WORKFLOW.md`):
 
 1. **Check overlap first** — read `skills/mcp-routing.md`; do not add redundant servers.
 2. **Add an entry** in the Candidate Tools section below.

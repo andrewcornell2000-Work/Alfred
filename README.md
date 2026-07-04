@@ -1,17 +1,21 @@
-# Alfred Pack 2.0
+# Alfred — Global AI Capability Installer
 
-**Alfred is a Windows toolchain pack** — not a chatbot you use every day.
+**Alfred installs and updates reusable AI capabilities on your Windows machine** — skills, rules, MCP configs, prompts, and workflows — globally across supported AI tools.
 
-Run `Alfred-Install.exe` once and it wires your PC for AI work:
+Supported targets: **Cursor**, **Claude Code**, **Claude Desktop**, **Codex** (extensible for future apps).
 
-- **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, LeanCTX, …)
-- **Skills + rules** → all three agents globally
+Run `Alfred-Install.exe` once and it wires your PC:
+
+- **MCP servers** → Cursor, Claude Code, Codex, Claude Desktop
+- **Skills + rules** → global user-scope paths
 - **CLIs** → Claude, Codex, gh, pbi, jq, LeanCTX, …
-- **Discovery loop** → nightly search for new tools you wouldn't think to look for
+- **Controlled learning** → Cursor Cloud Agents per `docs/CURSOR-CLOUD-AGENT.md`
 
-**Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
+**Security:** per-user installs, no admin required, secrets stay in local `.env`.
 
-**Alfred CLI** (`run-alfred.bat`) is for updates, health checks, and viewing discovered tools — see [PACK.md](PACK.md).
+**Day-to-day:** work in **Cursor** or **Claude**. Alfred keeps capabilities current.
+
+Install guide: **`docs/INSTALL.md`** · Pack overview: **[PACK.md](PACK.md)**
 
 ---
 
@@ -214,15 +218,20 @@ Use `Control Tower` to see which capabilities are ready on the current machine.
 
 ---
 
-## Discovery loop (why Alfred exists)
+## Discovery & learning (Cursor)
 
-You can't find every useful MCP yourself. Alfred's GitHub Actions loop runs daily:
+You can't find every useful MCP yourself. Use **Cursor in this repo** with `docs/LEARNING-WORKFLOW.md`:
 
-1. Searches for new MCPs, CLIs, and techniques (finance, office, Power BI, token efficiency)
-2. Ships catalog entries + skills with **"Try asking:"** examples
-3. Commits to this repo → you pull / re-run installer → `Provision-Cursor.ps1` wires everything globally
+1. Pick one mission (new MCP, CLI, or skill improvement)
+2. Run 1–3 targeted web searches only when needed
+3. Ship catalog entry + skill with **"Try asking:"** examples
+4. Pull / re-run installer → `Provision-Cursor.ps1` wires everything globally
 
 See `requirements/discovered-tools.md` for the living catalog.
+
+The old GitHub Actions daily loop is **disabled** (manual dispatch only). Weekly digest email still runs Mondays.
+
+Structure reference: **`docs/ALFRED-STRUCTURE.md`**
 
 ### MCPs added in v2.2.0
 

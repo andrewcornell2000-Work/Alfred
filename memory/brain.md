@@ -1,59 +1,42 @@
 # Alfred's Brain
-*Living knowledge base. Updated every loop iteration. Never overwritten — only grown.*
+*Living knowledge base — updated by learning sessions, not overwritten.*
 
-**Born:** 2026-06-05  
-**Home:** C:\Users\ACO324\Alfred  
-**GitHub:** https://github.com/andrewcornell2000-Work/Alfred
+**Home:** Alfred repo · **GitHub:** https://github.com/andrewcornell2000-Work/Alfred
 
 ---
 
 ## What Alfred Is
-A Windows-first CLI AI orchestrator for a finance & labour planning team at Maersk.
-Routes natural language tasks to the best AI provider (Claude CLI, Codex, OpenAI Mini).
-Runs without admin rights. Distributable to teammates via Install-From-GitHub.bat.
+
+A Windows-first **toolchain pack**: MCPs, skills, and rules provisioned globally into Cursor, Claude Code, and Codex. Optional CLI (`backend/main.py`) routes tasks when you don't use Cursor directly.
 
 ## Current Architecture
-- `backend/main.py` — core routing engine (classify → choose → scope → dispatch)
-- `backend/power_query.py` — Power Query column error handler
-- `skills/` — 12+ markdown skill modules Alfred can invoke
-- `memory/` — persistent context, learning log, routing rules
-- `plugins/quant/` — Flask-based Quant Intelligence plugin
-- `.claude/settings.json` — Claude Code MCP config for Alfred sessions
 
-## Providers Alfred Routes To
-- Claude CLI (`claude` command) — Power BI, deep execution, file work
-- Codex — coding, refactoring, Alfred self-modification
-- OpenAI Mini — general queries, cheap classification
-- Quant plugin — financial analysis (local Flask server)
+- `backend/main.py` — `alfred_brain()` routing, Tavily search, skill injection, Codex/Claude dispatch
+- `skills/` — top-level `.md` skills (keyword-matched at runtime); `_packs/` and `_vendor/` for provisioned bundles
+- `cursor/mcp.json` + `Provision-Cursor.ps1` — MCP template and global wiring
+- `cursor/rules/*.mdc` — Cursor agent rules (native tools default)
+- `memory/` — persistent context, routing rules, learning log, instincts
+- `plugins/quant/` — optional Quant Intelligence Flask plugin
 
-## What Alfred Can Do (Confirmed Working)
-- Route tasks by natural language
-- Execute Claude Code scoped prompts
-- Edit Excel live via MCP
-- Edit Power BI models via pbi-cli
-- Web search via Tavily
-- Self-update check on every launch (check-updates.ps1)
-- Learning / Creator Mode (Dev Portal — menu option 8)
-- Teach himself new skills via Dev Portal
+## Providers
 
-## Alfred's Email (for account creation)
-Stored in $env:ALFRED_EMAIL — use for signing up to free-tier services that improve Alfred.
+| Provider | Used for |
+|----------|----------|
+| `claude` | GENERAL chat, SEARCH synthesis |
+| `codex` | CODE tasks |
+| `claude_code` | EXECUTE, POWERBI, confirmed Dev Portal changes |
+| Tavily | Live web data (direct API, not MCP) |
 
-## Frontier — What Alfred Is Pushing Toward
-- Supabase persistent memory (queryable brain instead of flat files)
-- Project Mode (planned, not yet built)
-- Multi-agent coordination
-- Better skill auto-selection
-- Autonomous improvement loop (THIS — the loop writing to this file)
+## Learning
 
-## Open Questions
-- What's the best persistent memory backend for an autonomous agent in 2026?
-- Can Alfred coordinate multiple Claude Code subagents?
-- What MCP servers would most expand Alfred's capabilities?
-- How should Alfred handle tasks that span multiple sessions?
+- **Instincts** — `scripts/instinct-cli.py` + `memory/instincts/` (session hooks)
+- **Dev Portal** — menu option 5; discuss → confirm → Claude Code dispatch
+- **Cursor learning** — manual sessions per `docs/LEARNING-WORKFLOW.md` (replaces autonomous daily loop)
 
-## Connections (Cross-Domain Insights)
-> Populated as patterns emerge across loop iterations.
+## Structure Reference
 
-## Accounts Alfred Has Created
-See memory/accounts.md
+See **`docs/ALFRED-STRUCTURE.md`** for where rules, skills, MCPs, and web-search policy live.
+
+## Accounts
+
+See `memory/accounts.md`

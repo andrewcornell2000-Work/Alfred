@@ -1,7 +1,6 @@
 """
-Alfred Autonomous Growth Loop
-Runs in GitHub Actions daily at noon AEST.
-Researches, builds, and writes improvements back to the repo.
+Alfred Secure Learning Loop — GitHub Actions / cloud agent.
+Researches trusted sources, proposes candidates via review queue (secure mode).
 """
 
 import anthropic
@@ -12,18 +11,23 @@ import re
 import shlex
 import subprocess
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from email_utils import OWNER_EMAIL, send_alfred_email
 
+SECURE_MODE = os.environ.get("ALFRED_SECURE_MODE", "1") == "1"
+MAX_WEB_SEARCHES = 3
+MAX_ITERATIONS = 8 if SECURE_MODE else 12
+MAX_NEW_CANDIDATES_PER_RUN = 2
+
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 TAVILY_KEY = os.environ.get("TAVILY_API_KEY", "")
 
-# Set once an email actually goes out, so the end-of-run fallback never
-# double-sends when Alfred already emailed via the send_email tool.
 _email_sent = False
+_web_search_count = 0
+_candidates_added = 0
 
 
 def send_update_email(subject, body):
@@ -103,6 +107,24 @@ TOOLS = [
         }
     },
     {
+        "name": "add_review_candidate",
+        "description": (
+            "Add or update a capability candidate in requirements/review-queue.json. "
+            "Use for NEW MCPs/CLIs before any manifest install. Required fields: slug, type, "
+            "name, source_url, trust_level, license, description, install_notes, try_asking."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "candidate": {
+                    "type": "object",
+                    "description": "Candidate object matching review queue schema",
+                }
+            },
+            "required": ["candidate"],
+        },
+    },
+    {
         "name": "send_email",
         "description": "Send the DAILY update email to Andrew (andrewcornell2000@gmail.com) at the END of your loop. Subject is prefixed 'Alfred daily —' automatically. Use plain-English DOT POINTS, not paragraphs — Andrew wants a scannable list of exactly what you added and how it works.",
         "input_schema": {
@@ -115,6 +137,64 @@ TOOLS = [
         }
     }
 ]
+
+
+def load_review_queue() -> dict:
+    path = Path("requirements/review-queue.json")
+    if not path.exists():
+        return {"items": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_review_queue(data: dict) -> None:
+    path = Path("requirements/review-queue.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def approved_slugs() -> set[str]:
+    return {
+        item["slug"]
+        for item in load_review_queue().get("items", [])
+        if item.get("status") == "approved" and item.get("slug")
+    }
+
+
+def add_review_candidate(candidate: dict) -> str:
+    global _candidates_added
+    required = ["slug", "type", "name", "source_url", "trust_level", "description"]
+    missing = [k for k in required if not candidate.get(k)]
+    if missing:
+        return f"Rejected: missing fields {missing}"
+
+    if candidate.get("requires_admin"):
+        return "Rejected: requires_admin not allowed"
+
+    slug = candidate["slug"].lower().strip()
+    candidate["slug"] = slug
+    candidate.setdefault("status", "discovered")
+    candidate.setdefault("security_status", "pending")
+    candidate.setdefault("discovered_at", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+
+    data = load_review_queue()
+    items = data.get("items", [])
+    for i, existing in enumerate(items):
+        if existing.get("slug") == slug:
+            items[i] = {**existing, **candidate}
+            data["items"] = items
+            data["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            save_review_queue(data)
+            return f"Updated review candidate: {slug}"
+
+    if _candidates_added >= MAX_NEW_CANDIDATES_PER_RUN:
+        return f"Rejected: max {MAX_NEW_CANDIDATES_PER_RUN} new candidates per run"
+
+    items.append(candidate)
+    data["items"] = items
+    data["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    save_review_queue(data)
+    _candidates_added += 1
+    return f"Added review candidate: {slug} (status={candidate['status']})"
 
 
 def handle_tool(name, inp):
@@ -149,6 +229,10 @@ def handle_tool(name, inp):
             return "\n".join(sorted(items))
 
         elif name == "web_search":
+            global _web_search_count
+            if _web_search_count >= MAX_WEB_SEARCHES:
+                return f"Rejected: max {MAX_WEB_SEARCHES} web searches per run (stop and write findings)."
+            _web_search_count += 1
             if not TAVILY_KEY:
                 return "TAVILY_API_KEY not configured"
             r = requests.post(
@@ -189,6 +273,9 @@ def handle_tool(name, inp):
             if result.stderr:
                 out += f"\n[stderr]: {result.stderr[:500]}"
             return out or "(no output)"
+
+        elif name == "add_review_candidate":
+            return add_review_candidate(inp["candidate"])
 
         elif name == "send_email":
             send_update_email(inp["subject"], inp["body"])
@@ -251,6 +338,9 @@ def validate_write(path: str, content: str) -> str | None:
             "Improve cursor/rules/ instead of syncing as a skill."
         )
 
+    if norm.startswith("skills/agent-") and os.path.exists("skills/agent-playbook.md"):
+        return "Use skills/agent-playbook.md — do not create new agent-* skills."
+
     if norm.startswith("skills/agent-") and os.path.exists(norm):
         stem = Path(norm).stem
         for existing in os.listdir("skills"):
@@ -264,6 +354,25 @@ def validate_write(path: str, content: str) -> str | None:
                     return (
                         f"Topic overlaps skills/{existing}. IMPROVE that file instead of creating {norm}."
                     )
+
+    if norm == "cursor/mcp.json" and SECURE_MODE:
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            return f"Invalid JSON for cursor/mcp.json: {e}"
+        servers = data.get("mcpServers", {})
+        approved = approved_slugs()
+        existing_path = Path("cursor/mcp.json")
+        old_keys = set()
+        if existing_path.exists():
+            old_keys = set(json.loads(existing_path.read_text(encoding="utf-8")).get("mcpServers", {}).keys())
+        new_keys = set(servers.keys()) - old_keys
+        unapproved = [k for k in new_keys if k not in approved]
+        if unapproved:
+            return (
+                f"Secure mode: new MCP keys {unapproved} must be approved in review-queue first. "
+                "Use add_review_candidate, then SHIP after approval."
+            )
 
     if norm == "cursor/mcp.json":
         try:
@@ -325,40 +434,30 @@ def run():
     # Alfred Pack growth loop: DISCOVER tools Andrew wouldn't find himself.
     # Ship to manifests so Provision-Cursor.ps1 wires Cursor + Claude + Codex globally.
     # NEVER edit finance/domain skills (cash-flow*, labour*, data-*, excel-financial*, powerbi-*, powerquery-*).
+    review_queue = read_file_safe("requirements/review-queue.json", limit=6000)
+    cloud_prompt = read_file_safe(".github/prompts/cloud-learning.md", limit=4000)
+
     DOMAIN_ROTATION = [
-        "DISCOVER MCP (finance/office): run 2-3 web searches for MCP servers Andrew wouldn't think to "
-        "look for (SharePoint, PDF tables, scheduling, email, parquet, Azure, clipboard, OCR). "
-        "Read cursor/mcp.json below — do NOT duplicate. If installable (npx/uvx, no admin): ADD to "
-        "cursor/mcp.json + skill + mcp-tools.md. Else: append candidate to requirements/discovered-tools.md "
-        "with 3 'Try asking:' prompts. Update memory/discoveries.md.",
-        "DISCOVER CLI (day-to-day): search for CLIs that help finance/office work (CSV, xlsx, pdf, "
-        "markdown, calendar, api-json). Compare requirements/alfred-tools.json. If shippable: add to "
-        "npm/python manifest + alfred-tools.json + skill with 'Try asking:'. Else: discovered-tools.md candidate.",
-        "DISCOVER technique: search 'context engineering', 'MCP server', 'agent skill' patterns Andrew "
-        "doesn't know. Write or improve an agent-* skill with actionable checklist + 'Try asking:' examples. "
-        "Append to discovered-tools.md if it's a workflow not a tool.",
-        "SHIP discovered candidate: read requirements/discovered-tools.md for status=candidate entries. "
-        "Pick the best one, verify it still exists, and either promote to cursor/mcp.json + manifests OR "
-        "write a complete how-to skill. Mark status shipped in discovered-tools.md.",
-        "MCP HOW-TO: deepen one pack MCP skill — must add a real 'Try asking:' block Andrew can paste into Cursor.",
-        "CLI HOW-TO: deepen one pack CLI skill (gh, jq, pandoc, az, pbi, vd, lean-ctx) with day-to-day examples.",
-        "CATALOG refresh: read discovered-tools.md + cursor/mcp.json; fix stale entries, merge duplicates, "
-        "add missing 'Try asking:' lines to shipped tools. No new tools this run — curation only.",
-        "CONSOLIDATE: merge two overlapping tool skills; update discovered-tools.md to point at the survivor.",
+        "REVIEW QUEUE: pick one status=candidate or discovered item — run security checks, "
+        "update trust_level, add install_notes, or mark rejected/duplicate. Use add_review_candidate.",
+        "DISCOVER MCP (trusted sources only): 1-2 web searches on official MCP repos / vendor docs. "
+        "add_review_candidate — do NOT write cursor/mcp.json until approved.",
+        "DISCOVER CLI: trusted GitHub only. add_review_candidate or improve existing skill.",
+        "IMPROVE skill: update ONE existing skills/*.md (not finance domain). Include Try asking.",
+        "SHIP approved: find status=approved in review-queue — promote to cursor/mcp.json + skill + manifests.",
+        "CATALOG refresh: merge duplicates in discovered-tools.md and review-queue.json.",
     ]
     focus = DOMAIN_ROTATION[int(iteration_num) % len(DOMAIN_ROTATION)] if iteration_num.isdigit() else DOMAIN_ROTATION[0]
 
     system = (
-        "You are Alfred Pack's discovery engine — GitHub Actions (ubuntu-latest). "
-        "Andrew cannot find new MCPs and tools himself. YOU search the frontier, evaluate, and ship "
-        "catalog entries + skills so Provision-Cursor.ps1 wires them into Cursor, Claude Code, and Codex. "
-        "Every deliverable needs 'Try asking:' example prompts Andrew can paste into Cursor. "
-        "Never edit finance/domain skills (cash-flow*, labour*, data-*, excel-financial*, powerbi-*, powerquery-*). "
-        "Tools: read_file, write_file, list_files, web_search, fetch_url, run_command, send_email. "
-        "DISCOVER missions: at least 2 web_search calls before write_file. "
-        "Every run MUST produce a useful change OR document 'no ship' in memory/learning-log.md "
-        "(duplicate blocked is OK — do not invent stubs). "
-        "NEVER write skills/taste-*.md. NEVER duplicate MCP keys or catalog slugs."
+        "You are Alfred's SECURE learning agent (GitHub Actions cloud loop). "
+        "Follow .github/prompts/cloud-learning.md and docs/LEARNING-WORKFLOW.md. "
+        "SECURITY FIRST: new MCPs/CLIs go to add_review_candidate — NOT cursor/mcp.json until approved. "
+        "Max 3 web_search calls. Max 2 new candidates per run. Max 8 iterations. "
+        "Prefer official sources. Reject admin installs and suspicious scripts. "
+        "Improve existing skills before creating new ones. Use agent-playbook.md not new agent-* files. "
+        "Never edit finance/domain skills. Tools: read_file, write_file, list_files, web_search, "
+        "fetch_url, run_command, add_review_candidate, send_email."
     )
 
     messages = [
@@ -390,6 +489,12 @@ Existing skills: {skills_list}
 === TOOL DISCOVERY CHECKLIST ===
 {tool_discovery}
 
+=== REVIEW QUEUE ===
+{review_queue}
+
+=== CLOUD AGENT RULES (summary) ===
+{cloud_prompt}
+
 === YOUR MISSION THIS ITERATION ===
 {focus}
 
@@ -409,40 +514,22 @@ This is your ONE run today. Don't rush and don't pad — go deep and ship a sing
 complete deliverable. Depth and correctness matter far more than covering extra ground.
 
 QUALITY BAR:
-- PRIMARY VALUE: Andrew discovers tools he didn't know existed. Every email must list 'Try asking:' prompts.
-- DISCOVER missions: minimum 2 web_search calls; cite what you searched in learning-log.md.
-- SCOPE: pack catalog only — no finance/domain skills.
-- Append shipped tools to requirements/discovered-tools.md (status: shipped).
-- Candidates go to discovered-tools.md (status: candidate) with install notes.
-- NEVER leave empty/stub files.
-- Skills → skills/ | MCP → cursor/mcp.json | CLI → requirements/*.txt + alfred-tools.json
-
-ALFRED PACK (global provision — Andrew's real workflow is Cursor):
-- cursor/mcp.json is the portable MCP template. Provision-Tools.ps1 (Provision-Cursor.ps1) registers
-  servers into ~/.cursor/mcp.json, `claude mcp add --scope user`, AND `codex mcp add`.
-- Skills sync to ~/.cursor/skills, ~/.claude/skills, and ~/.codex/skills on provision.
-- Say "available after next provision" — the cloud loop cannot install on Andrew's machine.
-
-MCP / CLI rules:
-- MCP: add to cursor/mcp.json with _requiresCommand guards; how-to skill required.
-- CLI: add to requirements manifests; setup.ps1 picks up python/npm lists automatically.
-- NEVER write API keys — use "${{env:VAR}}" + "_requires".
-- Destructive tools: note in skill + DANGEROUS_KEYWORDS gate in backend/main.py.
-- Do NOT duplicate existing catalog entries.
-- NEVER write skills/taste-*.md (third-party — npx install only).
-- NEVER create a new agent-* skill if an existing one covers the topic — IMPROVE it.
-- If nothing new passes the tool-discovery checklist, update memory/learning-log.md only.
+- NEW tools → add_review_candidate first (secure pipeline)
+- SHIP only status=approved items to cursor/mcp.json
+- Max 3 web searches — cite queries in learning-log.md
+- NEVER leave empty/stub files
+- Update memory/learning-log.md every run
 
 Start immediately. Pick your mission and begin.
 """
         }
     ]
 
-    print("=== Alfred Growth Loop starting ===\n")
+    print("=== Alfred Secure Learning Loop starting ===\n")
 
     files_written = 0
 
-    for iteration in range(15):
+    for iteration in range(MAX_ITERATIONS):
         response = api_call_with_retry(messages, system)
 
         if response.stop_reason == "max_tokens":
