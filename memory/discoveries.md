@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 10] TECHNIQUE — Agent Handoff Pattern (HANDOFF.md)
+**Date:** 2026-07-03
+**Type:** TECHNIQUE
+**What I found:** The HANDOFF.md discipline is the dominant practitioner pattern for surviving context resets and tool switches in 2026 AI-assisted development. The file is not appended — it is *overwritten* at every session end so it always reflects current state. Three distinct types: same-tool next-day resume, cross-tool transfer (Cursor → Codex), and parallel worker dispatch. Key insight from Cursor community forums: the file must be self-contained enough that Codex can start from it with zero other context. The critical phrase that makes it work: "assume no memory of our conversation."
+**Why it matters:** Andrew regularly switches between Cursor (interactive design) and Claude Code or Codex (autonomous execution). Without a handoff file, every new session either re-explains everything from scratch (slow) or runs with wrong assumptions (dangerous). The HANDOFF.md is also the bridge for parallel worktrees — each worker gets a scoped handoff covering only its slice.
+**What it unlocks:** Any task that spans multiple sessions or tools becomes reliable. The cross-tool routing table (Cursor for design, Claude Code for autonomous execution, Codex for cloud parallel) gives Andrew a clear mental model for when to switch tools. The conflict-check prompt ("have key files changed since the handoff was written?") prevents stale handoffs from causing incorrect execution.
+**Artifact:** `skills/agent-handoff.md`
+
+---
+
 ### [ITERATION 12] TECHNIQUE — Spec-Driven Development with AI Agents
 **Date:** 2026-06-18
 **Type:** TECHNIQUE
@@ -45,15 +55,25 @@
 **Type:** TECHNIQUE
 **What I found:** Six named failure modes for agent sessions (tool misuse, context loss, goal drift, retry loop, cascading failure, sycophantic confirmation) with specific symptoms, diagnosis questions, and recovery prompts for each. The key insight is that each failure mode requires a different intervention — using a generic "try again" prompt on a goal-drift failure makes it worse.
 **Why it matters:** Knowing how to recognise and name the specific failure type lets Andrew apply the right recovery in seconds rather than guessing. The pre-flight checklist prevents most failures before they start.
-**What it unlocks:** Faster recovery from stuck sessions. Paste-ready prompts that Andrew can use immediately when Cursor or Claude Code gets into a loop.
+**What it unlocks:** Faster recovery from stuck agents. The structured output enforcement patterns are immediately useful for any task that needs a specific output format (tables, JSON, markdown reports).
 **Artifact:** `skills/agent-loop-debugging.md`
 
 ---
 
-### [ITERATION 10] TECHNIQUE — Context Engineering for Agent Sessions
+### [ITERATION 9] TECHNIQUE — Context Engineering (Agent Window Management)
 **Date:** 2026-06-15
 **Type:** TECHNIQUE
-**What I found:** Context engineering — deliberately controlling what goes into the agent's context window — is more impactful than prompt wording. Key patterns: write-to-file instead of chat (persists across sessions), selective reading (map mode before full read), compression (ask agent to summarise long artifacts before using them), isolation (fresh session per distinct sub-task), KV-cache awareness (stable prefix = cheaper, faster), and MCP tool description quality (bad descriptions cause tool misuse before the task starts).
-**Why it matters:** Context engineering is the single highest-leverage skill for making Cursor/Claude sessions reliable and cheaper. Without it, sessions fail at context limit or hallucinate because stale instructions are still in-window.
-**What it unlocks:** Longer, more reliable agent sessions. Cheaper runs (KV cache reuse). Better MCP tool selection (fewer wrong-tool errors).
+**What I found:** Context engineering is a structured discipline for deciding what information enters an agent's context window, in what order, and how to compress and manage it over long sessions. The key finding: KV-cache structure (stable prefix → varying suffix) cuts time-to-first-token by up to 80% on Claude; MCP tool descriptions need 6 components (purpose, trigger, return type, param guidance, negative scope, example) or agents pick the wrong tool; the optimal context load order is system → conventions → task → history → files → prompt.
+**Why it matters:** Most agent failures are context failures — agents don't have the right information, have too much noise, or have the right information in the wrong order. Context engineering is the layer above prompt engineering.
+**What it unlocks:** Faster sessions via cache hits. Better tool selection via improved MCP descriptions. Reliable multi-session work via structured context resets.
 **Artifact:** `skills/agent-context-engineering.md`
+
+---
+
+### [ITERATION 8] TECHNIQUE — Agent Self-Check Patterns
+**Date:** 2026-06-19
+**Type:** TECHNIQUE
+**What I found:** Four escalating self-verification patterns: (1) inline critique before output, (2) output contracts (agent states success criteria before writing), (3) reflection pass (agent reviews its own output as a sceptic), (4) test-first loop (agent writes a test before the implementation). Key insight: "You're not done until X" is more reliable than "check your work" — it gives the agent a concrete stopping condition.
+**Why it matters:** Agents default to confidence even when wrong. Self-check patterns shift the agent from "I think this is right" to "I can prove this is right."
+**What it unlocks:** Reliable DAX measure verification, Power Query step validation, and any task where Andrew needs numbers he can stake his name on.
+**Artifact:** `skills/agent-self-check.md`

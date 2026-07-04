@@ -109,3 +109,16 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **Status:** shipped
 - **Discovered:** 2026-06-19
 - **Skill:** `agent-self-check.md`
+
+### agent-handoff (technique)
+- **Category:** technique
+- **What it does:** The HANDOFF.md discipline — a living session-end document you regenerate every time you stop work, so the next session (in any tool: Cursor, Claude Code, or Codex) can orient itself in 10 seconds without you re-explaining anything.
+- **Try asking:** "We're done for today. Write HANDOFF.md so I can resume this tomorrow in a fresh session — assume no memory of our conversation."
+- **Try asking:** "Read HANDOFF.md. Summarise what's done, what's next, and any blocker — then ask before you start."
+- **Try asking:** "I'm handing this to Codex to run without me watching. Write a HANDOFF.md Codex can follow autonomously — include the test command it should run after each step."
+- **Try asking:** "I'm splitting this into two parallel worktrees — write two separate handoffs, one for the data-pipeline work and one for report-formatting, each completely self-contained."
+- **Try asking:** "Check HANDOFF.md — have any of the key files changed since yesterday's session? List what changed and whether it affects the next steps."
+- **Install:** Skill file — available in Cursor/Claude/Codex after next provision
+- **Status:** shipped
+- **Discovered:** 2026-07-03
+- **Skill:** `agent-handoff.md`
