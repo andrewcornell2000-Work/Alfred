@@ -1,55 +1,62 @@
 # Alfred Pack
 
-**Alfred is not a chatbot you talk to every day.** Alfred is a **toolchain pack** for Windows that:
+**Alfred is a global AI capability installer and updater** for Windows.
 
-1. Installs CLIs (Claude Code, Codex, gh, pbi, LeanCTX, …)
-2. Provisions **MCP servers** globally into Cursor, Claude Code, and Codex
-3. Syncs **skills** and **rules** into all three agents
-4. **Learning workflow** — Cursor sessions per `docs/LEARNING-WORKFLOW.md` (replaces daily GitHub loop)
+It installs and maintains reusable AI capabilities on your machine:
+
+- **Skills** — domain how-tos synced globally
+- **Rules** — Cursor agent rules, shared guidelines
+- **MCP configurations** — Power BI, Excel, GitHub, browser, search, …
+- **Prompts & workflows** — routing, learning, agent playbooks
+- **Documentation & update mechanisms**
+
+## Supported AI tools
+
+| Tool | What Alfred configures |
+|------|------------------------|
+| **Cursor** | `~/.cursor/mcp.json`, skills, global rules |
+| **Claude Code** | User-scope MCPs, `~/.claude/skills` |
+| **Claude Desktop** | Connectors / MCP config |
+| **Codex** | Global MCPs, `~/.codex/skills` |
+| *Future apps* | Extend `Provision-Cursor.ps1` + registry |
+
+**Security first:** per-user paths, no admin by default, secrets in local `.env` only.
 
 ## What you do day-to-day
 
-**Work in Cursor** (or Claude Code / Codex). Just ask normally — MCPs, LeanCTX, and skills are already wired.
+**Work in Cursor or Claude** — capabilities are already provisioned globally.
 
 ## What Alfred does for you
 
 | When | What |
 |------|------|
 | Fresh machine | Run `Alfred-Install.exe` once |
-| Weekly / after updates | Re-run `.exe` or `run-alfred.bat` (checks git pull → setup → provision) |
-| "What's installed?" | Alfred menu → Control Tower, or `lean-ctx doctor` |
-| "What can I ask that I don't know?" | Read `requirements/discovered-tools.md` |
-| Claude Desktop Connectors empty | Alfred provisions Desktop separately — re-run `Provision-Cursor.ps1`, restart Claude app |
+| Weekly / after updates | Re-run installer or `scripts\Alfred-Update.ps1` |
+| "What's installed?" | `scripts\Validate-Install.ps1` or Alfred Control Tower |
+| Learn new tools | Cursor session per `docs/LEARNING-WORKFLOW.md` |
+| Repair provision | `Provision-Cursor.ps1` |
+
+Full install guide: **`docs/INSTALL.md`**
 
 ## Provision pipeline (single source of truth)
 
 ```
 cursor/mcp.json          → MCP template (no secrets)
 skills/*.md              → agent how-to skills
-skills/_packs/**/SKILL.md→ vendored multi-file skill packs (copied verbatim)
-skills/_vendor/impeccable→ impeccable design skill (per-harness path rewrite + Cursor hook)
-cursor/rules/*.mdc       → Cursor rules (optional -ProjectPath)
-Provision-Cursor.ps1     → ~/.cursor/mcp.json
-                         → claude mcp add --scope user
-                         → codex mcp add
-                         → ~/.cursor/skills + ~/.claude/skills + ~/.codex/skills
-                         → lean-ctx onboard (merge, not replace)
+cursor/rules/*.mdc       → Cursor rules
+Provision-Cursor.ps1     → global user-scope configs
+scripts/Validate-Install.ps1 → post-install checks
+scripts/Alfred-Update.ps1    → backup + pull + re-provision
 ```
 
-## Discovery & learning (Cursor)
+## Learning & updates
 
-Use Cursor in the Alfred repo with **`docs/LEARNING-WORKFLOW.md`**:
+New capabilities go through a **secure review pipeline** — not blind auto-install.
 
-1. Research one new MCP, CLI, or technique for finance/office work (1–3 web searches when needed)
-2. Compare against `cursor/mcp.json` and `discovered-tools.md`
-3. Ship a complete skill or catalog entry with **"Try asking:"** prompts
-4. Commit → pull / re-run installer → provision picks it up
+Cloud agents research and propose; humans or trusted approval promote to install.
 
-The scheduled GitHub Actions loop is **disabled**. Manual workflow dispatch remains for emergencies.
-
-Weekly digest email (Mondays) still summarizes recent learning-log entries.
+See `docs/LEARNING-WORKFLOW.md` and `requirements/review-queue.json`.
 
 ## Optional: Alfred CLI
 
-`run-alfred.bat` is for updates, Control Tower, and Dev Portal — not your primary workspace.
-Use Cursor for actual work.
+`run-alfred.bat` — Control Tower, Dev Portal, updates. Not required for daily AI work.

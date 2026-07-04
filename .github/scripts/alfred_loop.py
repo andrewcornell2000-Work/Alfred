@@ -359,6 +359,8 @@ def run():
         "DISCOVER missions: 1-3 web_search calls when external facts are needed (not a fixed minimum). "
         "Every run MUST produce a useful change OR document 'no ship' in memory/learning-log.md "
         "(duplicate blocked is OK — do not invent stubs). "
+        "New MCPs/skills go to requirements/review-queue.json as candidates — NOT direct install. "
+        "Run review_candidate.py before marking approved. "
         "NEVER write skills/taste-*.md. NEVER duplicate MCP keys or catalog slugs."
     )
 

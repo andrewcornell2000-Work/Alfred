@@ -4,9 +4,9 @@ Guidance for Claude Code and other coding agents working in this repository.
 
 ## Project Overview
 
-Alfred is a Windows **toolchain pack** plus an optional CLI orchestrator. Day-to-day work happens in **Cursor** with globally provisioned MCPs, skills, and rules.
+Alfred is a **global AI capability installer and updater** for Windows. It provisions skills, rules, MCP configs, and workflows globally to Cursor, Claude Code, Claude Desktop, and Codex via `Provision-Cursor.ps1`.
 
-The Alfred CLI (`python backend/main.py`) routes natural-language tasks via `alfred_brain()`:
+The optional Alfred CLI (`python backend/main.py`) routes natural-language tasks when you are not working directly in Cursor.
 
 | Category | Meaning | Provider |
 |----------|---------|----------|

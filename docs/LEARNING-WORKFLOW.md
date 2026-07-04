@@ -1,6 +1,36 @@
-# Learning Workflow (Cursor)
+# Learning Workflow (Cursor + Cloud Agents)
 
-Alfred learns new tools and skills through **controlled Cursor sessions**, not an automatic daily loop.
+Alfred learns new capabilities through **controlled sessions** — not automatic blind installs.
+
+## Secure review pipeline
+
+```
+Discovered item
+  → source validation (official > verified community > untrusted)
+  → security review (license, scripts, permissions, secrets)
+  → duplication check (catalog-index + mcp.json + review-queue)
+  → test install (optional)
+  → manual or trusted auto-approval
+  → staged update (repo commit)
+  → global install (Provision-Cursor.ps1 on user machine)
+  → verification (Validate-Install.ps1)
+  → update log (memory/learning-log.md)
+```
+
+**Cloud agents may:** search trusted sources, summarize tools, propose candidates, flag security concerns.
+
+**Cloud agents may NOT:** bypass review, auto-approve untrusted packages, create duplicate skills, or run endless web searches.
+
+Review queue: `requirements/review-queue.json`  
+Validator: `python .github/scripts/review_candidate.py <candidate.json>`
+
+### Stop conditions
+
+- Max **3** web searches per session · Max **5** candidates per run
+- Stop if already `installed`, `rejected`, or `duplicate`
+- Stop if security review unresolved
+
+---
 
 ## When to learn (do search + write)
 

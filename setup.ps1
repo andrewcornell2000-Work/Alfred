@@ -10,13 +10,18 @@
     Safe to re-run at any time -- all steps are idempotent.
 .OUTPUTS
     Exit 0 -- all required components ready; Alfred can start.
-    Exit 1 -- .env is missing; add API keys then re-run.
     Exit 2 -- Python not found; install Python then re-run.
     Exit 3 -- Git, Node.js, npm, Claude Code, or Codex is missing.
 #>
 
+param(
+    [string]$Root = "",
+    [switch]$SkipProvision,
+    [switch]$SkipValidate
+)
+
 $ErrorActionPreference = "Continue"
-$Root = $PSScriptRoot
+if (-not $Root) { $Root = $PSScriptRoot }
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -629,8 +634,9 @@ if ($hasEnv) {
     Write-OK ".env found (optional config)."
 } else {
     Write-Info ".env not present -- that's fine. Auth uses 'claude auth login', no API keys needed."
-    if (-not (Test-Path $EnvTemplate)) {
-        Copy-Item (Join-Path $Root ".env.template") $EnvTemplate -ErrorAction SilentlyContinue
+    if ((Test-Path $EnvTemplate) -and -not (Test-Path $EnvFile)) {
+        Copy-Item $EnvTemplate $EnvFile
+        Write-OK "Created .env from .env.template (edit to add optional API keys)."
     }
 }
 
@@ -639,13 +645,15 @@ if ($hasEnv) {
 Write-Step "Provisioning MCP servers + skills + LeanCTX for Cursor, Claude Code, and Codex..."
 
 $provisionScript = Join-Path $Root "Provision-Cursor.ps1"
-if (Test-Path $provisionScript) {
+if (-not $SkipProvision -and (Test-Path $provisionScript)) {
     try {
         & $provisionScript
     } catch {
         Write-Warn "Cursor/Claude provisioning step failed: $_"
         Write-Info "Re-run manually: powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1"
     }
+} elseif ($SkipProvision) {
+    Write-Skip "Provisioning skipped (-SkipProvision)."
 } else {
     Write-Skip "Provision-Cursor.ps1 not found -- skipping cross-tool provisioning."
 }
@@ -758,6 +766,15 @@ if ($readyToRun) {
 }
 
 Write-Host ""
+
+# ── Post-install validation ───────────────────────────────────────────────────
+if (-not $SkipValidate) {
+    $validateScript = Join-Path $Root "scripts\Validate-Install.ps1"
+    if (Test-Path $validateScript) {
+        Write-Step "Validating global install..."
+        & $validateScript -AlfredRoot $Root
+    }
+}
 
 # Exit codes (read by Install-Alfred.bat and run-alfred.bat)
 if (-not $hasPython) { exit 2 }

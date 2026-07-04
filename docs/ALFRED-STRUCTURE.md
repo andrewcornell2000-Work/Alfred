@@ -1,12 +1,17 @@
 # Alfred Structure
 
-Short map of how Alfred is organized. Read this before adding rules, skills, or MCPs.
+Alfred is a **global AI capability installer and updater**. This doc maps where capabilities live and how they reach each AI tool.
+
+Install details: **`docs/INSTALL.md`**
 
 ## Day-to-day
 
-**Work in Cursor.** MCPs, skills, and rules are provisioned globally by `Provision-Cursor.ps1`.
+**Work in Cursor or Claude.** Capabilities are provisioned globally by `Provision-Cursor.ps1`.
 
-Alfred CLI (`run-alfred.bat`) is for Control Tower, updates, and Dev Portal — not primary coding.
+**Install / update:** `Alfred-Install.exe` or `scripts\Alfred-Update.ps1`  
+**Validate:** `scripts\Validate-Install.ps1`
+
+Alfred CLI (`run-alfred.bat`) is optional — Control Tower, Dev Portal, updates.
 
 ---
 

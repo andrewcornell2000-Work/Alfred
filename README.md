@@ -1,17 +1,21 @@
-# Alfred Pack 2.0
+# Alfred — Global AI Capability Installer
 
-**Alfred is a Windows toolchain pack** — not a chatbot you use every day.
+**Alfred installs and updates reusable AI capabilities on your Windows machine** — skills, rules, MCP configs, prompts, and workflows — globally across supported AI tools.
 
-Run `Alfred-Install.exe` once and it wires your PC for AI work:
+Supported targets: **Cursor**, **Claude Code**, **Claude Desktop**, **Codex** (extensible for future apps).
 
-- **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, LeanCTX, …)
-- **Skills + rules** → all three agents globally
+Run `Alfred-Install.exe` once and it wires your PC:
+
+- **MCP servers** → Cursor, Claude Code, Codex, Claude Desktop
+- **Skills + rules** → global user-scope paths
 - **CLIs** → Claude, Codex, gh, pbi, jq, LeanCTX, …
-- **Discovery** → Cursor learning sessions (`docs/LEARNING-WORKFLOW.md`) ship catalog entries + skills
+- **Controlled learning** → Cursor sessions per `docs/LEARNING-WORKFLOW.md`
 
-**Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
+**Security:** per-user installs, no admin required, secrets stay in local `.env`.
 
-**Alfred CLI** (`run-alfred.bat`) is for updates, health checks, and viewing discovered tools — see [PACK.md](PACK.md).
+**Day-to-day:** work in **Cursor** or **Claude**. Alfred keeps capabilities current.
+
+Install guide: **`docs/INSTALL.md`** · Pack overview: **[PACK.md](PACK.md)**
 
 ---
 
