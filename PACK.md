@@ -51,11 +51,11 @@ scripts/Alfred-Update.ps1    → backup + pull + re-provision
 
 ## Learning & updates
 
-New capabilities go through a **secure review pipeline** — not blind auto-install.
+**Cursor Cloud Agents** run the secure learning pipeline — see `docs/CURSOR-CLOUD-AGENT.md`.
 
-Cloud agents research and propose; humans or trusted approval promote to install.
+Agents open PRs; you merge, then **Alfred.exe** or the update toast installs locally.
 
-See `docs/LEARNING-WORKFLOW.md` and `requirements/review-queue.json`.
+Review queue: `requirements/review-queue.json`
 
 ## Optional: Alfred CLI
 
