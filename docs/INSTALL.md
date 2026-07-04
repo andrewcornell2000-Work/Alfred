@@ -113,8 +113,10 @@ Build both exes: `.\build-installer.ps1`
 
 ## Cloud learning loop
 
-Automated secure learning runs **Monday & Thursday** via GitHub Actions (`alfred-secure-learning.yml`).
+**Cursor Cloud Agents** run the secure learning pipeline — not GitHub Actions.
 
-See **`docs/CLOUD-LEARNING.md`**.
+Setup: **`docs/CURSOR-CLOUD-AGENT.md`** · Rules: **`.cursor/cloud-learning.md`**
+
+After the agent's PR merges to `main`, install locally via toast or **Alfred.exe**.
 
 ---

@@ -9,7 +9,7 @@ Run `Alfred-Install.exe` once and it wires your PC:
 - **MCP servers** → Cursor, Claude Code, Codex, Claude Desktop
 - **Skills + rules** → global user-scope paths
 - **CLIs** → Claude, Codex, gh, pbi, jq, LeanCTX, …
-- **Controlled learning** → Cursor sessions per `docs/LEARNING-WORKFLOW.md`
+- **Controlled learning** → Cursor Cloud Agents per `docs/CURSOR-CLOUD-AGENT.md`
 
 **Security:** per-user installs, no admin required, secrets stay in local `.env`.
 

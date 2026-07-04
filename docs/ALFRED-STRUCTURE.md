@@ -92,7 +92,7 @@ Details: `skills/web-search.md`, `docs/LEARNING-WORKFLOW.md`.
 | **Cursor session** | You ask Cursor to research and ship a tool/skill (primary) |
 | **Dev Portal** | Menu 5 — discuss Alfred behavior changes before dispatch |
 | **Instincts** | Session lessons via `scripts/instinct-cli.py` |
-| **GitHub loop** | **Deprecated** — manual `workflow_dispatch` only for emergencies |
+| **Cursor Cloud Agent** | Manual or scheduled in Cursor | `docs/CURSOR-CLOUD-AGENT.md` |
 
 Full playbook: **`docs/LEARNING-WORKFLOW.md`**
 

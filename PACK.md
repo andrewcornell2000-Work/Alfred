@@ -33,7 +33,7 @@ It installs and maintains reusable AI capabilities on your machine:
 | Fresh machine | Run `Alfred-Install.exe` once |
 | Weekly / after updates | Re-run installer or `scripts\Alfred-Update.ps1` |
 | "What's installed?" | `scripts\Validate-Install.ps1` or Alfred Control Tower |
-| Learn new tools | Cursor session per `docs/LEARNING-WORKFLOW.md` |
+| Learn new tools | Cursor Cloud Agent per `docs/CURSOR-CLOUD-AGENT.md` |
 | Repair provision | `Provision-Cursor.ps1` |
 
 Full install guide: **`docs/INSTALL.md`**

@@ -152,13 +152,11 @@ Keep skills under ~150 lines unless the domain requires more. Link to `skills/mc
 
 ---
 
-## Deprecated: GitHub daily loop
+## Deprecated: GitHub Actions loop
 
-The scheduled GitHub Actions growth loop (`alfred-growth-loop.yml`) is **disabled**. It caused duplicate skills, mandatory web searches, and drift from `ALFRED_LOOP_PROMPT.md`.
+GitHub Actions learning workflows are **removed**. Use **Cursor Cloud Agents** per `docs/CURSOR-CLOUD-AGENT.md`.
 
-Emergency manual run: GitHub → Actions → "Alfred Growth Loop" → **Run workflow**.
-
-Historical prompt archived at `docs/archive/ALFRED_LOOP_PROMPT.md`.
+Historical prompt: `docs/archive/ALFRED_LOOP_PROMPT.md` · Archived script: `.github/archive/alfred_loop.py`
 
 ---
 

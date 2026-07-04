@@ -47,6 +47,9 @@ Import-Module ps2exe -Force
 # Build
 $InputFile  = Join-Path $PSScriptRoot "Alfred-Install.ps1"
 $OutputFile = Join-Path $PSScriptRoot "Alfred-Install.exe"
+$IconFile   = Join-Path $PSScriptRoot "assets\alfred.ico"
+$iconArg    = @{}
+if (Test-Path $IconFile) { $iconArg["icon"] = $IconFile }
 
 if (-not (Test-Path $InputFile)) {
     Write-Host "ERROR: Alfred-Install.ps1 not found at $InputFile" -ForegroundColor Red
@@ -60,7 +63,8 @@ Invoke-ps2exe `
     -OutputFile $OutputFile `
     -Title       "Alfred Installer" `
     -Description "Alfred global AI capability installer" `
-    -Version     $Version
+    -Version     $Version `
+    @iconArg
 
 $UiInput  = Join-Path $PSScriptRoot "ui\Alfred-App.ps1"
 $UiOutput = Join-Path $PSScriptRoot "Alfred.exe"
@@ -73,7 +77,8 @@ if (Test-Path $UiInput) {
         -noConsole `
         -Title       "Alfred" `
         -Description "Alfred AI Capability Manager — updates, validate, repair" `
-        -Version     $Version
+        -Version     $Version `
+        @iconArg
     Write-Host "Done: $UiOutput" -ForegroundColor Green
 }
 

@@ -7,7 +7,7 @@ alwaysApply: false
 
 When running as a Cursor cloud agent to learn new capabilities for Alfred:
 
-1. Read `.github/prompts/cloud-learning.md` and `docs/CLOUD-LEARNING.md`
+1. Read `.cursor/cloud-learning.md` and `docs/CURSOR-CLOUD-AGENT.md`
 2. Follow the secure review pipeline — **never blind install**
 3. New MCPs → `requirements/review-queue.json` via proposal, not direct `cursor/mcp.json`
 4. Max 3 web searches · max 2 new candidates per run

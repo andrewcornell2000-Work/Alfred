@@ -23,8 +23,15 @@ function Get-AlfredVersion {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+$iconPath = Join-Path $Root "assets\alfred.ico"
+$appIcon = $null
+if (Test-Path $iconPath) {
+    try { $appIcon = New-Object System.Drawing.Icon($iconPath) } catch { }
+}
+
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Alfred — AI Capability Manager"
+if ($appIcon) { $form.Icon = $appIcon }
 $form.Size = New-Object System.Drawing.Size(520, 480)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -150,7 +157,7 @@ $form.Controls.Add($btnOpenLogs)
 
 # Tray icon
 $tray = New-Object System.Windows.Forms.NotifyIcon
-$tray.Icon = [System.Drawing.SystemIcons]::Application
+if ($appIcon) { $tray.Icon = $appIcon } else { $tray.Icon = [System.Drawing.SystemIcons]::Application }
 $tray.Text = "Alfred AI Capability Manager"
 $tray.Visible = $true
 $tray.Add_DoubleClick({ $form.Show(); $form.WindowState = "Normal" })
