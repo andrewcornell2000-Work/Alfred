@@ -122,3 +122,16 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **Status:** shipped
 - **Discovered:** 2026-07-03
 - **Skill:** `agent-handoff.md`
+
+### ms-365 (MCP)
+- **Category:** MCP
+- **What it does:** Connect Cursor/Claude directly to your Microsoft 365 account — search and read SharePoint files, OneDrive documents, Outlook mail, Calendar, Teams, and To-Do lists, all via the official Microsoft Graph API.
+- **Try asking:** "Use ms-365 to list all files in the Finance Reports SharePoint library modified in the last 30 days."
+- **Try asking:** "Use ms-365 to read 'Q2 Budget Review.docx' from SharePoint and give me a 5-bullet summary."
+- **Try asking:** "Use ms-365 to search my inbox for emails from anyone at contractor.com in the last 14 days — list sender, subject, and date."
+- **Try asking:** "Use ms-365 to find a 1-hour free slot in my calendar this week between 9am and 5pm."
+- **Try asking:** "Use ms-365 to search OneDrive for any Excel file with 'labour' in the name modified this year."
+- **Install:** `npx @softeria/ms-365-mcp-server --login` (one-time browser sign-in, token cached). Already added to pack — available after next `Provision-Cursor.ps1` run.
+- **Status:** shipped
+- **Discovered:** 2026-07-04
+- **Skill:** `sharepoint-graph.md`
