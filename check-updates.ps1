@@ -6,15 +6,26 @@
     Runs git fetch, compares HEAD with origin/main, and prompts the user if updates
     exist. Never auto-pulls — user approval is always required.
     Safe to run offline; fetch failure is a silent no-op.
+.PARAMETER Gui
+    Show a WinForms update dialog instead of console prompts.
 .OUTPUTS
     Exit 0  -- no updates available, user declined, or check could not complete.
     Exit 10 -- updates were pulled; caller should re-run setup.ps1 to apply them.
 #>
 
+param(
+    [switch]$Gui
+)
+
 $Root = $PSScriptRoot
 
 if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
     exit 0
+}
+
+foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+    $path = Join-Path $Root $rel
+    if (Test-Path $path) { . $path }
 }
 
 Write-Host ""
@@ -36,17 +47,24 @@ if ($localHead -eq $remoteHead) {
 }
 
 $behind    = (git -C $Root rev-list --count "HEAD..origin/main" 2>&1).Trim()
-$commitLog =  git -C $Root log --oneline "HEAD..origin/main"   2>&1
+$commitLog = @(git -C $Root log --oneline "HEAD..origin/main" 2>&1)
 
-Write-Host ""
-Write-Host "  Updates available: $behind new commit(s) on origin/main." -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  What's new:" -ForegroundColor White
-$commitLog | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkYellow }
-Write-Host ""
+$shouldPull = $false
+if ($Gui -and (Get-Command Show-AlfredUpdateAlert -ErrorAction SilentlyContinue)) {
+    $choice = Show-AlfredUpdateAlert -BehindCount ([int]$behind) -CommitLines $commitLog -Root $Root
+    $shouldPull = ($choice -eq 'update')
+} else {
+    Write-Host ""
+    Write-Host "  Updates available: $behind new commit(s) on origin/main." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  What's new:" -ForegroundColor White
+    $commitLog | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkYellow }
+    Write-Host ""
+    $response = Read-Host "  Pull updates now? [Y/N]"
+    $shouldPull = ($response -match "^[Yy]")
+}
 
-$response = Read-Host "  Pull updates now? [Y/N]"
-if ($response -notmatch "^[Yy]") {
+if (-not $shouldPull) {
     Write-Host "  Skipping update." -ForegroundColor DarkGray
     exit 0
 }

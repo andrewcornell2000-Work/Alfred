@@ -46,23 +46,50 @@ if (-not (Get-Module -ListAvailable -Name ps2exe)) {
 
 Import-Module ps2exe -Force
 
-# Build
+# Build — merge GUI helper modules so the standalone .exe includes them.
 $InputFile  = Join-Path $PSScriptRoot "Alfred-Install.ps1"
 $OutputFile = Join-Path $PSScriptRoot "Alfred-Install.exe"
+$IconFile   = Join-Path $PSScriptRoot "assets\alfred.ico"
+$BuildFile  = Join-Path $env:TEMP "Alfred-Install.build.ps1"
 
 if (-not (Test-Path $InputFile)) {
     Write-Host "ERROR: Alfred-Install.ps1 not found at $InputFile" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Compiling $InputFile -> $OutputFile ..." -ForegroundColor Cyan
+$moduleParts = @()
+foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+    $path = Join-Path $PSScriptRoot $rel
+    if (Test-Path $path) {
+        $moduleParts += Get-Content $path -Raw
+    } else {
+        Write-Host "WARN: Missing $rel — GUI installer may not work in the .exe" -ForegroundColor Yellow
+    }
+}
 
-Invoke-ps2exe `
-    -InputFile  $InputFile `
-    -OutputFile $OutputFile `
-    -Title       "Alfred Installer" `
-    -Description "Alfred AI Assistant - one-click installer" `
-    -Version     $Version
+$mainBody = Get-Content $InputFile -Raw
+if ($mainBody -match '(?s)(Import-AlfredInstallerModules \$ScriptRoot\s*)') {
+    $mainBody = $mainBody -replace '(?s)(Import-AlfredInstallerModules \$ScriptRoot\s*)', ''
+}
+Set-Content -Path $BuildFile -Value (($moduleParts -join "`n`n") + "`n`n" + $mainBody) -Encoding UTF8
+
+Write-Host "Compiling $BuildFile -> $OutputFile ..." -ForegroundColor Cyan
+
+$ps2exeArgs = @{
+    InputFile  = $BuildFile
+    OutputFile = $OutputFile
+    Title      = 'Alfred Installer'
+    Description = 'Alfred AI Assistant - one-click installer'
+    Version    = $Version
+}
+if (Test-Path $IconFile) {
+    $ps2exeArgs['iconFile'] = $IconFile
+    Write-Host "Using icon: $IconFile" -ForegroundColor DarkGray
+}
+
+Invoke-ps2exe @ps2exeArgs
+
+Remove-Item $BuildFile -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green

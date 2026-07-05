@@ -28,7 +28,7 @@ for /f "delims=" %%I in ('npm prefix -g 2^>nul') do (
 )
 
 if exist "%REPO%\.git" (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\check-updates.ps1"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\check-updates.ps1" -Gui
     set "UPDATE_EXIT=%ERRORLEVEL%"
     if "%UPDATE_EXIT%"=="10" (
         echo.

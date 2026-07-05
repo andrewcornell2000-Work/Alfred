@@ -21,10 +21,22 @@
 param(
     [string]$InstallPath = "$env:USERPROFILE\Alfred",
     [string]$RepoUrl    = "https://github.com/andrewcornell2000-Work/Alfred.git",
-    [string]$Branch     = "main"
+    [string]$Branch     = "main",
+    [switch]$NoWizard
 )
 
 $ErrorActionPreference = "Continue"
+
+$ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $ScriptRoot) { $ScriptRoot = (Get-Location).Path }
+
+function Import-AlfredInstallerModules([string]$Root) {
+    foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+        $path = Join-Path $Root $rel
+        if (Test-Path $path) { . $path }
+    }
+}
+Import-AlfredInstallerModules $ScriptRoot
 
 function Write-Banner([string]$Text) {
     Write-Host ""
@@ -253,17 +265,23 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
     }
 }
 
-# ── Banner ────────────────────────────────────────────────────────────────────
+# ── Install wizard ────────────────────────────────────────────────────────────
 
-Write-Banner "Alfred Installer"
-Write-Host ""
-Write-Host "  Install path : $InstallPath" -ForegroundColor White
-Write-Host "  Repository   : $RepoUrl" -ForegroundColor White
-Write-Host "  No admin required — falls back to portable/user installs automatically." -ForegroundColor DarkGray
-Write-Host ""
-
-$confirm = Read-Host "  Install / update Alfred here? (Y/n)"
-if ($confirm -match "^[Nn]") { Write-Host "Cancelled."; exit 0 }
+$AssetsRoot = $ScriptRoot
+if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
+    $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $AssetsRoot
+    if (-not $wizard.Confirmed) { Write-Host "Cancelled."; exit 0 }
+    $InstallPath = $wizard.InstallPath
+} else {
+    Write-Banner "Alfred Installer"
+    Write-Host ""
+    Write-Host "  Install path : $InstallPath" -ForegroundColor White
+    Write-Host "  Repository   : $RepoUrl" -ForegroundColor White
+    Write-Host "  No admin required — falls back to portable/user installs automatically." -ForegroundColor DarkGray
+    Write-Host ""
+    $confirm = Read-Host "  Install / update Alfred here? (Y/n)"
+    if ($confirm -match "^[Nn]") { Write-Host "Cancelled."; exit 0 }
+}
 
 # ── Step 1: Git ───────────────────────────────────────────────────────────────
 
@@ -284,18 +302,41 @@ if (Find-Command "git") {
 Write-Step "Step 2: Alfred repository"
 
 if (Test-Path (Join-Path $InstallPath ".git")) {
-    Write-OK "Existing checkout found — updating to latest..."
+    Write-OK "Existing checkout found — checking for updates..."
     & git -C $InstallPath fetch origin $Branch 2>&1 | Write-CommandOutput
     $fetchExitCode = $LASTEXITCODE
     if ($fetchExitCode -ne 0) {
         Write-Warn "Could not fetch latest Alfred — continuing with local version."
     } else {
-        # Pack updates: prefer upstream. Runtime paths (data/, session memory) are gitignored.
-        & git -C $InstallPath reset --hard "origin/$Branch" 2>&1 | Write-CommandOutput
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn "Update could not be applied automatically — continuing with local version."
+        $localHead  = (git -C $InstallPath rev-parse HEAD 2>&1).Trim()
+        $remoteHead = (git -C $InstallPath rev-parse "origin/$Branch" 2>&1).Trim()
+        if ($localHead -ne $remoteHead) {
+            $behind = (git -C $InstallPath rev-list --count "HEAD..origin/$Branch" 2>&1).Trim()
+            $commitLog = @(git -C $InstallPath log --oneline "HEAD..origin/$Branch" 2>&1)
+            $applyUpdate = $true
+            if ((Get-Command Show-AlfredUpdateAlert -ErrorAction SilentlyContinue) -and -not $NoWizard) {
+                Import-AlfredInstallerModules $InstallPath
+                $choice = Show-AlfredUpdateAlert -BehindCount ([int]$behind) -CommitLines $commitLog -Root $InstallPath
+                $applyUpdate = ($choice -eq 'update')
+            } else {
+                Write-Host ""
+                Write-Host "  Updates available: $behind new commit(s) on origin/$Branch." -ForegroundColor Yellow
+                $commitLog | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkYellow }
+                $response = Read-Host "  Pull updates now? [Y/N]"
+                $applyUpdate = ($response -match "^[Yy]")
+            }
+            if ($applyUpdate) {
+                & git -C $InstallPath reset --hard "origin/$Branch" 2>&1 | Write-CommandOutput
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warn "Update could not be applied automatically — continuing with local version."
+                } else {
+                    Write-Done "Repository updated to origin/$Branch."
+                }
+            } else {
+                Write-Host "  Skipping update — continuing with local version." -ForegroundColor DarkGray
+            }
         } else {
-            Write-Done "Repository updated to origin/$Branch."
+            Write-OK "Alfred is already up to date."
         }
     }
 } else {
@@ -922,3 +963,7 @@ Write-Host "  Quant plugin running at: $QuantUrl" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  To update Alfred in future: re-run this installer." -ForegroundColor DarkGray
 Write-Host ""
+
+if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction SilentlyContinue)) {
+    Show-AlfredInstallComplete -InstallPath $InstallPath -AssetsRoot $InstallPath
+}
