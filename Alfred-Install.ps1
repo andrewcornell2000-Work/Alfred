@@ -27,6 +27,26 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+function Show-InstallerFatalError([string]$Message) {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        [System.Windows.Forms.MessageBox]::Show(
+            $Message,
+            'Alfred Installer',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+    } catch {
+        Write-Host $Message -ForegroundColor Red
+        Read-Host 'Press Enter to close'
+    }
+}
+
+trap {
+    Show-InstallerFatalError "Alfred installer failed:`n`n$($_.Exception.Message)"
+    exit 1
+}
+
 $ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $ScriptRoot) { $ScriptRoot = (Get-Location).Path }
 
@@ -269,7 +289,12 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 
 $AssetsRoot = $ScriptRoot
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
-    $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $AssetsRoot
+    try {
+        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $AssetsRoot
+    } catch {
+        Show-InstallerFatalError "Could not open the install wizard:`n`n$($_.Exception.Message)"
+        exit 1
+    }
     if (-not $wizard.Confirmed) { Write-Host "Cancelled."; exit 0 }
     $InstallPath = $wizard.InstallPath
 } else {

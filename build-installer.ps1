@@ -22,6 +22,12 @@ Write-Host "Alfred Installer Builder" -ForegroundColor Cyan
 Write-Host "========================" -ForegroundColor Cyan
 Write-Host ""
 
+$iconScript = Join-Path $PSScriptRoot "scripts\build-alfred-icon.ps1"
+if (Test-Path $iconScript) {
+    Write-Host "Building icon..." -ForegroundColor Cyan
+    & $iconScript
+}
+
 # Install ps2exe if needed
 if (-not (Get-Module -ListAvailable -Name ps2exe)) {
     Write-Host "Preparing PowerShell Gallery access..." -ForegroundColor Cyan
@@ -46,7 +52,6 @@ if (-not (Get-Module -ListAvailable -Name ps2exe)) {
 
 Import-Module ps2exe -Force
 
-# Build — merge GUI helper modules so the standalone .exe includes them.
 $InputFile  = Join-Path $PSScriptRoot "Alfred-Install.ps1"
 $OutputFile = Join-Path $PSScriptRoot "Alfred-Install.exe"
 $IconFile   = Join-Path $PSScriptRoot "assets\alfred.ico"
@@ -57,30 +62,50 @@ if (-not (Test-Path $InputFile)) {
     exit 1
 }
 
+function Get-InstallerModuleBody([string]$Path) {
+    $content = Get-Content $Path -Raw
+    return ($content -replace '(?m)^#Requires[^\r\n]*\r?\n', '').Trim()
+}
+
 $moduleParts = @()
 foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
     if (Test-Path $path) {
-        $moduleParts += Get-Content $path -Raw
+        $moduleParts += Get-InstallerModuleBody $path
     } else {
-        Write-Host "WARN: Missing $rel — GUI installer may not work in the .exe" -ForegroundColor Yellow
+        Write-Host "WARN: Missing $rel - GUI installer may not work in the .exe" -ForegroundColor Yellow
     }
 }
 
-$mainBody = Get-Content $InputFile -Raw
-if ($mainBody -match '(?s)(Import-AlfredInstallerModules \$ScriptRoot\s*)') {
-    $mainBody = $mainBody -replace '(?s)(Import-AlfredInstallerModules \$ScriptRoot\s*)', ''
+$mainRaw = Get-Content $InputFile -Raw
+$splitMarker = 'Import-AlfredInstallerModules $ScriptRoot'
+$split = $mainRaw -split [regex]::Escape($splitMarker), 2
+if ($split.Count -lt 2) {
+    throw "Could not locate '$splitMarker' in Alfred-Install.ps1"
 }
-Set-Content -Path $BuildFile -Value (($moduleParts -join "`n`n") + "`n`n" + $mainBody) -Encoding UTF8
+
+$mainHead = $split[0].TrimEnd()
+$mainTail = $split[1].TrimStart()
+$merged = ($mainHead + "`n`n" + ($moduleParts -join "`n`n") + "`n`n" + $mainTail)
+Set-Content -Path $BuildFile -Value $merged -Encoding UTF8
+
+$parseErrors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseFile($BuildFile, [ref]$null, [ref]$parseErrors)
+if ($parseErrors) {
+    Write-Host "Merged installer script has parse errors:" -ForegroundColor Red
+    $parseErrors | ForEach-Object { Write-Host $_.ToString() -ForegroundColor Red }
+    exit 1
+}
 
 Write-Host "Compiling $BuildFile -> $OutputFile ..." -ForegroundColor Cyan
 
 $ps2exeArgs = @{
-    InputFile  = $BuildFile
-    OutputFile = $OutputFile
-    Title      = 'Alfred Installer'
+    InputFile   = $BuildFile
+    OutputFile  = $OutputFile
+    Title       = 'Alfred Installer'
     Description = 'Alfred AI Assistant - one-click installer'
-    Version    = $Version
+    Version     = $Version
+    STA         = $true
 }
 if (Test-Path $IconFile) {
     $ps2exeArgs['iconFile'] = $IconFile
@@ -95,7 +120,7 @@ Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green
 Write-Host ""
 Write-Host "Releasing:" -ForegroundColor White
-Write-Host "  Normally you don't run this by hand. Push a version tag and GitHub Actions" -ForegroundColor Yellow
+Write-Host "  Normally you do not run this by hand. Push a version tag and GitHub Actions" -ForegroundColor Yellow
 Write-Host "  (.github/workflows/release-installer.yml) builds this .exe on a Windows runner" -ForegroundColor Yellow
 Write-Host "  and attaches it to the matching release:" -ForegroundColor Yellow
 Write-Host "    git tag v$Version; git push origin v$Version" -ForegroundColor Yellow
