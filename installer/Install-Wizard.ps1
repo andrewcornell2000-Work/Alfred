@@ -1,37 +1,16 @@
 #Requires -Version 5.1
 # Alfred install wizard — WinForms UI shown by Alfred-Install.ps1
 
-if (-not (Get-Command Get-AlfredBrandIcon -ErrorAction SilentlyContinue)) {
-function Get-AlfredBrandIcon([string]$Root) {
-    foreach ($rel in @('assets\alfred.ico', 'assets\alfred.png')) {
-        $path = Join-Path $Root $rel
-        if (Test-Path $path) { return $path }
-    }
-    return $null
-}
-}
-
-function Get-AlfredBrandImage([string]$Root) {
-    $path = Get-AlfredBrandIcon $Root
-    if ($path) {
-        if ($path -like '*.ico') {
-            return [System.Drawing.Icon]::ExtractAssociatedIcon($path).ToBitmap()
-        }
-        return [System.Drawing.Image]::FromFile($path)
-    }
-    $exePath = $MyInvocation.MyCommand.Path
-    if ($exePath -and (Test-Path $exePath) -and $exePath -like '*.exe') {
-        try { return [System.Drawing.Icon]::ExtractAssociatedIcon($exePath).ToBitmap() } catch { }
-    }
-    return $null
-}
-
 function Show-AlfredInstallWizard {
     param(
         [string]$DefaultInstallPath = "$env:USERPROFILE\Alfred",
         [string]$RepoUrl = 'https://github.com/andrewcornell2000-Work/Alfred.git',
-        [string]$AssetsRoot = $PSScriptRoot
+        [string]$AssetsRoot
     )
+
+    if ([string]::IsNullOrWhiteSpace($AssetsRoot)) {
+        $AssetsRoot = Get-AlfredInstallerRoot
+    }
 
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
@@ -47,10 +26,7 @@ function Show-AlfredInstallWizard {
     $form.ForeColor = [System.Drawing.Color]::White
     $form.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 
-    $iconPath = Get-AlfredBrandIcon $AssetsRoot
-    if ($iconPath) {
-        try { $form.Icon = New-Object System.Drawing.Icon($iconPath) } catch { }
-    }
+    Set-AlfredFormIcon $form $AssetsRoot
 
     $y = 20
     $brandImage = Get-AlfredBrandImage $AssetsRoot
@@ -84,7 +60,7 @@ function Show-AlfredInstallWizard {
     $bullets = @(
         'MCP servers for Power BI, Excel, GitHub, and more',
         'Skills + LeanCTX wired globally on your machine',
-        'No admin required — user-scope installs when possible'
+        'No admin required - user-scope installs when possible'
     )
     foreach ($line in $bullets) {
         $lbl = New-Object System.Windows.Forms.Label
@@ -117,7 +93,7 @@ function Show-AlfredInstallWizard {
     $browse.Add_Click({
         $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
         $dlg.Description = 'Choose where Alfred should be installed'
-        $dlg.SelectedPath = $pathBox.Text
+        if ($pathBox.Text) { $dlg.SelectedPath = $pathBox.Text }
         if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             $pathBox.Text = $dlg.SelectedPath
         }
@@ -177,8 +153,7 @@ function Show-AlfredInstallWizard {
 
 function Show-AlfredInstallComplete {
     param(
-        [string]$InstallPath,
-        [string]$AssetsRoot = $PSScriptRoot
+        [string]$InstallPath
     )
 
     Add-Type -AssemblyName System.Windows.Forms

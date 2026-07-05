@@ -23,7 +23,7 @@ if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
     exit 0
 }
 
-foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+foreach ($rel in @("installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
     $path = Join-Path $Root $rel
     if (Test-Path $path) { . $path }
 }

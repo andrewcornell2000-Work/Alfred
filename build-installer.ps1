@@ -68,7 +68,7 @@ function Get-InstallerModuleBody([string]$Path) {
 }
 
 $moduleParts = @()
-foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+foreach ($rel in @("installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
     if (Test-Path $path) {
         $moduleParts += Get-InstallerModuleBody $path

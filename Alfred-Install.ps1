@@ -47,11 +47,28 @@ trap {
     exit 1
 }
 
-$ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $ScriptRoot) { $ScriptRoot = (Get-Location).Path }
+function Get-AlfredInstallerRoot {
+    if ($PSScriptRoot) { return $PSScriptRoot }
+    $cmdPath = $MyInvocation.MyCommand.Path
+    if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
+        $parent = Split-Path -Parent $cmdPath
+        if ($parent) { return $parent }
+    }
+    try {
+        $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        if (-not [string]::IsNullOrWhiteSpace($exe)) {
+            $parent = Split-Path -Parent $exe
+            if ($parent) { return $parent }
+        }
+    } catch { }
+    return (Get-Location).Path
+}
+
+$ScriptRoot = Get-AlfredInstallerRoot
 
 function Import-AlfredInstallerModules([string]$Root) {
-    foreach ($rel in @("installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+    if ([string]::IsNullOrWhiteSpace($Root)) { $Root = Get-AlfredInstallerRoot }
+    foreach ($rel in @("installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
         $path = Join-Path $Root $rel
         if (Test-Path $path) { . $path }
     }
@@ -287,10 +304,9 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 
 # ── Install wizard ────────────────────────────────────────────────────────────
 
-$AssetsRoot = $ScriptRoot
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
     try {
-        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $AssetsRoot
+        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl
     } catch {
         Show-InstallerFatalError "Could not open the install wizard:`n`n$($_.Exception.Message)"
         exit 1
@@ -990,5 +1006,5 @@ Write-Host "  To update Alfred in future: re-run this installer." -ForegroundCol
 Write-Host ""
 
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction SilentlyContinue)) {
-    Show-AlfredInstallComplete -InstallPath $InstallPath -AssetsRoot $InstallPath
+    Show-AlfredInstallComplete -InstallPath $InstallPath
 }

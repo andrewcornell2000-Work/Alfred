@@ -1,25 +1,19 @@
 #Requires -Version 5.1
 # GUI update prompt — used by check-updates.ps1 and Alfred-Install.ps1
 
-if (-not (Get-Command Get-AlfredBrandIcon -ErrorAction SilentlyContinue)) {
-function Get-AlfredBrandIcon([string]$Root) {
-    foreach ($rel in @('assets\alfred.ico', 'assets\alfred.png')) {
-        $path = Join-Path $Root $rel
-        if (Test-Path $path) { return $path }
-    }
-    return $null
-}
-}
-
 function Show-AlfredUpdateAlert {
     param(
         [Parameter(Mandatory = $true)]
         [int]$BehindCount,
         [Parameter(Mandatory = $true)]
         [string[]]$CommitLines,
-        [string]$Root = $PSScriptRoot,
+        [string]$Root,
         [string]$Title = 'Alfred update available'
     )
+
+    if ([string]::IsNullOrWhiteSpace($Root)) {
+        $Root = Get-AlfredInstallerRoot
+    }
 
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
@@ -34,15 +28,8 @@ function Show-AlfredUpdateAlert {
     $form.BackColor = [System.Drawing.Color]::FromArgb(26, 35, 50)
     $form.ForeColor = [System.Drawing.Color]::White
     $form.Font = New-Object System.Drawing.Font('Segoe UI', 10)
-    $iconPath = if ($Root) { Get-AlfredBrandIcon $Root } else { $null }
-    if ($iconPath) {
-        try { $form.Icon = New-Object System.Drawing.Icon($iconPath) } catch { }
-    } else {
-        $exePath = $MyInvocation.MyCommand.Path
-        if ($exePath -and (Test-Path $exePath) -and $exePath -like '*.exe') {
-            try { $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exePath) } catch { }
-        }
-    }
+
+    Set-AlfredFormIcon $form $Root
 
     $y = 16
 
@@ -51,7 +38,7 @@ function Show-AlfredUpdateAlert {
     $head.AutoSize = $true
     $head.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 12)
     $head.ForeColor = [System.Drawing.Color]::FromArgb(212, 175, 55)
-    $head.Location = New-Object System.Drawing.Point(80, $y + 8)
+    $head.Location = New-Object System.Drawing.Point(20, $y + 8)
     $form.Controls.Add($head)
     $y += 64
 
