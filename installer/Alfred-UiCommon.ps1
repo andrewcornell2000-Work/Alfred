@@ -47,24 +47,30 @@ function Get-AlfredBrandIcon([string]$Root) {
 }
 
 function Get-AlfredExePath {
-    $cmdPath = $MyInvocation.MyCommand.Path
-    if (-not [string]::IsNullOrWhiteSpace($cmdPath) -and $cmdPath -like '*.exe' -and (Test-Path $cmdPath)) {
-        return $cmdPath
-    }
     try {
         $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
         if (-not [string]::IsNullOrWhiteSpace($exe) -and (Test-Path $exe)) { return $exe }
     } catch { }
+    $cmdPath = $MyInvocation.MyCommand.Path
+    if (-not [string]::IsNullOrWhiteSpace($cmdPath) -and $cmdPath -like '*.exe' -and (Test-Path $cmdPath)) {
+        return $cmdPath
+    }
     return $null
 }
 
 function Get-AlfredBrandImage([string]$Root) {
-    $path = Get-AlfredBrandIcon $Root
-    if ($path) {
-        if ($path -like '*.ico') {
-            return [System.Drawing.Icon]::ExtractAssociatedIcon($path).ToBitmap()
+    Initialize-AlfredUiTheme
+    if (-not [string]::IsNullOrWhiteSpace($Root)) {
+        foreach ($rel in @('assets\alfred-source.png', 'assets\alfred.png', 'assets\alfred.ico')) {
+            $path = Join-Path $Root $rel
+            if (-not (Test-Path $path)) { continue }
+            try {
+                if ($path -like '*.ico') {
+                    return [System.Drawing.Icon]::ExtractAssociatedIcon($path).ToBitmap()
+                }
+                return [System.Drawing.Image]::FromFile($path)
+            } catch { }
         }
-        return [System.Drawing.Image]::FromFile($path)
     }
     $exePath = Get-AlfredExePath
     if ($exePath) {
@@ -104,26 +110,10 @@ function Get-AlfredUiFont {
     return New-Object System.Drawing.Font('Segoe UI', $Size, [System.Drawing.FontStyle]::Regular)
 }
 
-function New-AlfredRoundedPath {
-    param(
-        [System.Drawing.Rectangle]$Rect,
-        [int]$Radius
-    )
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $d = $Radius * 2
-    $path.AddArc($Rect.X, $Rect.Y, $d, $d, 180, 90)
-    $path.AddArc($Rect.Right - $d, $Rect.Y, $d, $d, 270, 90)
-    $path.AddArc($Rect.Right - $d, $Rect.Bottom - $d, $d, $d, 0, 90)
-    $path.AddArc($Rect.X, $Rect.Bottom - $d, $d, $d, 90, 90)
-    $path.CloseFigure()
-    return $path
-}
-
 function New-AlfredBrandPanel {
     param([int]$Width = 300)
 
     Initialize-AlfredUiTheme
-    Add-Type -AssemblyName System.Drawing
     $panel = New-Object System.Windows.Forms.Panel
     $panel.Width = $Width
     $panel.Dock = 'Left'
@@ -133,7 +123,6 @@ function New-AlfredBrandPanel {
     $panel.Add_Paint({
         param($sender, $e)
         $g = $e.Graphics
-        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $rect = $sender.ClientRectangle
         $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
             $rect,
@@ -143,15 +132,9 @@ function New-AlfredBrandPanel {
         )
         $g.FillRectangle($brush, $rect)
         $brush.Dispose()
-
-        $glow = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-            (New-Object System.Drawing.Rectangle 0, 0, 4, $rect.Height),
-            $script:AlfredUiTheme.Accent,
-            [System.Drawing.Color]::FromArgb(0, 212, 175, 55),
-            0
-        )
-        $g.FillRectangle($glow, 0, 0, 4, $rect.Height)
-        $glow.Dispose()
+        $accent = New-Object System.Drawing.SolidBrush $script:AlfredUiTheme.Accent
+        $g.FillRectangle($accent, 0, 0, 3, $rect.Height)
+        $accent.Dispose()
     })
 
     return $panel
@@ -162,55 +145,33 @@ function New-AlfredModernButton {
         [string]$Text,
         [ValidateSet('primary', 'ghost')]
         [string]$Variant = 'primary',
-        [System.Drawing.Size]$Size = (New-Object System.Drawing.Size(132, 42))
+        [int]$Width = 132,
+        [int]$Height = 40
     )
 
     Initialize-AlfredUiTheme
-    Add-Type -AssemblyName System.Drawing
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $Text
-    $btn.Size = $Size
-    $btn.FlatStyle = 'Flat'
-    $btn.FlatAppearance.BorderSize = 0
+    $btn.Size = New-Object System.Drawing.Size($Width, $Height)
+    $btn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btn.Cursor = [System.Windows.Forms.Cursors]::Hand
     $btn.Font = Get-AlfredUiFont 10 'Semibold'
-    $btn.Tag = $Variant
-    Enable-AlfredDoubleBuffer $btn
+    $btn.UseVisualStyleBackColor = $false
 
-    $btn.Add_MouseEnter({
-        $this.Invalidate()
-    })
-    $btn.Add_MouseLeave({
-        $this.Invalidate()
-    })
-
-    $btn.Add_Paint({
-        param($sender, $e)
-        $g = $e.Graphics
-        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-        $rect = New-Object System.Drawing.Rectangle 0, 0, $sender.Width - 1, $sender.Height - 1
-        $path = New-AlfredRoundedPath $rect 10
-
-        if ($sender.Tag -eq 'primary') {
-            $fill = if ($sender.ClientRectangle.Contains($sender.PointToClient([System.Windows.Forms.Cursor]::Position))) {
-                $script:AlfredUiTheme.AccentHover
-            } else {
-                $script:AlfredUiTheme.Accent
-            }
-            $g.FillPath((New-Object System.Drawing.SolidBrush $fill), $path)
-            $fg = $script:AlfredUiTheme.AccentText
-        } else {
-            $g.DrawPath((New-Object System.Drawing.Pen $script:AlfredUiTheme.Border, 1), $path)
-            $fg = $script:AlfredUiTheme.TextMuted
-        }
-
-        $sf = New-Object System.Drawing.StringFormat
-        $sf.Alignment = 'Center'
-        $sf.LineAlignment = 'Center'
-        $g.DrawString($sender.Text, $sender.Font, (New-Object System.Drawing.SolidBrush $fg), $rect, $sf)
-        $path.Dispose()
-    })
+    if ($Variant -eq 'primary') {
+        $btn.BackColor = $script:AlfredUiTheme.Accent
+        $btn.ForeColor = $script:AlfredUiTheme.AccentText
+        $btn.FlatAppearance.BorderSize = 0
+        $btn.Add_MouseEnter({ $this.BackColor = $script:AlfredUiTheme.AccentHover })
+        $btn.Add_MouseLeave({ $this.BackColor = $script:AlfredUiTheme.Accent })
+    } else {
+        $btn.BackColor = $script:AlfredUiTheme.BgDeep
+        $btn.ForeColor = $script:AlfredUiTheme.TextMuted
+        $btn.FlatAppearance.BorderSize = 1
+        $btn.FlatAppearance.BorderColor = $script:AlfredUiTheme.Border
+        $btn.Add_MouseEnter({ $this.ForeColor = $script:AlfredUiTheme.Text })
+        $btn.Add_MouseLeave({ $this.ForeColor = $script:AlfredUiTheme.TextMuted })
+    }
 
     return $btn
 }
@@ -221,39 +182,13 @@ function New-AlfredModernTextBox {
     Initialize-AlfredUiTheme
     $box = New-Object System.Windows.Forms.TextBox
     $box.Text = $Text
-    $box.Height = 28
-    $box.BorderStyle = 'None'
+    $box.Height = 40
+    $box.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
     $box.BackColor = $script:AlfredUiTheme.BgInput
     $box.ForeColor = $script:AlfredUiTheme.Text
     $box.Font = Get-AlfredUiFont 10
-    $box.Padding = New-Object System.Windows.Forms.Padding 12, 10, 12, 10
-
-    $inputWrap = New-Object System.Windows.Forms.Panel
-    $inputWrap.Height = 42
-    $inputWrap.BackColor = $script:AlfredUiTheme.BgInput
-    $inputWrap.Padding = New-Object System.Windows.Forms.Padding 12, 8, 12, 8
-    $box.Dock = 'Fill'
-    $inputWrap.Controls.Add($box)
-    Enable-AlfredDoubleBuffer $inputWrap
-
-    $inputWrap.Add_Paint({
-        param($sender, $e)
-        $g = $e.Graphics
-        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $rect = New-Object System.Drawing.Rectangle 0, 0, $sender.Width - 1, $sender.Height - 1
-        $path = New-AlfredRoundedPath $rect 8
-        $focused = $sender.Controls[0].Focused
-        $border = if ($focused) { $script:AlfredUiTheme.BorderFocus } else { $script:AlfredUiTheme.Border }
-        $g.FillPath((New-Object System.Drawing.SolidBrush $script:AlfredUiTheme.BgInput), $path)
-        $g.DrawPath((New-Object System.Drawing.Pen $border, 1.5), $path)
-        $path.Dispose()
-    })
-
-    $box.Add_GotFocus({ $this.Parent.Invalidate() })
-    $box.Add_LostFocus({ $this.Parent.Invalidate() })
-
-    $inputWrap | Add-Member -NotePropertyName InnerTextBox -NotePropertyValue $box -Force
-    return $inputWrap
+    $box | Add-Member -NotePropertyName InnerTextBox -NotePropertyValue $box -Force
+    return $box
 }
 
 function New-AlfredInstallShellForm {
@@ -261,21 +196,19 @@ function New-AlfredInstallShellForm {
 
     Initialize-AlfredUiTheme
     Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
 
     $form = New-Object System.Windows.Forms.Form
     $form.Text = $Title
     $form.Size = New-Object System.Drawing.Size(820, 540)
     $form.MinimumSize = $form.Size
     $form.MaximumSize = $form.Size
-    $form.FormBorderStyle = 'FixedDialog'
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
     $form.MaximizeBox = $false
     $form.MinimizeBox = $false
-    $form.StartPosition = 'CenterScreen'
+    $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
     $form.BackColor = $script:AlfredUiTheme.BgDeep
     $form.ForeColor = $script:AlfredUiTheme.Text
     $form.Font = Get-AlfredUiFont 10
-    Enable-AlfredDoubleBuffer $form
     return $form
 }
 
@@ -289,9 +222,6 @@ function Show-AlfredModernDialog {
         [string]$Mode = 'info'
     )
 
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-
     $form = New-AlfredInstallShellForm $Title
     $form.Size = New-Object System.Drawing.Size(480, 260)
     $form.MinimumSize = $form.Size
@@ -300,7 +230,7 @@ function Show-AlfredModernDialog {
 
     $body = New-Object System.Windows.Forms.Panel
     $body.Dock = 'Fill'
-    $body.Padding = New-Object System.Windows.Forms.Padding 28, 24, 28, 20
+    $body.Padding = New-Object System.Windows.Forms.Padding(28, 24, 28, 20)
     $body.BackColor = $script:AlfredUiTheme.BgDeep
     $form.Controls.Add($body)
 
@@ -328,28 +258,20 @@ function Show-AlfredModernDialog {
 
     $result = $false
     if ($SecondaryText) {
-        $btnSecondary = New-AlfredModernButton $SecondaryText 'ghost' (New-Object System.Drawing.Size 100, 42)
+        $btnSecondary = New-AlfredModernButton -Text $SecondaryText -Variant 'ghost' -Width 100
         $btnSecondary.Anchor = 'Bottom,Right'
-        $btnSecondary.Location = New-Object System.Drawing.Point ($footer.Width - 250), 8
+        $btnSecondary.Location = New-Object System.Drawing.Point(($footer.Width - 250), 8)
         $btnSecondary.Add_Click({ $form.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $form.Close() })
         $footer.Controls.Add($btnSecondary)
-        $footer.Add_Resize({
-            $btnSecondary.Location = New-Object System.Drawing.Point ($footer.ClientSize.Width - 250), 8
-        })
     }
 
-    $btnPrimary = New-AlfredModernButton $PrimaryText 'primary' (New-Object System.Drawing.Size 120, 42)
+    $btnPrimary = New-AlfredModernButton -Text $PrimaryText -Variant 'primary' -Width 120
     $btnPrimary.Anchor = 'Bottom,Right'
-    $btnPrimary.Location = New-Object System.Drawing.Point ($footer.Width - 132), 8
+    $btnPrimary.Location = New-Object System.Drawing.Point(($footer.Width - 132), 8)
     $btnPrimary.Add_Click({ $form.DialogResult = [System.Windows.Forms.DialogResult]::OK; $form.Close() })
     $footer.Controls.Add($btnPrimary)
-    $footer.Add_Resize({
-        $btnPrimary.Location = New-Object System.Drawing.Point ($footer.ClientSize.Width - 132), 8
-    })
 
-    if ($Mode -eq 'info') {
-        $form.AcceptButton = $btnPrimary
-    }
+    if ($Mode -eq 'info') { $form.AcceptButton = $btnPrimary }
 
     if ($form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $result = $true }
     $form.Dispose()
