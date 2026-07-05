@@ -599,21 +599,28 @@ if (Test-Path $excelMcpExe) {
     }
 }
 
-# az — Azure CLI (pip install into venv, no admin; ~500 MB, may take a few minutes)
-$azCmd = Join-Path $VenvPath "Scripts\az.cmd"
-if ((Find-Command "az") -or (Test-Path $azCmd)) {
-    Write-OK "az (Azure CLI) -- available"
-} elseif (Test-Path $PipExe) {
-    Write-Host "  Installing Azure CLI via pip (no admin, ~500 MB, please wait)..." -ForegroundColor Cyan
-    Invoke-PipInstall @("azure-cli")
-    if ($LASTEXITCODE -eq 0) {
-        Write-Done "Azure CLI installed via pip."
+# az — Azure CLI (winget; avoid pip — azure-cli via pip is ~500 MB into venv and often 10+ min with no progress output)
+$azVenv = @(
+    (Join-Path $VenvPath "Scripts\az.cmd"),
+    (Join-Path $VenvPath "Scripts\az.bat"),
+    (Join-Path $VenvPath "Scripts\az")
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ((Find-Command "az") -or $azVenv) {
+    $azBin = if (Find-Command "az") { "az" } else { $azVenv }
+    $azVer = & $azBin version 2>&1 | Select-Object -First 1
+    Write-OK "az (Azure CLI) -- $azVer"
+} elseif (Find-Command "winget") {
+    Write-Host "  Installing Azure CLI via winget..." -ForegroundColor Cyan
+    winget install Microsoft.AzureCLI --scope user --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    Refresh-Path
+    if (Find-Command "az") {
+        Write-Done "Azure CLI installed."
         Write-Info "Run 'az login' once to connect your Microsoft/Maersk account."
     } else {
-        Write-Info "az: pip install failed. Alfred works fine without it."
+        Write-Info "az: run 'winget install Microsoft.AzureCLI' manually. Alfred works fine without it."
     }
 } else {
-    Write-Skip "az: pip not available -- skipping."
+    Write-Skip "az: winget not available -- install from https://aka.ms/install-azure-cli"
 }
 
 # ── .env / secrets ────────────────────────────────────────────────────────────
@@ -746,8 +753,8 @@ if (Find-Command "jq")                                         { Write-Host "  [
 if (Find-Command "pandoc")                                     { Write-Host "  [x] pandoc" -ForegroundColor Green  } else { Write-Host "  [ ] pandoc  --  winget install JohnMacFarlane.Pandoc"  -ForegroundColor DarkGray }
 $ghReady = (Find-Command "gh") -or (Test-Path (Join-Path $Root "bin\gh.exe"))
 if ($ghReady)                                                  { Write-Host "  [x] gh      --  run 'gh auth login' to connect GitHub" -ForegroundColor Green   } else { Write-Host "  [ ] gh      --  portable ZIP, see setup output above"    -ForegroundColor DarkGray }
-$azReady = (Find-Command "az") -or (Test-Path (Join-Path $VenvPath "Scripts\az.cmd"))
-if ($azReady)                                                  { Write-Host "  [x] az      --  run 'az login' to connect Microsoft account" -ForegroundColor Green } else { Write-Host "  [ ] az      --  pip install azure-cli"                  -ForegroundColor DarkGray }
+$azReady = (Find-Command "az") -or (Test-Path (Join-Path $VenvPath "Scripts\az.cmd")) -or (Test-Path (Join-Path $VenvPath "Scripts\az.bat")) -or (Test-Path (Join-Path $VenvPath "Scripts\az"))
+if ($azReady)                                                  { Write-Host "  [x] az      --  run 'az login' to connect Microsoft account" -ForegroundColor Green } else { Write-Host "  [ ] az      --  winget install Microsoft.AzureCLI"       -ForegroundColor DarkGray }
 
 Write-Host ""
 

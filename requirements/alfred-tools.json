@@ -144,8 +144,8 @@
       {
         "name": "az",
         "command": "az",
-        "install": "pip install azure-cli (no admin — installs into Alfred's venv)",
-        "installMethod": "pip",
+        "install": "winget install Microsoft.AzureCLI --scope user (no admin)",
+        "installMethod": "winget",
         "description": "Azure CLI",
         "purpose": "Manage Azure resources — Power BI Service REST API, dataflow refresh status, workspace and dataset access, service principal management. Authenticates via existing Maersk Microsoft login.",
         "loginRequired": true,
