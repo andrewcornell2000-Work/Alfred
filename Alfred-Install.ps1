@@ -1244,7 +1244,6 @@ Write-Host ""
 Write-Host "  Launch: double-click Alfred on your desktop" -ForegroundColor Green
 Write-Host "  Or run: $LauncherPs" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  Optional: Quant plugin — pip install -r plugins\quant\requirements.txt" -ForegroundColor DarkGray
 Write-Host "  Optional: add API keys to .env (Tavily, Anthropic, GitHub) for full MCP stack" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  To update Alfred in future: re-run this installer." -ForegroundColor DarkGray

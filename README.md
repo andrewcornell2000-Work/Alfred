@@ -163,33 +163,6 @@ codex login
 
 ---
 
-## Quant Plugin Setup
-
-Alfred includes a Quant Intelligence plugin under `plugins/quant`.
-
-By default, `backend/main.py` uses `QUANT_BASE_URL` when set, otherwise it falls back to the configured cloud Quant URL. To force the local Flask server, add this to `.env`:
-
-```text
-QUANT_BASE_URL=http://127.0.0.1:5000
-```
-
-The Quant plugin has its own Python dependencies in `plugins/quant/requirements.txt`:
-
-```powershell
-.venv\Scripts\activate
-pip install -r plugins\quant\requirements.txt
-```
-
-Run the dashboard directly:
-
-```powershell
-python plugins\quant\app.py
-```
-
-Or use Alfred menu option **9. Quant Dashboard**.
-
----
-
 ## Day-To-Day Use
 
 **Use Cursor** (or Claude Code / Codex) for real work. MCPs, LeanCTX, and skills are global.
@@ -282,20 +255,10 @@ weakening linter configs) and **pre-commit-quality** (secret/debugger scan befor
 python backend\main.py
 ```
 
-Run Quant tests:
-
-```powershell
-cd plugins\quant
-python -m unittest discover -s tests
-```
-
----
-
 ## Project Layout
 
 ```text
 backend/                         Core Alfred CLI and routing logic
-plugins/quant/                   Quant Intelligence Flask plugin
 requirements/                    Python, npm, MCP, and tool manifests
 skills/                          Markdown skill modules
 memory/                          Conversation memory, routing notes, learning log
@@ -318,8 +281,6 @@ AGENTS.md                        Coding agent guidelines
 ## Current Known Gaps
 
 - Project Mode is planned but not yet implemented. There is no `projects/` directory lifecycle yet.
-- Quant plugin dependencies are tracked separately in `plugins/quant/requirements.txt`.
-- The Quant stock universe is currently configured in `plugins/quant/config.py`.
 
 ---
 
@@ -332,8 +293,6 @@ AGENTS.md                        Coding agent guidelines
 **`claude` / `codex` not found after install** - Open a new terminal so PATH changes from npm install take effect, then run `claude auth login` and `codex login`.
 
 **`npm.ps1 cannot be loaded because running scripts is disabled`** - Download the latest `Alfred-Install.exe` from GitHub Releases and run it again. The installer now calls `npm.cmd`/`npx.cmd` directly, so PowerShell execution policy should not block npm installs.
-
-**Quant import errors** - Activate `.venv`, then run `pip install -r plugins\quant\requirements.txt`.
 
 **npm global install fails with permission errors** - Re-run `Alfred-Install.exe` as Administrator, or install the CLI manually with `npm install -g`.
 

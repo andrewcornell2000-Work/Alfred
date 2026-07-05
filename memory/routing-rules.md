@@ -12,7 +12,6 @@ Alfred routes each user request to the cheapest capable path. Heavy providers ar
 | `GENERAL` | Conversation, explanation, planning, lightweight memory notes | `openai_mini` |
 | `POWERBI` | Power BI, Power Query, dashboards, models, DAX, refresh issues | `claude_code` |
 | `CLAUDE_EXECUTION` | File, folder, code, command, repo, or implementation work | Provider scoring |
-| `QUANT` | Stocks, tickers, trading opportunities, market analysis, backtests | Quant plugin |
 
 ## Providers
 
@@ -21,14 +20,12 @@ Alfred routes each user request to the cheapest capable path. Heavy providers ar
 | `openai_mini` | Classification, general chat, low-cost planning, non-dispatched execution plans with weak signals |
 | `codex` | Alfred code changes, Python refactors, tests, implementation, UI/app/dashboard/frontend work |
 | `claude_code` | Power BI investigations, MCP-heavy work, file-system exploration, broad execution tasks, deep tool use |
-| `quant_tool` | Quant Intelligence Flask API under `plugins/quant` or `QUANT_BASE_URL` |
 
 ## Routing Priority
 
 1. Explicit provider override wins when the user starts with phrases such as `use claude`, `use claude code`, `with claude`, `with claude code`, `via claude`, `via claude code`, `ask claude`, `ask claude code`, `use codex`, `with codex`, `via codex`, or `ask codex`.
 2. `GENERAL` always routes to `openai_mini`.
-3. `QUANT` routes directly to the Quant plugin API; it does not generate a Claude/Codex scope.
-4. `POWERBI` routes to `claude_code`.
+3. `POWERBI` routes to `claude_code`.
 5. `CLAUDE_EXECUTION` compares Codex and Claude keyword scores:
    - Codex score greater than Claude score -> `codex`
    - Claude score greater than or equal to Codex score -> `claude_code`
@@ -65,30 +62,6 @@ Flow:
 5. Declined changes are logged as `LEARNING_DECLINED`; nothing is written or dispatched.
 
 Current limitation: Dev Portal routes implementation work, but deterministic first-class editing flows for skills, routing rules, tool manifests, and project files are still planned.
-
-## Quant Routing
-
-Quant requests include:
-
-- Specific ticker analysis such as `analyze NVDA`
-- Trading opportunities
-- Market, macro, institutional, smart-money, options, alerts, backtest, paper portfolio, or learning-stat requests
-
-Quant command parser output maps to these endpoints:
-
-| Command | Endpoint |
-|---|---|
-| `analyze` | `/api/analyze/<ticker>` |
-| `backtest` | `/api/backtest/<ticker>` |
-| `institutional` | `/api/institutional/<ticker>` |
-| `opportunities` | `/api/opportunities` |
-| `macro` | `/api/macro` |
-| `paper` | `/api/paper` |
-| `alerts` | `/api/alerts` |
-| `learning` | `/api/learning` |
-| `refresh` | `/api/refresh` |
-
-`QUANT_BASE_URL` controls whether Alfred talks to a cloud deployment or a local Flask server.
 
 ## Keyword Reference
 

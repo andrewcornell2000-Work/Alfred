@@ -17,14 +17,12 @@ Runs without admin rights. Distributable to teammates via Install-From-GitHub.ba
 - `backend/power_query.py` — Power Query column error handler
 - `skills/` — 12+ markdown skill modules Alfred can invoke
 - `memory/` — persistent context, learning log, routing rules
-- `plugins/quant/` — Flask-based Quant Intelligence plugin
 - `.claude/settings.json` — Claude Code MCP config for Alfred sessions
 
 ## Providers Alfred Routes To
 - Claude CLI (`claude` command) — Power BI, deep execution, file work
 - Codex — coding, refactoring, Alfred self-modification
 - OpenAI Mini — general queries, cheap classification
-- Quant plugin — financial analysis (local Flask server)
 
 ## What Alfred Can Do (Confirmed Working)
 - Route tasks by natural language

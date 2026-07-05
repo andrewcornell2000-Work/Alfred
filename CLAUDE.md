@@ -4,12 +4,11 @@ This file provides guidance to Claude Code and other coding agents working in th
 
 ## Project Overview
 
-Alfred is a CLI-based AI task routing and prompt optimization orchestrator. It accepts natural-language task descriptions, classifies them with OpenAI, and routes work to one of four paths:
+Alfred is a CLI-based AI task routing and prompt optimization orchestrator. It accepts natural-language task descriptions, classifies them with OpenAI, and routes work to one of three paths:
 
 - `GENERAL` -> OpenAI Mini response in the terminal
 - `POWERBI` -> scoped Claude Code execution plan and dispatch
 - `CLAUDE_EXECUTION` -> Codex or Claude Code, chosen by deterministic keyword scoring
-- `QUANT` -> Quant Intelligence plugin API
 
 Claude Code and Codex are invoked through their local CLIs. Alfred currently uses CLI login for those providers, not provider API keys.
 
@@ -33,31 +32,22 @@ The core app expects:
 OPENAI_API_KEY=...
 ```
 
-Optional Quant configuration:
-
-```text
-QUANT_BASE_URL=http://127.0.0.1:5000
-```
-
 Use `claude auth login` and `codex login` for Claude Code and Codex authentication.
 
-Python packages for Alfred core are declared in `requirements/python-requirements.txt` and installed into `.venv` by `setup.ps1`. Quant plugin packages are declared separately in `plugins/quant/requirements.txt`.
+Python packages for Alfred core are declared in `requirements/python-requirements.txt` and installed into `.venv` by `setup.ps1`.
 
 ## Architecture
 
 Most orchestration logic lives in `backend/main.py`.
 
-1. **Classify** - `classify_task()` sends input to OpenAI with `CLASSIFIER_PROMPT`, returning `GENERAL`, `POWERBI`, `CLAUDE_EXECUTION`, or `QUANT`.
+1. **Classify** - `classify_task()` sends input to OpenAI with `CLASSIFIER_PROMPT`, returning `GENERAL`, `POWERBI`, or `CLAUDE_EXECUTION`.
 2. **Choose provider** - `choose_provider()` routes by category plus keyword scoring:
    - `GENERAL` -> `openai_mini`
    - `POWERBI` -> `claude_code`
    - `CLAUDE_EXECUTION` -> `codex`, `claude_code`, or `openai_mini`
-   - `QUANT` -> Quant API path
 3. **Scope** - `generate_claude_scope()` asks Claude CLI to produce a constrained execution plan for `POWERBI` and `CLAUDE_EXECUTION` tasks.
 4. **Dispatch** - `run_claude()` or `run_codex()` executes the scoped prompt when auto-dispatch gates allow it.
 5. **Render/log** - Rich terminal panels display results; logs and autosave entries are written under `logs/` and `memory/`.
-
-The Quant plugin lives in `plugins/quant` and exposes Flask routes for analysis, opportunities, macro, alerts, paper trading, institutional flow, and learning stats.
 
 ## Routing Rules
 
@@ -99,7 +89,7 @@ Tool and dependency metadata is tracked in `requirements/`:
 | `alfred-tools.json` | Reference manifest for tool/plugin metadata |
 | `mcp-tools.md` | MCP server documentation and candidate registry |
 
-`setup.ps1` reads `requirements/python-requirements.txt` and `requirements/npm-tools.txt`. It does not currently install `plugins/quant/requirements.txt`; install that separately when running the local Quant plugin.
+`setup.ps1` reads `requirements/python-requirements.txt` and `requirements/npm-tools.txt`.
 
 ## Learning Mode: Adding External Tools
 
@@ -132,8 +122,6 @@ Rules:
 
 - Project Mode is planned but not implemented yet.
 - Learning / Creator Mode exists as Dev Portal, but deterministic file-writing workflows for skills/rules/tools are still evolving.
-- Quant plugin dependencies are separate from the core setup manifest.
-
 ## Coding Guidelines
 
 For coding, refactoring, debugging, architecture, UI/app design, and Alfred self-improvement tasks, apply:
