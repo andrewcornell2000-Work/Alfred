@@ -8,7 +8,7 @@ function Show-AlfredUpdateAlert {
         [Parameter(Mandatory = $true)]
         [string[]]$CommitLines,
         [string]$Root,
-        [string]$Title = 'Alfred update available'
+        [string]$Title = 'Update available'
     )
 
     if ([string]::IsNullOrWhiteSpace($Root)) {
@@ -18,70 +18,88 @@ function Show-AlfredUpdateAlert {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = $Title
-    $form.Size = New-Object System.Drawing.Size(520, 420)
-    $form.FormBorderStyle = 'FixedDialog'
-    $form.MaximizeBox = $false
-    $form.MinimizeBox = $false
-    $form.StartPosition = 'CenterScreen'
-    $form.BackColor = [System.Drawing.Color]::FromArgb(26, 35, 50)
-    $form.ForeColor = [System.Drawing.Color]::White
-    $form.Font = New-Object System.Drawing.Font('Segoe UI', 10)
-
+    $form = New-AlfredInstallShellForm 'Alfred'
+    $form.Size = New-Object System.Drawing.Size(640, 480)
+    $form.MinimumSize = $form.Size
+    $form.MaximumSize = $form.Size
     Set-AlfredFormIcon $form $Root
 
-    $y = 16
+    $content = New-Object System.Windows.Forms.Panel
+    $content.Dock = 'Fill'
+    $content.Padding = New-Object System.Windows.Forms.Padding 32, 28, 32, 20
+    $content.BackColor = $script:AlfredUiTheme.BgDeep
+    $form.Controls.Add($content)
 
     $head = New-Object System.Windows.Forms.Label
-    $head.Text = "$BehindCount new commit(s) on origin/main"
-    $head.AutoSize = $true
-    $head.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 12)
-    $head.ForeColor = [System.Drawing.Color]::FromArgb(212, 175, 55)
-    $head.Location = New-Object System.Drawing.Point(20, $y + 8)
-    $form.Controls.Add($head)
-    $y += 64
+    $head.Text = "$BehindCount new commit(s) on main"
+    $head.Dock = 'Top'
+    $head.Height = 34
+    $head.Font = Get-AlfredUiFont 18 'Semibold'
+    $head.ForeColor = $script:AlfredUiTheme.Text
+    $content.Controls.Add($head)
 
     $sub = New-Object System.Windows.Forms.Label
     $sub.Text = 'Pull the latest Alfred pack now? Setup will re-run if needed.'
-    $sub.AutoSize = $true
-    $sub.ForeColor = [System.Drawing.Color]::FromArgb(200, 206, 214)
-    $sub.Location = New-Object System.Drawing.Point(20, $y)
-    $form.Controls.Add($sub)
-    $y += 28
+    $sub.Dock = 'Top'
+    $sub.Height = 28
+    $sub.Font = Get-AlfredUiFont 10
+    $sub.ForeColor = $script:AlfredUiTheme.TextMuted
+    $content.Controls.Add($sub)
+
+    $listHost = New-Object System.Windows.Forms.Panel
+    $listHost.Dock = 'Fill'
+    $listHost.Padding = New-Object System.Windows.Forms.Padding 0, 12, 0, 12
+    $listHost.BackColor = [System.Drawing.Color]::Transparent
+    $content.Controls.Add($listHost)
 
     $list = New-Object System.Windows.Forms.TextBox
     $list.Multiline = $true
     $list.ReadOnly = $true
     $list.ScrollBars = 'Vertical'
-    $list.BorderStyle = 'FixedSingle'
-    $list.BackColor = [System.Drawing.Color]::FromArgb(36, 46, 62)
-    $list.ForeColor = [System.Drawing.Color]::FromArgb(230, 233, 238)
-    $list.Font = New-Object System.Drawing.Font('Consolas', 9)
-    $list.Text = ($CommitLines | Select-Object -First 12) -join [Environment]::NewLine
-    $list.Location = New-Object System.Drawing.Point(20, $y)
-    $list.Size = New-Object System.Drawing.Size(464, 180)
-    $form.Controls.Add($list)
-    $y += 196
+    $list.BorderStyle = 'None'
+    $list.BackColor = $script:AlfredUiTheme.BgInput
+    $list.ForeColor = $script:AlfredUiTheme.Text
+    $list.Font = Get-AlfredUiFont 9.5
+    $list.Dock = 'Fill'
+    $list.Text = ($CommitLines | Select-Object -First 14) -join [Environment]::NewLine
+    $listHost.Controls.Add($list)
+
+    Enable-AlfredDoubleBuffer $listHost
+    $listHost.Add_Paint({
+        param($sender, $e)
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $rect = New-Object System.Drawing.Rectangle 0, 0, $sender.Width - 1, $sender.Height - 1
+        $path = New-AlfredRoundedPath $rect 10
+        $g.FillPath((New-Object System.Drawing.SolidBrush $script:AlfredUiTheme.BgInput), $path)
+        $g.DrawPath((New-Object System.Drawing.Pen $script:AlfredUiTheme.Border, 1), $path)
+        $path.Dispose()
+    })
+
+    $footer = New-Object System.Windows.Forms.Panel
+    $footer.Dock = 'Bottom'
+    $footer.Height = 58
+    $footer.BackColor = $script:AlfredUiTheme.BgDeep
+    $content.Controls.Add($footer)
 
     $result = 'later'
 
-    $btnLater = New-Object System.Windows.Forms.Button
-    $btnLater.Text = 'Later'
-    $btnLater.Size = New-Object System.Drawing.Size(100, 32)
-    $btnLater.Location = New-Object System.Drawing.Point(280, $y)
+    $btnLater = New-AlfredModernButton 'Later' 'ghost' (New-Object System.Drawing.Size 104, 42)
+    $btnLater.Anchor = 'Top,Right'
+    $btnLater.Location = New-Object System.Drawing.Point 360, 8
     $btnLater.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $form.Controls.Add($btnLater)
+    $footer.Controls.Add($btnLater)
 
-    $btnUpdate = New-Object System.Windows.Forms.Button
-    $btnUpdate.Text = 'Update now'
-    $btnUpdate.Size = New-Object System.Drawing.Size(120, 32)
-    $btnUpdate.Location = New-Object System.Drawing.Point(364, $y)
-    $btnUpdate.BackColor = [System.Drawing.Color]::FromArgb(212, 175, 55)
-    $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(26, 35, 50)
-    $btnUpdate.FlatStyle = 'Flat'
+    $btnUpdate = New-AlfredModernButton 'Update now' 'primary' (New-Object System.Drawing.Size 132, 42)
+    $btnUpdate.Anchor = 'Top,Right'
+    $btnUpdate.Location = New-Object System.Drawing.Point 472, 8
     $btnUpdate.DialogResult = [System.Windows.Forms.DialogResult]::OK
-    $form.Controls.Add($btnUpdate)
+    $footer.Controls.Add($btnUpdate)
+
+    $footer.Add_Resize({
+        $btnUpdate.Location = New-Object System.Drawing.Point ($footer.ClientSize.Width - 132), 8
+        $btnLater.Location = New-Object System.Drawing.Point ($footer.ClientSize.Width - 244), 8
+    })
 
     $form.AcceptButton = $btnUpdate
     $form.CancelButton = $btnLater

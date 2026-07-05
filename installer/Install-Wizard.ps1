@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Alfred install wizard — WinForms UI shown by Alfred-Install.ps1
+# Alfred install wizard — modern WinForms UI for Alfred-Install.ps1
 
 function Show-AlfredInstallWizard {
     param(
@@ -15,81 +15,137 @@ function Show-AlfredInstallWizard {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = 'Alfred Installer'
-    $form.Size = New-Object System.Drawing.Size(560, 520)
-    $form.FormBorderStyle = 'FixedDialog'
-    $form.MaximizeBox = $false
-    $form.MinimizeBox = $false
-    $form.StartPosition = 'CenterScreen'
-    $form.BackColor = [System.Drawing.Color]::FromArgb(26, 35, 50)
-    $form.ForeColor = [System.Drawing.Color]::White
-    $form.Font = New-Object System.Drawing.Font('Segoe UI', 10)
-
+    $form = New-AlfredInstallShellForm 'Alfred Installer'
     Set-AlfredFormIcon $form $AssetsRoot
 
-    $y = 20
+    $brand = New-AlfredBrandPanel 300
+    $form.Controls.Add($brand)
+
+    $brandInner = New-Object System.Windows.Forms.Panel
+    $brandInner.Dock = 'Fill'
+    $brandInner.Padding = New-Object System.Windows.Forms.Padding 36, 40, 28, 32
+    $brandInner.BackColor = [System.Drawing.Color]::Transparent
+    $brand.Controls.Add($brandInner)
+
+    $logoBox = New-Object System.Windows.Forms.PictureBox
+    $logoBox.Size = New-Object System.Drawing.Size 64, 64
+    $logoBox.SizeMode = 'Zoom'
+    $logoBox.BackColor = [System.Drawing.Color]::Transparent
     $brandImage = Get-AlfredBrandImage $AssetsRoot
-    if ($brandImage) {
-        $pic = New-Object System.Windows.Forms.PictureBox
-        $pic.Image = $brandImage
-        $pic.SizeMode = 'Zoom'
-        $pic.Size = New-Object System.Drawing.Size(72, 72)
-        $pic.Location = New-Object System.Drawing.Point(244, $y)
-        $form.Controls.Add($pic)
-        $y += 84
-    }
+    if ($brandImage) { $logoBox.Image = $brandImage }
+    $brandInner.Controls.Add($logoBox)
 
-    $title = New-Object System.Windows.Forms.Label
-    $title.Text = 'Alfred Pack'
-    $title.AutoSize = $true
-    $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 18)
-    $title.ForeColor = [System.Drawing.Color]::White
-    $title.Location = New-Object System.Drawing.Point(220, $y)
-    $form.Controls.Add($title)
-    $y += 36
+    $brandTitle = New-Object System.Windows.Forms.Label
+    $brandTitle.Text = 'Alfred'
+    $brandTitle.AutoSize = $true
+    $brandTitle.Font = Get-AlfredUiFont 26 'Semibold'
+    $brandTitle.ForeColor = $script:AlfredUiTheme.Text
+    $brandTitle.Location = New-Object System.Drawing.Point 0, 80
+    $brandInner.Controls.Add($brandTitle)
 
-    $tag = New-Object System.Windows.Forms.Label
-    $tag.Text = 'One-click AI toolchain for Cursor, Claude Code, and Codex'
-    $tag.AutoSize = $true
-    $tag.ForeColor = [System.Drawing.Color]::FromArgb(200, 206, 214)
-    $tag.Location = New-Object System.Drawing.Point(92, $y)
-    $form.Controls.Add($tag)
-    $y += 36
+    $brandTag = New-Object System.Windows.Forms.Label
+    $brandTag.Text = 'AI toolchain pack for Cursor, Claude Code, and Codex.'
+    $brandTag.Size = New-Object System.Drawing.Size 220, 48
+    $brandTag.Font = Get-AlfredUiFont 10
+    $brandTag.ForeColor = $script:AlfredUiTheme.TextMuted
+    $brandTag.Location = New-Object System.Drawing.Point 0, 118
+    $brandInner.Controls.Add($brandTag)
 
-    $bullets = @(
-        'MCP servers for Power BI, Excel, GitHub, and more',
-        'Skills + LeanCTX wired globally on your machine',
-        'No admin required - user-scope installs when possible'
+    $features = @(
+        'Power BI, Excel, GitHub MCPs',
+        'Skills and LeanCTX globally wired',
+        'User-scope installs, no admin'
     )
-    foreach ($line in $bullets) {
-        $lbl = New-Object System.Windows.Forms.Label
-        $lbl.Text = [char]0x2022 + ' ' + $line
-        $lbl.AutoSize = $true
-        $lbl.ForeColor = [System.Drawing.Color]::FromArgb(176, 184, 196)
-        $lbl.Location = New-Object System.Drawing.Point(36, $y)
-        $form.Controls.Add($lbl)
-        $y += 22
+    $fy = 190
+    foreach ($feature in $features) {
+        $row = New-Object System.Windows.Forms.Panel
+        $row.Size = New-Object System.Drawing.Size 230, 28
+        $row.Location = New-Object System.Drawing.Point 0, $fy
+        $row.BackColor = [System.Drawing.Color]::Transparent
+
+        $mark = New-Object System.Windows.Forms.Label
+        $mark.Text = [char]0x2713
+        $mark.Font = Get-AlfredUiFont 10 'Bold'
+        $mark.ForeColor = $script:AlfredUiTheme.Accent
+        $mark.AutoSize = $true
+        $mark.Location = New-Object System.Drawing.Point 0, 2
+        $row.Controls.Add($mark)
+
+        $txt = New-Object System.Windows.Forms.Label
+        $txt.Text = $feature
+        $txt.Font = Get-AlfredUiFont 9.5
+        $txt.ForeColor = $script:AlfredUiTheme.TextMuted
+        $txt.AutoSize = $true
+        $txt.Location = New-Object System.Drawing.Point 22, 2
+        $row.Controls.Add($txt)
+
+        $brandInner.Controls.Add($row)
+        $fy += 30
     }
-    $y += 8
+
+    $version = New-Object System.Windows.Forms.Label
+    $version.Text = 'github.com/andrewcornell2000-Work/Alfred'
+    $version.AutoSize = $true
+    $version.Font = Get-AlfredUiFont 8.5
+    $version.ForeColor = $script:AlfredUiTheme.TextDim
+    $version.Anchor = 'Bottom,Left'
+    $version.Location = New-Object System.Drawing.Point 36, 430
+    $brand.Controls.Add($version)
+
+    $content = New-Object System.Windows.Forms.Panel
+    $content.Dock = 'Fill'
+    $content.Padding = New-Object System.Windows.Forms.Padding 40, 36, 40, 24
+    $content.BackColor = $script:AlfredUiTheme.BgDeep
+    $form.Controls.Add($content)
+
+    $heading = New-Object System.Windows.Forms.Label
+    $heading.Text = 'Install or update'
+    $heading.AutoSize = $true
+    $heading.Font = Get-AlfredUiFont 20 'Semibold'
+    $heading.ForeColor = $script:AlfredUiTheme.Text
+    $heading.Dock = 'Top'
+    $heading.Height = 36
+    $content.Controls.Add($heading)
+
+    $sub = New-Object System.Windows.Forms.Label
+    $sub.Text = 'Alfred clones or updates the pack on your machine, then provisions MCPs and skills.'
+    $sub.Size = New-Object System.Drawing.Size 420, 44
+    $sub.Font = Get-AlfredUiFont 10
+    $sub.ForeColor = $script:AlfredUiTheme.TextMuted
+    $sub.Dock = 'Top'
+    $sub.Height = 44
+    $content.Controls.Add($sub)
+
+    $spacer = New-Object System.Windows.Forms.Panel
+    $spacer.Height = 20
+    $spacer.Dock = 'Top'
+    $spacer.BackColor = [System.Drawing.Color]::Transparent
+    $content.Controls.Add($spacer)
 
     $pathLabel = New-Object System.Windows.Forms.Label
-    $pathLabel.Text = 'Install folder'
+    $pathLabel.Text = 'INSTALL FOLDER'
     $pathLabel.AutoSize = $true
-    $pathLabel.Location = New-Object System.Drawing.Point(36, $y)
-    $form.Controls.Add($pathLabel)
-    $y += 24
+    $pathLabel.Font = Get-AlfredUiFont 8.5 'Bold'
+    $pathLabel.ForeColor = $script:AlfredUiTheme.TextDim
+    $pathLabel.Dock = 'Top'
+    $pathLabel.Height = 20
+    $content.Controls.Add($pathLabel)
 
-    $pathBox = New-Object System.Windows.Forms.TextBox
-    $pathBox.Text = $DefaultInstallPath
-    $pathBox.Size = New-Object System.Drawing.Size(360, 28)
-    $pathBox.Location = New-Object System.Drawing.Point(36, $y)
-    $form.Controls.Add($pathBox)
+    $pathRow = New-Object System.Windows.Forms.Panel
+    $pathRow.Dock = 'Top'
+    $pathRow.Height = 48
+    $pathRow.Padding = New-Object System.Windows.Forms.Padding 0, 6, 0, 0
+    $pathRow.BackColor = [System.Drawing.Color]::Transparent
+    $content.Controls.Add($pathRow)
 
-    $browse = New-Object System.Windows.Forms.Button
-    $browse.Text = 'Browse...'
-    $browse.Size = New-Object System.Drawing.Size(96, 28)
-    $browse.Location = New-Object System.Drawing.Point(408, $y)
+    $pathHost = New-AlfredModernTextBox $DefaultInstallPath
+    $pathHost.Dock = 'Left'
+    $pathHost.Width = 340
+    $pathRow.Controls.Add($pathHost)
+    $pathBox = $pathHost.InnerTextBox
+
+    $browse = New-AlfredModernButton 'Browse' 'ghost' (New-Object System.Drawing.Size 96, 42)
+    $browse.Location = New-Object System.Drawing.Point 352, 0
     $browse.Add_Click({
         $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
         $dlg.Description = 'Choose where Alfred should be installed'
@@ -98,36 +154,53 @@ function Show-AlfredInstallWizard {
             $pathBox.Text = $dlg.SelectedPath
         }
     })
-    $form.Controls.Add($browse)
-    $y += 44
+    $pathRow.Controls.Add($browse)
 
-    $repoLabel = New-Object System.Windows.Forms.Label
-    $repoLabel.Text = "Repository: $RepoUrl"
-    $repoLabel.AutoSize = $true
-    $repoLabel.ForeColor = [System.Drawing.Color]::FromArgb(140, 148, 160)
-    $repoLabel.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
-    $repoLabel.Location = New-Object System.Drawing.Point(36, $y)
-    $form.Controls.Add($repoLabel)
-    $y += 36
+    $repoNote = New-Object System.Windows.Forms.Label
+    $repoNote.Text = "Source: $RepoUrl"
+    $repoNote.Size = New-Object System.Drawing.Size 420, 36
+    $repoNote.Font = Get-AlfredUiFont 8.5
+    $repoNote.ForeColor = $script:AlfredUiTheme.TextDim
+    $repoNote.Dock = 'Top'
+    $repoNote.Height = 28
+    $content.Controls.Add($repoNote)
+
+    $footer = New-Object System.Windows.Forms.Panel
+    $footer.Dock = 'Bottom'
+    $footer.Height = 72
+    $footer.Padding = New-Object System.Windows.Forms.Padding 0, 16, 0, 0
+    $footer.BackColor = $script:AlfredUiTheme.BgDeep
+    $content.Controls.Add($footer)
+
+    $footerLine = New-Object System.Windows.Forms.Panel
+    $footerLine.Dock = 'Top'
+    $footerLine.Height = 1
+    $footerLine.BackColor = $script:AlfredUiTheme.Border
+    $footer.Controls.Add($footerLine)
+
+    $btnRow = New-Object System.Windows.Forms.Panel
+    $btnRow.Dock = 'Fill'
+    $btnRow.BackColor = [System.Drawing.Color]::Transparent
+    $footer.Controls.Add($btnRow)
 
     $outcome = @{ Confirmed = $false; InstallPath = $DefaultInstallPath }
 
-    $btnCancel = New-Object System.Windows.Forms.Button
-    $btnCancel.Text = 'Cancel'
-    $btnCancel.Size = New-Object System.Drawing.Size(100, 34)
-    $btnCancel.Location = New-Object System.Drawing.Point(320, $y)
+    $btnCancel = New-AlfredModernButton 'Cancel' 'ghost' (New-Object System.Drawing.Size 104, 42)
+    $btnCancel.Anchor = 'Top,Right'
+    $btnCancel.Location = New-Object System.Drawing.Point 250, 14
     $btnCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $form.Controls.Add($btnCancel)
+    $btnRow.Controls.Add($btnCancel)
 
-    $btnInstall = New-Object System.Windows.Forms.Button
-    $btnInstall.Text = 'Install / Update'
-    $btnInstall.Size = New-Object System.Drawing.Size(140, 34)
-    $btnInstall.Location = New-Object System.Drawing.Point(364, $y)
-    $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(212, 175, 55)
-    $btnInstall.ForeColor = [System.Drawing.Color]::FromArgb(26, 35, 50)
-    $btnInstall.FlatStyle = 'Flat'
+    $btnInstall = New-AlfredModernButton 'Continue' 'primary' (New-Object System.Drawing.Size 132, 42)
+    $btnInstall.Anchor = 'Top,Right'
+    $btnInstall.Location = New-Object System.Drawing.Point 362, 14
     $btnInstall.DialogResult = [System.Windows.Forms.DialogResult]::OK
-    $form.Controls.Add($btnInstall)
+    $btnRow.Controls.Add($btnInstall)
+
+    $btnRow.Add_Resize({
+        $btnInstall.Location = New-Object System.Drawing.Point ($btnRow.ClientSize.Width - 132), 14
+        $btnCancel.Location = New-Object System.Drawing.Point ($btnRow.ClientSize.Width - 244), 14
+    })
 
     $form.AcceptButton = $btnInstall
     $form.CancelButton = $btnCancel
@@ -135,12 +208,7 @@ function Show-AlfredInstallWizard {
     if ($form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         $path = $pathBox.Text.Trim()
         if (-not $path) {
-            [System.Windows.Forms.MessageBox]::Show(
-                'Choose an install folder.',
-                'Alfred Installer',
-                [System.Windows.Forms.MessageBoxButtons]::OK,
-                [System.Windows.Forms.MessageBoxIcon]::Warning
-            ) | Out-Null
+            Show-AlfredModernDialog -Title 'Install folder required' -Message 'Choose a folder where Alfred should be installed.' -Mode 'info' | Out-Null
         } else {
             $outcome.Confirmed = $true
             $outcome.InstallPath = $path
@@ -156,20 +224,12 @@ function Show-AlfredInstallComplete {
         [string]$InstallPath
     )
 
-    Add-Type -AssemblyName System.Windows.Forms
+    Show-AlfredModernDialog -Title 'Alfred is ready' -Message @"
+Installation finished successfully.
 
-    [System.Windows.Forms.MessageBox]::Show(
-        @"
-Alfred is ready.
-
-Install folder:
+Folder:
 $InstallPath
 
-Launch Alfred from your desktop shortcut, or run:
-run-alfred.bat
-"@,
-        'Alfred installation complete',
-        [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Information
-    ) | Out-Null
+Launch Alfred from your desktop shortcut or run run-alfred.bat.
+"@ -Mode 'info' | Out-Null
 }
