@@ -1,41 +1,56 @@
 # Live Web Search
 
-Use this skill when Alfred needs real-time information: latest versions, current documentation,
-recent news, prices, or anything that requires up-to-date data beyond training knowledge.
+Use when **live or external data** is required — not for code already in the repo or timeless explanations.
 
-## Tool: Tavily (direct API — not an MCP)
+## Alfred CLI (Tavily direct API)
 
-Alfred calls Tavily directly from Python (`backend/main.py`). No MCP server is needed.
-The API key lives in Alfred's `.env` as `TAVILY_API_KEY`.
+Alfred calls Tavily from `backend/main.py` (`_tavily_search()`). Key: `TAVILY_API_KEY` in `.env`.
 
-Routing: requests with live/current-data keywords (latest, news, price, today, current version)
-are classified as **SEARCH** and run through Tavily before Claude synthesises the answer.
+### When Alfred searches automatically
 
-## When to use
+- Brain category is **`SEARCH`**, or
+- Brain sets **`needs_search: true`**, or
+- User text matches **explicit recency keywords** (`latest`, `today`, `search for`, `current version`, …)
 
-- "What's the latest version of X?"
-- "Current docs for [library/API]"
-- "Search online for [topic]"
-- "Look up [company/price/news]"
-- "Find the official docs for [tool]"
-- Any question where training data may be stale
+### When Alfred does NOT search
+
+- Timeless "explain / how does X work" questions (unless brain flags live data)
+- Meta commands (`back`, `menu`, `exit`)
+- Code, refactor, and file tasks (unless brain explicitly needs external docs)
+- Every question ending in `?` — **not** a trigger by itself
+
+Prefer fast chat over search when unsure.
+
+## Cursor agents (MCP)
+
+| Need | Tool | Not |
+|------|------|-----|
+| Library/SDK API docs | `context7` | Tavily, fetch |
+| Live news / versions / prices | `parallel-search` or Alfred Tavily | fetch for search |
+| Single known URL | `fetch` once | playwright |
+| Deep crawl / JS-heavy site | `firecrawl` (if key set) | repeated fetch loops |
+
+**One web path per question** — see `skills/mcp-routing.md`.
+
+## Learning / discovery sessions
+
+Web search only when researching a **new external tool** to add to the catalog.
+
+- DISCOVER missions: **1–3 targeted queries**, not a daily quota
+- IMPROVE existing skills: search only to verify a URL or version
+- Normal coding: **no search**
+
+Playbook: `docs/LEARNING-WORKFLOW.md`
 
 ## Approach
 
-1. Form a precise, concise search query (avoid filler words)
-2. Alfred runs Tavily with `max_results=5` (or 3 for quick lookups)
-3. Return the most relevant result with the source URL
-4. If the top results look unreliable, refine the query and search again
+1. Form a precise query (no filler words)
+2. Run one search path; refine once if results are poor
+3. Cite source URLs
+4. Do not present results as training knowledge
 
-## Setup (fresh machine)
+## Safety
 
-1. Get a free key at https://app.tavily.com
-2. Add to Alfred `.env`: `TAVILY_API_KEY=tvly-...`
-3. Verify in Alfred Control Tower — Tavily should show **ready**
-
-## Safety rules
-
-- Always cite the source URL
-- Do not present search results as your own knowledge
-- If results conflict, show both and let the user decide
-- Never commit the Tavily key to git
+- Never commit the Tavily key
+- If results conflict, show both sides
+- Stop searching once you have enough to write the deliverable

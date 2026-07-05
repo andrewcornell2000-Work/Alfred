@@ -7,7 +7,7 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
 - **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, LeanCTX, …)
 - **Skills + rules** → all three agents globally
 - **CLIs** → Claude, Codex, gh, pbi, jq, LeanCTX, …
-- **Discovery loop** → nightly search for new tools you wouldn't think to look for
+- **Discovery** → Cursor learning sessions (`docs/LEARNING-WORKFLOW.md`) ship catalog entries + skills
 
 **Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
 
@@ -214,15 +214,20 @@ Use `Control Tower` to see which capabilities are ready on the current machine.
 
 ---
 
-## Discovery loop (why Alfred exists)
+## Discovery & learning (Cursor)
 
-You can't find every useful MCP yourself. Alfred's GitHub Actions loop runs daily:
+You can't find every useful MCP yourself. Use **Cursor in this repo** with `docs/LEARNING-WORKFLOW.md`:
 
-1. Searches for new MCPs, CLIs, and techniques (finance, office, Power BI, token efficiency)
-2. Ships catalog entries + skills with **"Try asking:"** examples
-3. Commits to this repo → you pull / re-run installer → `Provision-Cursor.ps1` wires everything globally
+1. Pick one mission (new MCP, CLI, or skill improvement)
+2. Run 1–3 targeted web searches only when needed
+3. Ship catalog entry + skill with **"Try asking:"** examples
+4. Pull / re-run installer → `Provision-Cursor.ps1` wires everything globally
 
 See `requirements/discovered-tools.md` for the living catalog.
+
+The old GitHub Actions daily loop is **disabled** (manual dispatch only). Weekly digest email still runs Mondays.
+
+Structure reference: **`docs/ALFRED-STRUCTURE.md`**
 
 ### MCPs added in v2.2.0
 

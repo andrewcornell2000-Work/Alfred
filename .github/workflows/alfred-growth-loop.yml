@@ -1,9 +1,9 @@
 name: Alfred Growth Loop
 
 on:
-  schedule:
-    - cron: '0 2 * * *'  # 12:00 (noon) AEST daily — one deep run (UTC+10; drifts to 13:00 during AEDT)
-  workflow_dispatch:        # Manual trigger anytime
+  # Scheduled daily loop disabled 2026-07-04 — use Cursor learning workflow (docs/LEARNING-WORKFLOW.md).
+  # Automatic runs caused duplicate skills, mandatory web searches, and doc drift.
+  workflow_dispatch:        # Manual trigger only (emergency catalog work)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

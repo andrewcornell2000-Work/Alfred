@@ -1,9 +1,8 @@
 # AGENTS.md — Coding Agent Guidelines
 
-Instructions for Codex, Claude Code, and other coding agents working in this repository.
+Instructions for Codex, Claude Code, and Cursor agents working in this repository.
 
-> Full guidelines: [`skills/karpathy-coding-guidelines.md`](skills/karpathy-coding-guidelines.md)  
-> Source: [Andrej Karpathy — andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md)
+> Full guidelines: [`skills/karpathy-coding-guidelines.md`](skills/karpathy-coding-guidelines.md)
 
 ---
 
@@ -32,19 +31,26 @@ Instructions for Codex, Claude Code, and other coding agents working in this rep
 ## Alfred-specific rules
 
 - Never add API keys, tokens, or credentials to committed files.
-- New tools with file-write or destructive capabilities must be represented in the safety gate in `backend/main.py` (`DANGEROUS_KEYWORDS` and dispatch checks) before dispatch is allowed.
+- New tools with file-write or destructive capabilities must be represented in the safety gate in `backend/main.py` (`DANGEROUS_KEYWORDS`) before dispatch is allowed.
 - Never auto-pull or auto-install tools without explicit user approval.
-- When modifying `CLAUDE_SCOPE_PROMPT`, preserve the minimum-scope principles documented in `CLAUDE.md`.
+- Execution scoping: minimize MCP usage, inspect minimum necessary scope, stop after diagnosis unless the user asked for fixes (see `CLAUDE.md`).
+
+---
+
+## Tooling
+
+- **Native Cursor tools default** for repo work. See `cursor/rules/00-agent-tooling.mdc`.
+- **Domain MCPs** only when the task requires them. See `skills/mcp-routing.md`.
+- **lean-ctx optional** for large reads / compressed shell. See `skills/lean-ctx.md`.
+
+---
+
+## Repo structure
+
+Where rules, skills, MCPs, and learning live: **`docs/ALFRED-STRUCTURE.md`**
 
 ---
 
 ## Applies to
 
 Coding, refactoring, debugging, architecture decisions, UI/app design, and Alfred self-improvement tasks.
-
-<!-- lean-ctx -->
-## lean-ctx
-
-Prefer lean-ctx MCP tools over native equivalents for token savings.
-Full rules: @LEAN-CTX.md
-<!-- /lean-ctx -->

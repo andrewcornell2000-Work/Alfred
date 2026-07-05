@@ -1,50 +1,30 @@
-<!-- lean-ctx-owned: PROJECT-LEAN-CTX.md v1 -->
-# lean-ctx — Context Engineering Layer
-<!-- lean-ctx-rules-v11 -->
+# lean-ctx — Optional Context Compression
 
-## Tool Mapping (MANDATORY — use instead of native equivalents)
-| Instead of | Use | Example |
-|------------|-----|---------|
-| Read/cat/head/tail | `ctx_read(path, mode)` | `ctx_read("src/main.rs", "full")` |
-| Grep/rg/find | `ctx_search(pattern, path)` | `ctx_search("fn handle", "src/")` |
-| Shell/bash | `ctx_shell(command)` | `ctx_shell("cargo test")` |
-| Edit (when Read unavailable) | `ctx_edit(path, old, new)` | `ctx_edit("f.rs", "old", "new")` |
+lean-ctx complements native Cursor tools and Alfred domain MCPs. It is **not** a replacement for Read/Grep/Shell on normal repo work.
 
-## ctx_read Mode Selection
-| Goal | Mode | When |
-|------|------|------|
-| Edit this file | `full` | Before any edit |
-| Understand API | `signatures` | Context-only, won't edit |
-| Re-read after edit | `diff` | Post-edit verification |
-| Large file overview | `map` | >500 lines, won't edit |
-| Specific region | `lines:N-M` | Know exact location |
-| Unsure | `auto` | System selects optimal mode |
+Full skill: `skills/lean-ctx.md` · Cursor rule: `cursor/rules/lean-ctx.mdc` (optional, `alwaysApply: false`)
 
-## Workflow (follow this order)
-1. **Orient:** `ctx_overview(task)` or `ctx_compose(task, path)` for unfamiliar tasks
-2. **Locate:** `ctx_search(pattern, path)` for exact text; `ctx_semantic_search(query)` for concepts
-3. **Read:** `ctx_read(path, mode)` with appropriate mode from table above
-4. **Edit:** `ctx_edit(path, old_string, new_string)` or native Edit if available
-5. **Verify:** `ctx_read(path, "diff")` + `ctx_shell("test command")`
-6. **Record:** `ctx_knowledge(action="remember", content="...")` for non-obvious findings
+## Default
+- **Read / Grep / Glob / Shell / Edit / Write** → native Cursor tools
+- **Excel / Power BI / GitHub / browser** → domain MCPs per `skills/mcp-routing.md`
 
-## Proactive (use without being asked)
-- `ctx_overview(task)` — at session start for orientation
-- `ctx_compress` — when context grows large (at phase boundaries)
-- `ctx_knowledge(action="wakeup")` — at session start to surface prior findings
+## When lean-ctx helps
+| Situation | Tool |
+|-----------|------|
+| Large file (>500 lines) overview | `ctx_read(path, "map")` |
+| Targeted region | `ctx_read(path, "lines:N-M")` |
+| Re-read after edit | `ctx_read(path, "diff")` |
+| Big repo search | `ctx_search(pattern, path)` |
+| Noisy shell output | `lean-ctx -c "git log --oneline -20"` |
+| Cross-session facts | `ctx_knowledge` remember / recall |
 
-## Compression Bypass (only when compressed output hides needed detail)
-`ctx_read(path, "lines:N-M")` → `ctx_read(path, "full")` → `ctx_shell(cmd, raw=true)`
-Return to compressed defaults after one expanded retrieval.
+## Bail-out rule
+If lean-ctx MCP errors or exceeds ~5 seconds, **do not retry** — use native tools for the rest of the turn.
 
-## Risk Gate (before high-impact edits)
-Before editing exported symbols, auth, DB schemas, or 3+ files: run `ctx_impact(action="analyze")`
-and `ctx_callgraph(action="callers")` to confirm blast radius.
+Do **not** call `ctx_overview` or `ctx_compose` on every turn or at session start unless the task is genuinely unfamiliar and large.
 
-## Session
-- **Start:** `ctx_session(action="status")` + `ctx_knowledge(action="wakeup")`
-- **End:** `ctx_session(action="decision", content="what was done + next steps")`
-- **On [CHECKPOINT]:** `ctx_session(action="task", value="current status")`
+## Setup
+Installed by `Alfred-Install.exe` / `setup.ps1` → `lean-ctx onboard` merges into Cursor/Claude/Codex configs.
+Re-run `Provision-Cursor.ps1` after updates to keep cooperative rules (optional lean-ctx, native default).
 
-NEVER use native Read/Grep/Shell when ctx_* equivalents are available.
-<!-- /lean-ctx -->
+Verify: `lean-ctx doctor` · Savings: `lean-ctx gain`
