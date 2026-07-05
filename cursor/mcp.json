@@ -132,6 +132,16 @@
       "_requires": [],
       "_requiresCommand": "npx",
       "_note": "Microsoft 365 via Graph API — read SharePoint sites/files, OneDrive, Outlook mail, Calendar, Teams, and To-Do. Runs read-only by default (safe). First use runs MSAL device-code login (browser pop-up, once). Remove --read-only to enable write/send actions. Skill: sharepoint-graph.md. Auto-skipped if Node/npx is not on PATH."
+    },
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=${env:SUPABASE_PROJECT_REF}",
+      "_requires": ["SUPABASE_PROJECT_REF"],
+      "_note": "Supabase MCP — SQL, migrations, edge functions, advisors, logs. OAuth on first use. Also install agent skills: npx skills add supabase/agent-skills. Auto-skipped unless SUPABASE_PROJECT_REF is set in Alfred .env. Skill: supabase.md."
+    },
+    "vercel": {
+      "url": "https://mcp.vercel.com",
+      "_requires": [],
+      "_note": "Vercel MCP — deployments, projects, build/runtime logs, docs search. OAuth on first use. Also install the Vercel plugin: npx plugins add vercel/vercel-plugin. Skill: vercel.md."
     }
   }
 }

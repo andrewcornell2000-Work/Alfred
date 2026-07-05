@@ -20,7 +20,7 @@ Goal: same outcome, fewer tokens — without cutting corners on correctness.
 
 | MCP | Token-saving use |
 |-----|------------------|
-| **LeanCTX** (`ctx_read`, `ctx_search`, `ctx_knowledge`) | Map-mode reads, cached re-reads (~13 tok), compressed git/shell output, session memory — Alfred 2.0 default |
+| **LeanCTX** (`ctx_read`, `ctx_search`, `ctx_knowledge`) | Optional: map-mode reads, cached re-reads, compressed shell, session memory |
 | `filesystem` | Finance-folder file ops without pasting directory listings into chat |
 | `fetch` | Pull a URL to Markdown instead of browser MCP for read-only docs |
 | `duckdb` | Query CSV/exports in SQL instead of loading sheets into context |

@@ -1,0 +1,155 @@
+#Requires -Version 5.1
+# Generates transparent embedded logo for Alfred-Install.exe (solid circle + gold A).
+param(
+    [string]$SourcePng = (Join-Path $PSScriptRoot "..\assets\alfred-source.png"),
+    [string]$TargetTxt = (Join-Path $PSScriptRoot "..\installer\alfred-logo-embedded.txt"),
+    [string]$TargetPs1 = (Join-Path $PSScriptRoot "..\installer\alfred-logo-embedded.ps1"),
+    [int]$Size = 512
+)
+
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+
+$GoldColor = [System.Drawing.Color]::FromArgb(255, 198, 145, 42)
+$RingColor = [System.Drawing.Color]::FromArgb(255, 15, 23, 42)
+
+function Test-AlfredLogoGoldPixel {
+    param([int]$R, [int]$G, [int]$B)
+    return ($R -gt 130 -and $G -gt 80 -and $B -lt 130 -and $R -gt $B)
+}
+
+function Test-AlfredLogoNavyPixel {
+    param([int]$R, [int]$G, [int]$B)
+    return ($B -gt 70 -and $R -lt 80 -and $G -lt 100 -and ($B - $R) -gt 20)
+}
+
+function Get-AlfredLogoContentBounds {
+    param(
+        [System.Drawing.Bitmap]$Bitmap,
+        [scriptblock]$PixelTest
+    )
+
+    $minX = $Bitmap.Width
+    $minY = $Bitmap.Height
+    $maxX = 0
+    $maxY = 0
+    $found = $false
+
+    for ($y = 0; $y -lt $Bitmap.Height; $y++) {
+        for ($x = 0; $x -lt $Bitmap.Width; $x++) {
+            $c = $Bitmap.GetPixel($x, $y)
+            if (-not (& $PixelTest $c.R $c.G $c.B)) { continue }
+            $found = $true
+            if ($x -lt $minX) { $minX = $x }
+            if ($y -lt $minY) { $minY = $y }
+            if ($x -gt $maxX) { $maxX = $x }
+            if ($y -gt $maxY) { $maxY = $y }
+        }
+    }
+
+    if (-not $found) {
+        return [System.Drawing.Rectangle]::FromLTRB(0, 0, $Bitmap.Width, $Bitmap.Height)
+    }
+
+    return [System.Drawing.Rectangle]::FromLTRB($minX, $minY, $maxX + 1, $maxY + 1)
+}
+
+function New-AlfredGoldLayerBitmap {
+    param([System.Drawing.Bitmap]$Bitmap)
+
+    $w = $Bitmap.Width
+    $h = $Bitmap.Height
+    $result = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+
+    for ($y = 0; $y -lt $h; $y++) {
+        for ($x = 0; $x -lt $w; $x++) {
+            $c = $Bitmap.GetPixel($x, $y)
+            if (Test-AlfredLogoGoldPixel $c.R $c.G $c.B) {
+                $result.SetPixel($x, $y, $GoldColor)
+            } else {
+                $result.SetPixel($x, $y, [System.Drawing.Color]::Transparent)
+            }
+        }
+    }
+
+    return $result
+}
+
+function Get-AlfredLogoMarkBounds {
+    param([System.Drawing.Bitmap]$Bitmap)
+
+    return Get-AlfredLogoContentBounds -Bitmap $Bitmap -PixelTest {
+        param($R, $G, $B)
+        (Test-AlfredLogoGoldPixel $R $G $B) -or (Test-AlfredLogoNavyPixel $R $G $B)
+    }
+}
+
+$sourceBitmap = New-Object System.Drawing.Bitmap([System.Drawing.Image]::FromFile($SourcePng))
+$goldLayer = New-AlfredGoldLayerBitmap -Bitmap $sourceBitmap
+$markBounds = Get-AlfredLogoMarkBounds -Bitmap $sourceBitmap
+$sourceBitmap.Dispose()
+
+$cx = $markBounds.X + ($markBounds.Width / 2.0)
+$cy = $markBounds.Y + ($markBounds.Height / 2.0)
+$radius = [Math]::Min($markBounds.Width, $markBounds.Height) / 2.0 * 0.94
+
+$goldBounds = Get-AlfredLogoContentBounds -Bitmap $goldLayer -PixelTest {
+    param($R, $G, $B)
+    Test-AlfredLogoGoldPixel $R $G $B
+}
+$goldCrop = $goldLayer.Clone($goldBounds, $goldLayer.PixelFormat)
+$goldLayer.Dispose()
+
+$canvas = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+$graphics = [System.Drawing.Graphics]::FromImage($canvas)
+$graphics.Clear([System.Drawing.Color]::Transparent)
+$graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
+$graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+$graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+
+$scale = $Size / [Math]::Max($markBounds.Width, $markBounds.Height)
+$centerX = $Size / 2.0
+$centerY = $Size / 2.0
+$ringRadius = $radius * $scale
+$ringRect = [System.Drawing.RectangleF]::new(
+    [single]($centerX - $ringRadius),
+    [single]($centerY - $ringRadius),
+    [single]($ringRadius * 2),
+    [single]($ringRadius * 2)
+)
+
+$pen = New-Object System.Drawing.Pen $RingColor, 3.0
+$graphics.DrawEllipse($pen, $ringRect)
+$pen.Dispose()
+
+$goldScale = ($ringRadius * 1.35) / [Math]::Max($goldCrop.Width, $goldCrop.Height)
+$drawW = [int]($goldCrop.Width * $goldScale)
+$drawH = [int]($goldCrop.Height * $goldScale)
+$drawX = [int]($centerX - ($drawW / 2))
+$drawY = [int]($centerY - ($drawH / 2))
+$graphics.DrawImage($goldCrop, $drawX, $drawY, $drawW, $drawH)
+$graphics.Dispose()
+$goldCrop.Dispose()
+
+$ms = New-Object System.IO.MemoryStream
+$canvas.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+$canvas.Dispose()
+$b64 = [Convert]::ToBase64String($ms.ToArray())
+$ms.Dispose()
+
+Set-Content -Path $TargetTxt -Value $b64 -Encoding ASCII -NoNewline
+
+$ps1Content = @"
+# Auto-generated by scripts/build-embedded-logo.ps1 — do not edit by hand.
+function Initialize-AlfredEmbeddedLogo {
+    if (`$script:AlfredEmbeddedLogoBase64) { return }
+    `$script:AlfredEmbeddedLogoBase64 = @'
+$b64
+'@.Trim()
+}
+"@
+
+Set-Content -Path $TargetPs1 -Value $ps1Content -Encoding UTF8
+Write-Host "Wrote embedded logo ($Size px transparent, $($b64.Length) chars)"
+Write-Host "  -> $TargetTxt"
+Write-Host "  -> $TargetPs1"

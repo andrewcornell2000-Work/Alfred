@@ -164,9 +164,9 @@ Run through this before kicking off any multi-step agent task in Cursor:
 
 ## 8. Alfred-specific patterns
 
-### LeanCTX as context budget manager
+### LeanCTX as context budget manager (optional)
 
-LeanCTX is Alfred's primary context control tool. Use it *before* other reads:
+Use native Read/Grep first. For large files or re-reads, lean-ctx can reduce tokens:
 
 ```
 ctx_read(file, mode="map")      →  ~200 tokens — structure overview
@@ -175,20 +175,18 @@ ctx_search(query, files=[...])   →  ~50 tokens  — semantic hit list
 ```
 
 Compare: reading a 400-line file with standard `read_file` costs ~3 000 tokens.
-LeanCTX map mode costs ~200 tokens. That's 15× cheaper before you've done anything.
+LeanCTX map mode costs ~200 tokens when you already know the file is large.
 
-### Memory MCP priming pattern
+### Session memory (LeanCTX, not memory MCP)
 
-At the start of a new Cursor session on a known project:
+At the start of a long or multi-day task:
 
 ```
-memory_search_nodes("alfred pack conventions")
-memory_search_nodes("finance folder layout")
-memory_search_nodes("TaskKey format")
+ctx_knowledge(action="recall", query="alfred pack conventions")
+ctx_knowledge(action="remember", content="confirmed fact …")
 ```
 
-If results are empty, establish the facts in this session and call `memory_create_entities` to
-persist them. Costs ~200 tokens now; saves re-derivation every future session.
+The retired memory MCP is not provisioned — use `ctx_knowledge` only.
 
 ### Scratch file pattern for long sessions
 

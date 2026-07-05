@@ -12,7 +12,7 @@
 
 param(
     # Version stamped into the .exe metadata. CI passes the git tag (without the leading "v").
-    [string]$Version = "2.0.0"
+    [string]$Version = "2.4.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +26,12 @@ $iconScript = Join-Path $PSScriptRoot "scripts\build-alfred-icon.ps1"
 if (Test-Path $iconScript) {
     Write-Host "Building icon..." -ForegroundColor Cyan
     & $iconScript
+}
+
+$logoScript = Join-Path $PSScriptRoot "scripts\build-embedded-logo.ps1"
+if (Test-Path $logoScript) {
+    Write-Host "Building embedded wizard logo..." -ForegroundColor Cyan
+    & $logoScript
 }
 
 # Install ps2exe if needed
@@ -68,7 +74,7 @@ function Get-InstallerModuleBody([string]$Path) {
 }
 
 $moduleParts = @()
-foreach ($rel in @("installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
     if (Test-Path $path) {
         $moduleParts += Get-InstallerModuleBody $path
@@ -106,6 +112,7 @@ $ps2exeArgs = @{
     Description = 'Alfred AI Assistant - one-click installer'
     Version     = $Version
     STA         = $true
+    noConsole   = $true
 }
 if (Test-Path $IconFile) {
     $ps2exeArgs['iconFile'] = $IconFile

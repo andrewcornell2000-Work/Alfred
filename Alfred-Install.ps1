@@ -48,19 +48,19 @@ trap {
 }
 
 function Get-AlfredInstallerRoot {
+    try {
+        $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        if (-not [string]::IsNullOrWhiteSpace($exe) -and $exe -like '*.exe') {
+            $parent = Split-Path -Parent $exe
+            if ($parent) { return $parent }
+        }
+    } catch { }
     if ($PSScriptRoot) { return $PSScriptRoot }
     $cmdPath = $MyInvocation.MyCommand.Path
     if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
         $parent = Split-Path -Parent $cmdPath
         if ($parent) { return $parent }
     }
-    try {
-        $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-        if (-not [string]::IsNullOrWhiteSpace($exe)) {
-            $parent = Split-Path -Parent $exe
-            if ($parent) { return $parent }
-        }
-    } catch { }
     return (Get-Location).Path
 }
 
@@ -74,6 +74,9 @@ function Import-AlfredInstallerModules([string]$Root) {
     }
 }
 Import-AlfredInstallerModules $ScriptRoot
+if (-not $NoWizard -and (Get-Command Hide-AlfredConsole -ErrorAction SilentlyContinue)) {
+    Hide-AlfredConsole
+}
 
 function Write-Banner([string]$Text) {
     Write-Host ""
@@ -81,7 +84,11 @@ function Write-Banner([string]$Text) {
     Write-Host "  $Text" -ForegroundColor Cyan
     Write-Host ("=" * 50) -ForegroundColor Cyan
 }
-function Write-Step([string]$Msg)  { Write-Host ""; Write-Host $Msg -ForegroundColor Cyan }
+function Write-Step([string]$Msg) {
+    Write-Host ""
+    Write-Host $Msg -ForegroundColor Cyan
+    if ($script:InstallProgress) { $script:InstallProgress.SetStatus($Msg) }
+}
 function Write-OK([string]$Msg)    { Write-Host "  [OK]     $Msg" -ForegroundColor Green }
 function Write-Done([string]$Msg)  { Write-Host "  [DONE]   $Msg" -ForegroundColor Green }
 function Write-Warn([string]$Msg)  { Write-Host "  [WARN]   $Msg" -ForegroundColor Yellow }
@@ -306,13 +313,14 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
     try {
-        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl
+        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $ScriptRoot
     } catch {
         Show-InstallerFatalError "Could not open the install wizard:`n`n$($_.Exception.Message)"
         exit 1
     }
     if (-not $wizard.Confirmed) { Write-Host "Cancelled."; exit 0 }
     $InstallPath = $wizard.InstallPath
+    $script:InstallProgress = Start-AlfredInstallProgress
 } else {
     Write-Banner "Alfred Installer"
     Write-Host ""
@@ -984,7 +992,7 @@ Write-Step "Step 10: Provisioning MCPs + skills + LeanCTX for Cursor, Claude Cod
 $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {
     try {
-        & $provisionScript
+        & $provisionScript -ProjectPath $InstallPath
     } catch {
         Write-Warn "Cursor/Claude provisioning failed: $_"
         Write-Host "  Re-run later: powershell -ExecutionPolicy Bypass -File `"$provisionScript`"" -ForegroundColor DarkGray
@@ -1006,5 +1014,8 @@ Write-Host "  To update Alfred in future: re-run this installer." -ForegroundCol
 Write-Host ""
 
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction SilentlyContinue)) {
+    if ($script:InstallProgress) { $script:InstallProgress.Close() }
     Show-AlfredInstallComplete -InstallPath $InstallPath
+} elseif ($script:InstallProgress) {
+    $script:InstallProgress.Close()
 }

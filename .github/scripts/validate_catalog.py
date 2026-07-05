@@ -33,7 +33,11 @@ def check_mcp() -> None:
     for name, cfg in servers.items():
         cmd = cfg.get("command", "")
         args = cfg.get("args", [])
-        fp = f"{cmd}:{':'.join(str(a) for a in args[:3])}"
+        url = cfg.get("url", "")
+        if url:
+            fp = f"url:{url.split('?')[0]}"
+        else:
+            fp = f"{cmd}:{':'.join(str(a) for a in args[:3])}"
         if fp in fingerprints.values():
             dup = [k for k, v in fingerprints.items() if v == fp]
             errors.append(f"cursor/mcp.json: '{name}' duplicates fingerprint of {dup}")
@@ -73,10 +77,22 @@ def check_skills() -> None:
             errors.append(f"skills/{f.name}: exceeds 20KB — trim or move to docs/")
 
 
+def check_cursorrules() -> None:
+    path = ROOT / ".cursorrules"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    if "CRITICAL: ALWAYS use lean-ctx" in text or "NEVER use native Read" in text:
+        errors.append(
+            ".cursorrules: must not mandate lean-ctx over native tools (see 00-agent-tooling.mdc)"
+        )
+
+
 def main() -> int:
     check_mcp()
     check_discovered_tools()
     check_skills()
+    check_cursorrules()
     if errors:
         print("validate_catalog.py FAILED:")
         for e in errors:

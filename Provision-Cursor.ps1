@@ -181,6 +181,42 @@ function Repair-LeanCtxForCursor {
     }
 }
 
+function Sync-AlfredRepoCtxRules {
+    param([string]$RepoRoot = $Root)
+
+    if (-not $RepoRoot -or -not (Test-Path $RepoRoot)) { return }
+
+    $cursorrules = @'
+# Alfred agent tooling
+
+See `cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).
+
+lean-ctx MCP is optional — large files, re-reads, `ctx_knowledge`. If it errors or hangs (>5s), use native tools for the rest of the turn.
+'@
+    Write-TextNoBom (Join-Path $RepoRoot '.cursorrules') $cursorrules
+
+    $leanCtxSrc = Join-Path $RepoRoot 'cursor\rules\lean-ctx.mdc'
+    $leanCtxDst = Join-Path $RepoRoot 'LEAN-CTX.md'
+    if (Test-Path $leanCtxSrc) {
+        $body = (Get-Content $leanCtxSrc -Raw -Encoding UTF8) -replace '(?s)^---.*?---\r?\n', ''
+        Write-TextNoBom $leanCtxDst ("<!-- lean-ctx-owned: cooperative -->" + [Environment]::NewLine + $body.Trim())
+    }
+
+    $claudeRule = Join-Path $RepoRoot '.claude\rules\lean-ctx.md'
+    if (Test-Path (Split-Path $claudeRule -Parent)) {
+        Write-TextNoBom $claudeRule @'
+# lean-ctx — optional (Claude Code)
+
+Native Read/Grep/Shell/Edit are the default. Use lean-ctx only for large file maps, compressed shell, or `ctx_knowledge`.
+
+If lean-ctx MCP errors or hangs (>5s), stop using it for the rest of the turn.
+
+Full stack rules: `cursor/rules/00-agent-tooling.mdc` in the Alfred repo.
+'@
+    }
+    Write-OK "Repaired repo ctx rules (.cursorrules, LEAN-CTX.md) -> cooperative native-first"
+}
+
 function Sync-GlobalCursorRules {
     if ($SkipCursor) { return }
     $rulesSrc = Join-Path $Root "cursor\rules"
@@ -218,46 +254,120 @@ function Remove-AlfredVendoredTasteSkills([string[]]$roots) {
     }
 }
 
+function Invoke-NpxBackgroundJob([string]$Label, [string[]]$NpxArgs, [int]$TimeoutSec = 120) {
+    $npx = (Get-Command npx.cmd -ErrorAction SilentlyContinue).Source
+    if (-not $npx) { $npx = (Get-Command npx -ErrorAction SilentlyContinue).Source }
+    if (-not $npx) {
+        Write-Warn2 "$Label skipped -- npx not on PATH"
+        return $false
+    }
+
+    $savedPath = $env:PATH
+    foreach ($extra in @(
+        (Join-Path $env:APPDATA 'npm'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app\bin')
+    )) {
+        if ((Test-Path $extra) -and ($env:PATH -split ';' | Where-Object { $_.TrimEnd('\') -ieq $extra.TrimEnd('\') }).Count -eq 0) {
+            $env:PATH = "$extra;$env:PATH"
+        }
+    }
+
+    Push-Location $HOME
+    try {
+        $outF = Join-Path $env:TEMP "alfred_npx_$PID.out"
+        $errF = Join-Path $env:TEMP "alfred_npx_$PID.err"
+        if (Test-Path $outF) { Remove-Item $outF -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $errF) { Remove-Item $errF -Force -ErrorAction SilentlyContinue }
+
+        $p = Start-Process -FilePath $npx -ArgumentList $NpxArgs -NoNewWindow -PassThru `
+             -WorkingDirectory $HOME -RedirectStandardOutput $outF -RedirectStandardError $errF
+        if (-not $p.WaitForExit($TimeoutSec * 1000)) {
+            & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+            Write-Warn2 "$Label exceeded ${TimeoutSec}s -- run manually: npx $($NpxArgs -join ' ')"
+            return $false
+        }
+        foreach ($f in @($outF, $errF)) {
+            if (Test-Path $f) {
+                Get-Content $f | ForEach-Object {
+                    $t = $_.Trim()
+                    if ($t) { Write-Info $t }
+                }
+            }
+        }
+        return ($p.ExitCode -eq 0)
+    } catch {
+        Write-Warn2 "$Label failed: $_"
+        return $false
+    } finally {
+        $env:PATH = $savedPath
+        Pop-Location
+    }
+}
+
+function Test-SupabaseAgentSkillsInstalled {
+    return (Test-Path (Join-Path $HOME ".agents\skills\supabase\SKILL.md"))
+}
+
+function Test-VercelPluginInstalled {
+    foreach ($root in @(
+        (Join-Path $HOME ".cursor\plugins"),
+        (Join-Path $HOME ".claude\plugins"),
+        (Join-Path $HOME ".codex\plugins"),
+        (Join-Path $HOME ".agents\skills")
+    )) {
+        if (-not (Test-Path $root)) { continue }
+        if (Get-ChildItem $root -Directory -Filter '*vercel*' -ErrorAction SilentlyContinue | Select-Object -First 1) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function Install-ThirdPartyAgentSkills {
     if ($SkipThirdPartySkills) { return }
+    if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
+        Write-Skip "npx not on PATH -- skipping third-party skills/plugins install."
+        return
+    }
+
     $agentsSkills = Join-Path $HOME ".agents\skills\design-taste-frontend\SKILL.md"
     if (Test-Path $agentsSkills) {
         Write-Skip "taste-skill already in ~/.agents/skills -- skipping npx install."
-        return
+    } else {
+        Write-Step "Third-party skills: Leonxlnx/taste-skill -> ~/.agents/skills"
+        if (Invoke-NpxBackgroundJob 'taste-skill' @('--yes', 'skills', 'add', 'https://github.com/Leonxlnx/taste-skill', '--yes') 90) {
+            if (Test-Path $agentsSkills) {
+                Write-OK "taste-skill installed globally (~/.agents/skills)"
+            } else {
+                Write-Warn2 "taste-skill install finished but SKILL.md not found -- run manually if needed."
+            }
+        }
     }
-    if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-        Write-Skip "npx not on PATH -- skipping third-party skills install."
-        return
+
+    if (Test-SupabaseAgentSkillsInstalled) {
+        Write-Skip "supabase/agent-skills already in ~/.agents/skills -- skipping npx install."
+    } else {
+        Write-Step "Third-party skills: supabase/agent-skills -> ~/.agents/skills"
+        if (Invoke-NpxBackgroundJob 'supabase/agent-skills' @('--yes', 'skills', 'add', 'supabase/agent-skills', '--yes') 120) {
+            if (Test-SupabaseAgentSkillsInstalled) {
+                Write-OK "supabase/agent-skills installed globally (~/.agents/skills)"
+            } else {
+                Write-Warn2 "supabase/agent-skills install finished but no supabase* skill folder found -- run manually: npx skills add supabase/agent-skills"
+            }
+        }
     }
-    Write-Step "Third-party skills: Leonxlnx/taste-skill -> ~/.agents/skills"
-    Push-Location $HOME
-    try {
-        $job = Start-Job -ScriptBlock {
-            param($homeDir)
-            Set-Location $homeDir
-            & npx --yes skills add https://github.com/Leonxlnx/taste-skill --yes 2>&1
-        } -ArgumentList $HOME
-        if (-not (Wait-Job $job -Timeout 90)) {
-            Stop-Job $job -Force | Out-Null
-            Remove-Job $job -Force | Out-Null
-            Write-Warn2 "taste-skill install exceeded 90s -- run manually: npx skills add https://github.com/Leonxlnx/taste-skill"
-            return
+
+    if (Test-VercelPluginInstalled) {
+        Write-Skip "vercel/vercel-plugin already installed -- skipping npx install."
+    } else {
+        Write-Step "Third-party plugin: vercel/vercel-plugin (skills, agents, slash commands)"
+        if (Invoke-NpxBackgroundJob 'vercel/vercel-plugin' @('--yes', 'plugins', 'add', 'vercel/vercel-plugin', '--yes', '--target', 'claude-code', '--target', 'cursor', '--target', 'codex') 180) {
+            if (Test-VercelPluginInstalled) {
+                Write-OK "vercel/vercel-plugin installed (see https://vercel.com/docs/agent-resources/vercel-plugin)"
+            } else {
+                Write-Warn2 "vercel/vercel-plugin install finished but plugin folder not detected -- run manually: npx plugins add vercel/vercel-plugin"
+            }
         }
-        $out = Receive-Job $job
-        Remove-Job $job -Force | Out-Null
-        foreach ($line in ($out | Out-String) -split "`r?`n") {
-            $t = $line.Trim()
-            if ($t) { Write-Info $t }
-        }
-        if (Test-Path $agentsSkills) {
-            Write-OK "taste-skill installed globally (~/.agents/skills)"
-        } else {
-            Write-Warn2 "taste-skill install finished but SKILL.md not found -- run manually if needed."
-        }
-    } catch {
-        Write-Warn2 "taste-skill install failed: $_"
-    } finally {
-        Pop-Location
     }
 }
 
@@ -367,6 +477,21 @@ function Expand-Tokens([string]$value) {
     return $value
 }
 
+function Expand-EnvPlaceholders([string]$value, [hashtable]$envMap, [hashtable]$aliases, [array]$requires, [ref]$missingRequired) {
+    if ([string]::IsNullOrWhiteSpace($value)) { return $value }
+    return [regex]::Replace($value, '\$\{env:([^}]+)\}', {
+        param($m)
+        $varName = $m.Groups[1].Value
+        $lookups = @($varName)
+        if ($aliases.ContainsKey($varName)) { $lookups += $aliases[$varName] }
+        $secret = $null
+        foreach ($ln in $lookups) { $secret = Resolve-Secret $ln $envMap; if ($secret) { break } }
+        if ($secret) { return $secret }
+        if ($requires -contains $varName) { $missingRequired.Value = $varName }
+        return $m.Value
+    })
+}
+
 # Does this command refer to an absolute file path that is missing on this machine?
 function Test-CommandMissing([string]$command) {
     if ([string]::IsNullOrWhiteSpace($command)) { return $true }   # unresolved token
@@ -376,7 +501,7 @@ function Test-CommandMissing([string]$command) {
 
 # ── resolve MCP servers from the template ─────────────────────────────────────
 $McpTemplatePath = Join-Path $Root "cursor\mcp.json"
-$managed         = [ordered]@{}   # name -> ordered hashtable { command, args, env }
+$managed         = [ordered]@{}   # name -> ordered hashtable { command, args, env } or { url }
 $managedEnvLists = @{}            # name -> array of "KEY=VALUE" (for claude --env)
 $skippedServers  = @()
 
@@ -451,6 +576,24 @@ if (-not (Test-Path $McpTemplatePath)) {
                 continue
             }
 
+            if ($defKeys -contains 'url') {
+                $urlMissingRequired = $null
+                $expandedUrl = Expand-Tokens ([string]$def.url)
+                $expandedUrl = Expand-EnvPlaceholders $expandedUrl $EnvMap $aliases $requires ([ref]$urlMissingRequired)
+                if ($urlMissingRequired) {
+                    $skippedServers += "$name (missing required secret '$urlMissingRequired' -- add it to Alfred .env)"
+                    continue
+                }
+                if ($expandedUrl -match '\$\{env:') {
+                    $skippedServers += "$name (unresolved env placeholder in URL -- add values to Alfred .env)"
+                    continue
+                }
+                $serverObj = [ordered]@{ url = $expandedUrl }
+                $managed[$name] = $serverObj
+                $managedEnvLists[$name] = $envList
+                continue
+            }
+
             $expandedCommand = Expand-Tokens ([string]$def.command)
             $expandedArgs    = @($def.args | ForEach-Object { Expand-Tokens ([string]$_) })
 
@@ -519,6 +662,11 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
         foreach ($name in $managed.Keys) {
             $srv = $managed[$name]
             try { & claude mcp remove $name --scope user 2>$null | Out-Null } catch {}
+            if ($srv.url) {
+                $argList = @('mcp', 'add', $name, '--scope', 'user', '--transport', 'http', [string]$srv.url)
+                Invoke-McpCliAdd 'claude' $name $argList | Out-Null
+                continue
+            }
             $argList = @('mcp', 'add', $name, '--scope', 'user')
             foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
             $argList += '--'
@@ -584,6 +732,11 @@ if (-not $SkipCodex -and $managed.Count -gt 0) {
         foreach ($name in $managed.Keys) {
             $srv = $managed[$name]
             try { & codex mcp remove $name 2>$null | Out-Null } catch {}
+            if ($srv.url) {
+                $argList = @('mcp', 'add', $name, '--url', [string]$srv.url)
+                Invoke-McpCliAdd 'codex' $name $argList | Out-Null
+                continue
+            }
             $argList = @('mcp', 'add', $name)
             foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
             $argList += '--'
@@ -859,6 +1012,9 @@ if (-not $SkipLeanCtx) {
 } else {
     Sync-GlobalCursorRules
 }
+
+Sync-AlfredRepoCtxRules -RepoRoot $Root
+if ($ProjectPath) { Sync-AlfredRepoCtxRules -RepoRoot $ProjectPath }
 
 # ── Impeccable Cursor hook (runs after lean-ctx so onboard's merge can't drop it) ──
 Wire-ImpeccableCursorHook

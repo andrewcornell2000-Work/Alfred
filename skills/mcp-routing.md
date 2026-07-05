@@ -8,8 +8,8 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 2. **Never alternate Excel MCPs** — `excel` (excellm) and `excel-mcp` have opposite file-access rules; switching between them usually wastes turns.
 3. **Cursor: native Read/Grep/Shell first** — lean-ctx is optional for large files, re-reads, or compressed shell. If lean-ctx MCP hangs (>5s) or errors, fall back to native tools immediately.
 4. **LeanCTX for session memory and heavy reads** — use `ctx_knowledge`, `ctx_read` map mode, `ctx_search`; do not also read the same file via filesystem MCP.
-4. **One web/doc path per question** — library docs → context7; live news/versions → Tavily (Alfred); single URL → fetch; local PDF/Office file → markitdown; interactive web UI → playwright.
-5. **Plan in native reasoning** — Alfred no longer ships sequential-thinking, memory, time, codegraph, or sqlite MCPs.
+5. **One web/doc path per question** — library docs → context7; live news/versions → parallel-search (Cursor) or Tavily (Alfred CLI); single URL → fetch; local PDF/Office file → markitdown; interactive web UI → playwright.
+6. **Plan in native reasoning** — Alfred no longer ships sequential-thinking, memory, time, codegraph, or sqlite MCPs.
 
 ## Active MCP stack (10 + LeanCTX)
 
@@ -39,7 +39,7 @@ Use this skill whenever an agent might pick the wrong MCP, retry across servers,
 | Power BI semantic model | powerbi-modeling-mcp | pbi-cli |
 | Power BI report visuals | pbi-cli | powerbi-modeling-mcp |
 | Library/framework API docs | context7 | fetch, Tavily |
-| Live web search | Tavily via Alfred | fetch, context7 |
+| Live web search | parallel-search (Cursor) or Tavily (Alfred CLI) | fetch, context7 |
 | Single URL to markdown | fetch | playwright (unless JS/login needed) |
 | Local PDF/Word/PPT | markitdown | fetch |
 | Browser automation | playwright | fetch |

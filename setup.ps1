@@ -648,7 +648,7 @@ Write-Step "Provisioning MCP servers + skills + LeanCTX for Cursor, Claude Code,
 $provisionScript = Join-Path $Root "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {
     try {
-        & $provisionScript
+        & $provisionScript -ProjectPath $Root
     } catch {
         Write-Warn "Cursor/Claude provisioning step failed: $_"
         Write-Info "Re-run manually: powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1"

@@ -383,6 +383,29 @@
         "trust": "community",
         "install": "Self-contained .exe downloaded by setup.ps1 from the latest ExcelMcp-MCP-Server-*-windows.zip release (no admin, no .NET runtime)",
         "notes": "Windows + Excel required; close open workbooks before use (exclusive access). Separate name from 'excel' so both can coexist. Auto-skipped if the exe is not present."
+      },
+      {
+        "name": "supabase",
+        "source": "remote",
+        "url": "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}",
+        "purpose": "Supabase project — SQL, migrations, edge functions, advisors, logs. OAuth in Cursor on first use.",
+        "category": "EXECUTE",
+        "destructive": true,
+        "trust": "official",
+        "requiresKey": "SUPABASE_PROJECT_REF",
+        "install": "npx skills add supabase/agent-skills (via Provision-Cursor.ps1)",
+        "notes": "Remote HTTP MCP. Also set SUPABASE_DATABASE_URL in .env for direct Postgres. Skill: supabase.md."
+      },
+      {
+        "name": "vercel",
+        "source": "remote",
+        "url": "https://mcp.vercel.com",
+        "purpose": "Vercel deployments, projects, build/runtime logs, docs search. OAuth in Cursor on first use.",
+        "category": "EXECUTE",
+        "destructive": true,
+        "trust": "official",
+        "install": "npx plugins add vercel/vercel-plugin (via Provision-Cursor.ps1)",
+        "notes": "Remote HTTP MCP. Plugin adds 28 skills, 3 specialist agents, 5 slash commands. Skill: vercel.md."
       }
     ]
   }

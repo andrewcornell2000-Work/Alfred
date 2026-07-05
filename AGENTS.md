@@ -45,6 +45,9 @@ Coding, refactoring, debugging, architecture decisions, UI/app design, and Alfre
 <!-- lean-ctx -->
 ## lean-ctx
 
-Prefer lean-ctx MCP tools over native equivalents for token savings.
-Full rules: @LEAN-CTX.md
+Optional token saver for large reads, re-reads, and `ctx_knowledge`. **Native Read/Grep/Shell remain the default.**
+
+If lean-ctx MCP errors or hangs (>5s), use native tools. After `lean-ctx onboard`, re-run `Provision-Cursor.ps1`.
+
+Full rules: `cursor/rules/00-agent-tooling.mdc` and `skills/lean-ctx.md`
 <!-- /lean-ctx -->

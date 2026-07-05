@@ -23,6 +23,8 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 | fetch | Single URL → markdown |
 | filesystem | Finance OneDrive folder **only** |
 | duckdb | SQL on CSV/Parquet/exports |
+| supabase | Supabase project — SQL, migrations, edge functions (Cursor OAuth) |
+| vercel | Vercel deployments, logs, docs (Cursor OAuth) |
 
 ### Retired (removed from template — Provision-Cursor strips from machine configs)
 
@@ -104,6 +106,28 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 - **Purpose:** Fast SQL on CSV, Parquet, Excel exports
 - **Trust:** community
 - **Destructive:** false
+
+### supabase
+- **Source:** Remote MCP `https://mcp.supabase.com/mcp?project_ref=...`
+- **Purpose:** Supabase project management — SQL, migrations, edge functions, advisors, logs
+- **Trust:** official
+- **Destructive:** true (schema changes, migrations)
+- **Requires:** `SUPABASE_PROJECT_REF` in Alfred `.env`
+- **Auth:** OAuth in Cursor on first use
+- **Also install:** `npx skills add supabase/agent-skills` (Provision-Cursor.ps1)
+- **Skill:** `skills/supabase.md`
+- **Note:** Set `SUPABASE_DATABASE_URL` in `.env` for direct Postgres access in apps. Provisions to Cursor, Claude Code, and Codex via HTTP transport.
+
+### vercel
+- **Source:** Remote MCP `https://mcp.vercel.com`
+- **Purpose:** Deployments, projects, build/runtime logs, Vercel docs search
+- **Trust:** official
+- **Destructive:** true (deploy actions)
+- **Auth:** OAuth in Cursor on first use
+- **Also install:** `npx plugins add vercel/vercel-plugin` (Provision-Cursor.ps1)
+- **Skill:** `skills/vercel.md`
+- **Docs:** https://vercel.com/docs/agent-resources/vercel-plugin
+- **Note:** Provisions to Cursor, Claude Code, and Codex via HTTP transport. Plugin adds skills, specialist agents, and slash commands.
 
 ### lean-ctx (Alfred 2.0)
 - **Source:** npm package `lean-ctx-bin` → local `lean-ctx` binary

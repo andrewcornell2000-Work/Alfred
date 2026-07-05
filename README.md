@@ -131,9 +131,26 @@ OPENAI_API_KEY=sk-...
 TAVILY_API_KEY=tvly-...
 GITHUB_TOKEN=ghp_...
 FAL_KEY=...            # optional — enables the fal-ai MCP (image/video/audio generation)
+SUPABASE_PROJECT_REF=ieahwigeexmwvggmmjzp   # enables Supabase MCP in Cursor
+SUPABASE_DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.ieahwigeexmwvggmmjzp.supabase.co:5432/postgres
 ```
 
 Save, then run `Alfred-Install.exe` or `run-alfred.bat` again.
+
+### Supabase + Vercel (web apps)
+
+Alfred provisions both via `Provision-Cursor.ps1`:
+
+| Integration | What Alfred installs | First-use auth |
+|---|---|---|
+| **Supabase MCP** | Remote MCP + `npx skills add supabase/agent-skills` | OAuth in Cursor/Claude/Codex + `SUPABASE_PROJECT_REF` in `.env` |
+| **Vercel MCP + plugin** | Remote MCP + `npx plugins add vercel/vercel-plugin` | OAuth in Cursor/Claude/Codex |
+
+Skills: `skills/supabase.md` · `skills/vercel.md`
+
+Vercel plugin docs: https://vercel.com/docs/agent-resources/vercel-plugin
+
+Slash commands after plugin install: `/vercel-plugin:deploy`, `/vercel-plugin:nextjs`, `/vercel-plugin:ai-sdk`, etc.
 
 ### CLI Login
 
