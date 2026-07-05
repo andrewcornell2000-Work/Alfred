@@ -246,6 +246,47 @@ Full stack rules: `cursor/rules/00-agent-tooling.mdc` in the Alfred repo.
     Write-OK "Repaired repo ctx rules (.cursorrules, LEAN-CTX.md) -> cooperative native-first"
 }
 
+function Repair-CooperativeLeanCtxHooks {
+    if ($SkipCursor) { return }
+
+    $hooksPath = Join-Path $HOME ".cursor\hooks.json"
+    if (-not (Test-Path $hooksPath)) { return }
+
+    try {
+        $hooks = Get-Content $hooksPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not $hooks.hooks) { return }
+
+        $removed = 0
+        foreach ($prop in @($hooks.hooks.PSObject.Properties)) {
+            $entries = @($prop.Value)
+            if ($entries.Count -eq 0) { continue }
+
+            $kept = @()
+            foreach ($entry in $entries) {
+                $cmd = [string]$entry.command
+                if ($cmd -match 'lean-ctx') {
+                    $removed++
+                    continue
+                }
+                $kept += $entry
+            }
+
+            if ($kept.Count -eq 0) {
+                $hooks.hooks.PSObject.Properties.Remove($prop.Name)
+            } else {
+                $hooks.hooks.$($prop.Name) = $kept
+            }
+        }
+
+        if ($removed -gt 0) {
+            Write-TextNoBom $hooksPath ($hooks | ConvertTo-Json -Depth 30)
+            Write-OK "Removed $removed lean-ctx Cursor hook(s) (cooperative native-first mode)"
+        }
+    } catch {
+        Write-Warn2 "Could not strip lean-ctx hooks from hooks.json: $_"
+    }
+}
+
 function Repair-CooperativeLeanCtxRule {
     param([Parameter(Mandatory = $true)][string]$DestDir)
 
@@ -1074,28 +1115,17 @@ function Invoke-LeanCtxGuarded([string]$Arguments, [int]$TimeoutSec = 120) {
 }
 
 if (-not $SkipLeanCtx) {
-    Write-Step "LeanCTX: wiring context compression into Cursor + Claude + Codex"
+    Write-Step "LeanCTX: MCP registration only (Alfred cooperative mode)"
     if (-not (Get-Command lean-ctx -ErrorAction SilentlyContinue)) {
         Write-Skip "lean-ctx not on PATH -- install lean-ctx-bin (npm-tools.txt), then re-run."
     } else {
-        try {
-            # lean-ctx 3.7.x: 'onboard' connects all detected AI tools with recommended
-            # defaults. The old 'bootstrap' verb was REMOVED and now blocks on a stdin
-            # prompt (hangs the installer), so we run 'onboard' stdin-closed under a hard
-            # timeout via Invoke-LeanCtxGuarded -- it can never stall provisioning.
-            $leanOk = Invoke-LeanCtxGuarded -Arguments 'onboard' -TimeoutSec 120
-            Repair-LeanCtxForCursor
-            Sync-LeanCtxToClaudeDesktop
-            if ($leanOk) {
-                Write-OK "LeanCTX connected (ctx_* tools + hooks). No API keys required."
-            } else {
-                Write-Warn2 "lean-ctx onboard did not finish cleanly -- run 'lean-ctx onboard' manually later. Install continues."
-            }
-        } catch {
-            Write-Warn2 "lean-ctx onboard failed: $_ -- install continues."
-            Repair-LeanCtxForCursor
-            Sync-LeanCtxToClaudeDesktop
-        }
+        # Do NOT run `lean-ctx onboard` — it installs aggressive always-on rules and
+        # Read/Grep/Shell redirect hooks that fight Alfred's native-first tooling and
+        # cause agent hangs. Alfred registers the MCP only; ctx_* tools stay optional.
+        Repair-LeanCtxForCursor
+        Sync-LeanCtxToClaudeDesktop
+        Write-OK "LeanCTX MCP registered (optional ctx_* tools). Native Read/Grep/Shell remain default."
+        Write-Info "Close Cursor before provisioning if hooks/rules keep reverting after restart."
     }
 }
 
@@ -1111,6 +1141,44 @@ Sync-GlobalCursorRules
 if ($ProjectPath -and (Test-Path $ProjectPath)) {
     Sync-ProjectCursorRules -RepoPath $ProjectPath
 }
+Repair-CooperativeLeanCtxHooks
+
+function Assert-CooperativeLeanCtxMode {
+    if ($SkipCursor) { return $true }
+
+    $rulesDest = Join-Path $HOME ".cursor\rules"
+    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest)
+    Repair-CooperativeLeanCtxHooks
+
+    $rulePath = Join-Path $rulesDest "lean-ctx.mdc"
+    $ruleOk = $false
+    if (Test-Path $rulePath) {
+        $ruleText = Get-Content $rulePath -Raw -Encoding UTF8
+        $ruleOk = ($ruleText -match 'alfred-provision:\s*cooperative') -and
+                  ($ruleText -match 'alwaysApply:\s*false') -and
+                  ($ruleText -notmatch 'MANDATORY')
+    }
+
+    $hooksOk = $true
+    $hooksPath = Join-Path $HOME ".cursor\hooks.json"
+    if (Test-Path $hooksPath) {
+        $hooksText = Get-Content $hooksPath -Raw -Encoding UTF8
+        if ($hooksText -match 'lean-ctx hook (redirect|rewrite|observe)') { $hooksOk = $false }
+    }
+
+    if ($ruleOk -and $hooksOk) {
+        Write-OK "Verified cooperative lean-ctx mode (optional MCP, native tools default)"
+        return $true
+    }
+
+    Write-Warn2 "lean-ctx is still in aggressive/hook mode after provision."
+    Write-Info "Close Cursor completely, re-run run-alfred.bat, then restart Cursor."
+    if (-not $ruleOk) { Write-Info "- Rule: ~/.cursor/rules/lean-ctx.mdc should have alwaysApply: false" }
+    if (-not $hooksOk) { Write-Info "- Hooks: ~/.cursor/hooks.json should not contain lean-ctx entries" }
+    return $false
+}
+
+[void](Assert-CooperativeLeanCtxMode)
 
 # ── summary ───────────────────────────────────────────────────────────────────
 if ($skippedServers.Count -gt 0) {

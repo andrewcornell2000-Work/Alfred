@@ -37,8 +37,8 @@ Installed automatically by `Alfred-Install.exe` / `setup.ps1`:
 
 1. `npm install -g lean-ctx-bin`
 2. Alfred provisions domain MCPs first (`Provision-Cursor.ps1`)
-3. `lean-ctx onboard` merges LeanCTX into Cursor + Claude + Codex configs
-4. As the **last** provision step, `Provision-Cursor.ps1` force-overwrites Alfred's cooperative `lean-ctx.mdc` into `~/.cursor/rules` (and the project repo). lean-ctx onboard alone installs an aggressive always-on rule that can hang Cursor — Alfred always wins on install/update.
+3. Alfred registers lean-ctx **MCP only** — it does **not** run `lean-ctx onboard` (onboard installs aggressive rules + redirect hooks that hang Cursor)
+4. As the **last** provision step, Alfred force-overwrites cooperative `lean-ctx.mdc` and strips lean-ctx hooks from `~/.cursor/hooks.json`
 
 **No API keys or accounts required** for core use.
 
