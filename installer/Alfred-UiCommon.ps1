@@ -111,10 +111,6 @@ function Get-AlfredLogoBitmap {
     $source = Get-AlfredLogoSource -Root $Root
     if (-not $source) { return $null }
 
-    if ($source.Width -eq $Size -and $source.Height -eq $Size) {
-        return New-Object System.Drawing.Bitmap($source)
-    }
-
     $canvas = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $graphics = [System.Drawing.Graphics]::FromImage($canvas)
     $graphics.Clear([System.Drawing.Color]::Transparent)
@@ -125,6 +121,21 @@ function Get-AlfredLogoBitmap {
     }
     $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
     $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+
+    # Flatten near-white JPEG/PNG backgrounds so the logo blends with the white sidebar.
+    $scratch = New-Object System.Drawing.Bitmap $source.Width, $source.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    for ($y = 0; $y -lt $source.Height; $y++) {
+        for ($x = 0; $x -lt $source.Width; $x++) {
+            $c = $source.GetPixel($x, $y)
+            if ($c.A -lt 16 -or ($c.R -gt 245 -and $c.G -gt 245 -and $c.B -gt 245)) {
+                $scratch.SetPixel($x, $y, [System.Drawing.Color]::Transparent)
+            } else {
+                $scratch.SetPixel($x, $y, $c)
+            }
+        }
+    }
+    $source.Dispose()
+    $source = $scratch
 
     $graphics.DrawImage($source, 0, 0, $Size, $Size)
     $graphics.Dispose()
@@ -174,14 +185,17 @@ function New-AlfredLogoPictureBox {
     param(
         [string]$Root,
         [int]$Width = 220,
-        [int]$Height = 220
+        [int]$Height = 220,
+        [ValidateSet('Default', 'Plain')]
+        [string]$BackgroundVariant = 'Default'
     )
 
+    Initialize-AlfredUiTheme
     $box = New-Object System.Windows.Forms.PictureBox
     $box.Size = New-Object System.Drawing.Size($Width, $Height)
     $box.MinimumSize = $box.Size
     $box.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 12)
-    $box.BackColor = $script:AlfredUiTheme.BgPanel
+    $box.BackColor = if ($BackgroundVariant -eq 'Plain') { $script:AlfredUiTheme.BgDeep } else { $script:AlfredUiTheme.BgPanel }
     $box.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::CenterImage
 
     $bitmap = Get-AlfredLogoBitmap -Root $Root -Size $Width
@@ -241,30 +255,139 @@ function Get-AlfredUiFont {
 }
 
 function New-AlfredBrandPanel {
+    param(
+        [ValidateSet('Default', 'Plain')]
+        [string]$Variant = 'Default'
+    )
+
     Initialize-AlfredUiTheme
     $panel = New-Object System.Windows.Forms.Panel
     $panel.Dock = 'Fill'
-    $panel.BackColor = $script:AlfredUiTheme.BgPanel
+    $panel.BackColor = if ($Variant -eq 'Plain') { $script:AlfredUiTheme.BgDeep } else { $script:AlfredUiTheme.BgPanel }
     Enable-AlfredDoubleBuffer $panel
 
-    $panel.Add_Paint({
-        param($sender, $e)
-        $g = $e.Graphics
-        $rect = $sender.ClientRectangle
-        $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-            $rect,
-            $script:AlfredUiTheme.BgPanel,
-            $script:AlfredUiTheme.BgPanelEnd,
-            90
-        )
-        $g.FillRectangle($brush, $rect)
-        $brush.Dispose()
-        $border = New-Object System.Drawing.Pen $script:AlfredUiTheme.Border
-        $g.DrawLine($border, $rect.Width - 1, 0, $rect.Width - 1, $rect.Height)
-        $border.Dispose()
-    })
+    if ($Variant -eq 'Plain') {
+        $panel.Add_Paint({
+            param($sender, $e)
+            $g = $e.Graphics
+            $rect = $sender.ClientRectangle
+            $g.Clear($script:AlfredUiTheme.BgDeep)
+            $border = New-Object System.Drawing.Pen $script:AlfredUiTheme.Border
+            $g.DrawLine($border, $rect.Width - 1, 0, $rect.Width - 1, $rect.Height)
+            $border.Dispose()
+        })
+    } else {
+        $panel.Add_Paint({
+            param($sender, $e)
+            $g = $e.Graphics
+            $rect = $sender.ClientRectangle
+            $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+                $rect,
+                $script:AlfredUiTheme.BgPanel,
+                $script:AlfredUiTheme.BgPanelEnd,
+                90
+            )
+            $g.FillRectangle($brush, $rect)
+            $brush.Dispose()
+            $border = New-Object System.Drawing.Pen $script:AlfredUiTheme.Border
+            $g.DrawLine($border, $rect.Width - 1, 0, $rect.Width - 1, $rect.Height)
+            $border.Dispose()
+        })
+    }
 
     return $panel
+}
+
+function Get-AlfredRoundedRectPath {
+    param(
+        [System.Drawing.Rectangle]$Bounds,
+        [int]$Radius
+    )
+
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $r = [Math]::Min($Radius, [Math]::Floor([Math]::Min($Bounds.Width, $Bounds.Height) / 2))
+    if ($r -le 0) {
+        $path.AddRectangle($Bounds)
+        return $path
+    }
+
+    $d = $r * 2
+    $x = $Bounds.X
+    $y = $Bounds.Y
+    $w = $Bounds.Width
+    $h = $Bounds.Height
+    $path.AddArc($x, $y, $d, $d, 180, 90)
+    $path.AddArc($x + $w - $d, $y, $d, $d, 270, 90)
+    $path.AddArc($x + $w - $d, $y + $h - $d, $d, $d, 0, 90)
+    $path.AddArc($x, $y + $h - $d, $d, $d, 90, 90)
+    $path.CloseFigure()
+    return $path
+}
+
+function Update-AlfredButtonRegion {
+    param(
+        [System.Windows.Forms.Button]$Button,
+        [int]$Radius
+    )
+
+    if ($Button.Width -le 0 -or $Button.Height -le 0) { return }
+    $rect = New-Object System.Drawing.Rectangle 0, 0, $Button.Width, $Button.Height
+    $path = Get-AlfredRoundedRectPath -Bounds $rect -Radius $Radius
+    $region = New-Object System.Drawing.Region $path
+    $old = $Button.Region
+    $Button.Region = $region
+    if ($old) { $old.Dispose() }
+    $path.Dispose()
+}
+
+function New-AlfredWrappedLabel {
+    param(
+        [string]$Text,
+        [int]$MaxWidth,
+        [System.Drawing.Font]$Font,
+        [System.Drawing.Color]$ForeColor,
+        [System.Windows.Forms.Padding]$Margin = [System.Windows.Forms.Padding]::Empty
+    )
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = $Text
+    $label.Font = $Font
+    $label.ForeColor = $ForeColor
+    $label.MaximumSize = New-Object System.Drawing.Size($MaxWidth, 0)
+    $label.AutoSize = $true
+    $label.UseCompatibleTextRendering = $true
+    $label.Margin = $Margin
+    $label.BackColor = [System.Drawing.Color]::Transparent
+    return $label
+}
+
+function Set-AlfredModernButtonColors {
+    param(
+        [System.Windows.Forms.Button]$Button,
+        [bool]$Hover = $false
+    )
+
+    Initialize-AlfredUiTheme
+    $variant = $Button.Tag.Variant
+    if ($variant -eq 'primary') {
+        $fill = if ($Hover) { $script:AlfredUiTheme.PrimaryHover } else { $script:AlfredUiTheme.Primary }
+        $Button.BackColor = $fill
+        $Button.ForeColor = $script:AlfredUiTheme.AccentText
+        $Button.FlatAppearance.BorderSize = 0
+        $Button.FlatAppearance.BorderColor = $fill
+        $Button.FlatAppearance.MouseOverBackColor = $fill
+        $Button.FlatAppearance.MouseDownBackColor = $fill
+        $Button.FlatAppearance.CheckedBackColor = $fill
+    } else {
+        $fill = if ($Hover) { $script:AlfredUiTheme.BgPanel } else { $script:AlfredUiTheme.BgDeep }
+        $Button.BackColor = $fill
+        $Button.ForeColor = if ($Hover) { $script:AlfredUiTheme.Text } else { $script:AlfredUiTheme.TextMuted }
+        $Button.FlatAppearance.BorderSize = 0
+        $Button.FlatAppearance.BorderColor = $fill
+        $Button.FlatAppearance.MouseOverBackColor = $fill
+        $Button.FlatAppearance.MouseDownBackColor = $fill
+        $Button.FlatAppearance.CheckedBackColor = $fill
+    }
 }
 
 function New-AlfredModernButton {
@@ -273,38 +396,68 @@ function New-AlfredModernButton {
         [ValidateSet('primary', 'ghost')]
         [string]$Variant = 'primary',
         [int]$Width = 132,
-        [int]$Height = 40
+        [int]$Height = 40,
+        [int]$CornerRadius = 8
     )
 
     Initialize-AlfredUiTheme
+    Add-Type -AssemblyName System.Drawing
+
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $Text
     $btn.Size = New-Object System.Drawing.Size($Width, $Height)
+    $btn.MinimumSize = $btn.Size
     $btn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btn.Cursor = [System.Windows.Forms.Cursors]::Hand
     $btn.Font = Get-AlfredUiFont 10 'Semibold'
     $btn.UseVisualStyleBackColor = $false
+    $btn.UseCompatibleTextRendering = $true
+    $btn.Tag = @{ Variant = $Variant; Radius = $CornerRadius; Hover = $false }
 
-    if ($Variant -eq 'primary') {
-        $btn.BackColor = $script:AlfredUiTheme.Primary
-        $btn.ForeColor = $script:AlfredUiTheme.AccentText
-        $btn.FlatAppearance.BorderSize = 0
-        $btn.Add_MouseEnter({ $this.BackColor = $script:AlfredUiTheme.PrimaryHover })
-        $btn.Add_MouseLeave({ $this.BackColor = $script:AlfredUiTheme.Primary })
-    } else {
-        $btn.BackColor = $script:AlfredUiTheme.BgDeep
-        $btn.ForeColor = $script:AlfredUiTheme.TextMuted
-        $btn.FlatAppearance.BorderSize = 1
-        $btn.FlatAppearance.BorderColor = $script:AlfredUiTheme.Border
-        $btn.Add_MouseEnter({
-            $this.ForeColor = $script:AlfredUiTheme.Text
-            $this.BackColor = $script:AlfredUiTheme.BgPanel
-        })
-        $btn.Add_MouseLeave({
-            $this.ForeColor = $script:AlfredUiTheme.TextMuted
-            $this.BackColor = $script:AlfredUiTheme.BgDeep
+    Set-AlfredModernButtonColors -Button $btn -Hover $false
+
+    $applyRegion = {
+        param($Button)
+        if ($Button.Width -le 0 -or $Button.Height -le 0) { return }
+        Update-AlfredButtonRegion -Button $Button -Radius $Button.Tag.Radius
+    }
+
+    if ($Variant -eq 'ghost') {
+        $btn.Add_Paint({
+            param($sender, $e)
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $rect = New-Object System.Drawing.Rectangle 0, 0, ($sender.Width - 1), ($sender.Height - 1)
+            $path = Get-AlfredRoundedRectPath -Bounds $rect -Radius $sender.Tag.Radius
+            $hover = [bool]$sender.Tag.Hover
+            $fillColor = if ($hover) { $script:AlfredUiTheme.BgPanel } else { $script:AlfredUiTheme.BgDeep }
+            $textColor = if ($hover) { $script:AlfredUiTheme.Text } else { $script:AlfredUiTheme.TextMuted }
+            $fill = New-Object System.Drawing.SolidBrush $fillColor
+            $g.FillPath($fill, $path)
+            $fill.Dispose()
+            $pen = New-Object System.Drawing.Pen $script:AlfredUiTheme.Border
+            $g.DrawPath($pen, $path)
+            $pen.Dispose()
+            $flags = [System.Windows.Forms.TextFormatFlags]::HorizontalCenter `
+                -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter `
+                -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+            [System.Windows.Forms.TextRenderer]::DrawText($g, $sender.Text, $sender.Font, $rect, $textColor, $flags)
+            $path.Dispose()
         })
     }
+
+    $btn.Add_MouseEnter({
+        $this.Tag.Hover = $true
+        Set-AlfredModernButtonColors -Button $this -Hover $true
+        $this.Invalidate()
+    })
+    $btn.Add_MouseLeave({
+        $this.Tag.Hover = $false
+        Set-AlfredModernButtonColors -Button $this -Hover $false
+        $this.Invalidate()
+    })
+    $btn.Add_Resize({ & $applyRegion $this })
+    & $applyRegion $btn
 
     return $btn
 }
@@ -332,7 +485,7 @@ function New-AlfredInstallShellForm {
 
     $form = New-Object System.Windows.Forms.Form
     $form.Text = $Title
-    $form.Size = New-Object System.Drawing.Size(900, 580)
+    $form.Size = New-Object System.Drawing.Size(920, 640)
     $form.MinimumSize = $form.Size
     $form.MaximumSize = $form.Size
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
@@ -434,64 +587,32 @@ public class AlfredConsoleWindow {
     } catch { }
 }
 
-function Start-AlfredInstallProgress {
-    Initialize-AlfredUiTheme
-    Add-Type -AssemblyName System.Windows.Forms
+function Enable-AlfredGuiInstallOutput {
+    param([Parameter(Mandatory = $true)]$Progress)
 
-    $form = New-AlfredInstallShellForm 'Installing Alfred'
-    $form.Size = New-Object System.Drawing.Size(520, 220)
-    $form.MinimumSize = $form.Size
-    $form.MaximumSize = $form.Size
-    $form.ControlBox = $false
-    Set-AlfredFormIcon $form (Get-AlfredInstallerRoot)
+    $script:InstallProgress = $Progress
+    $script:AlfredGuiInstallMode = $true
 
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = 'Installing Alfred...'
-    $label.AutoSize = $true
-    $label.Font = Get-AlfredUiFont 14 'Semibold'
-    $label.ForeColor = $script:AlfredUiTheme.Text
-    $label.Location = New-Object System.Drawing.Point(32, 28)
-    $form.Controls.Add($label)
-
-    $sub = New-Object System.Windows.Forms.Label
-    $sub.Text = 'This may take several minutes. Please keep this window open.'
-    $sub.AutoSize = $true
-    $sub.Font = Get-AlfredUiFont 10
-    $sub.ForeColor = $script:AlfredUiTheme.TextMuted
-    $sub.Location = New-Object System.Drawing.Point(32, 58)
-    $form.Controls.Add($sub)
-
-    $status = New-Object System.Windows.Forms.Label
-    $status.AutoSize = $false
-    $status.Size = New-Object System.Drawing.Size(456, 48)
-    $status.Font = Get-AlfredUiFont 9.5
-    $status.ForeColor = $script:AlfredUiTheme.TextDim
-    $status.Location = New-Object System.Drawing.Point(32, 92)
-    $form.Controls.Add($status)
-
-    $bar = New-Object System.Windows.Forms.ProgressBar
-    $bar.Style = 'Marquee'
-    $bar.MarqueeAnimationSpeed = 30
-    $bar.Size = New-Object System.Drawing.Size(456, 8)
-    $bar.Location = New-Object System.Drawing.Point(32, 156)
-    $form.Controls.Add($bar)
-
-    $form.Add_Shown({ $form.Activate() })
-    $form.Show()
-    [System.Windows.Forms.Application]::DoEvents()
-
-    return [PSCustomObject]@{
-        Form = $form
-        SetStatus = {
-            param([string]$Text)
-            if ($form.IsDisposed) { return }
-            $status.Text = $Text
-            [System.Windows.Forms.Application]::DoEvents()
+    function script:Write-Host {
+        param(
+            [Parameter(ValueFromPipeline = $true, Position = 0)]
+            [object]$Object,
+            [switch]$NoNewline,
+            [System.ConsoleColor]$ForegroundColor,
+            [System.ConsoleColor]$BackgroundColor
+        )
+        begin { $parts = [System.Collections.Generic.List[string]]::new() }
+        process {
+            if ($null -ne $Object) {
+                $parts.Add("$Object")
+            }
         }
-        Close = {
-            if (-not $form.IsDisposed) {
-                $form.Close()
-                $form.Dispose()
+        end {
+            $text = ($parts -join ' ').Trim()
+            if (-not $text) { return }
+            # Log only — never pop up a dialog or flood the status label per line.
+            if ($script:AlfredInstallLogPath -and (Get-Command Write-AlfredInstallLog -ErrorAction SilentlyContinue)) {
+                Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Message $text
             }
         }
     }

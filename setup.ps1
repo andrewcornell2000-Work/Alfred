@@ -480,11 +480,21 @@ if (-not $hasPython) {
     }
 }
 
-# Alfred venv Scripts on PATH — excellm, uvx, az, vd, in2csv, xlwings for agents + MCP provision
+# Alfred venv Scripts on PATH — excellm, uvx, az, vd, csvkit, xlwings for agents + MCP provision
 $venvScripts = Join-Path $VenvPath "Scripts"
 if (Test-Path $venvScripts) {
     $null = Add-PathEntry $venvScripts
     Write-OK "Alfred venv Scripts on user PATH -- $venvScripts"
+}
+
+# pbi-cli skills for Claude Code (Power BI report authoring)
+$pbiExe = Join-Path $VenvPath "Scripts\pbi.exe"
+if (-not (Test-Path $pbiExe)) { $pbiExe = Find-Command "pbi" }
+if ($pbiExe) {
+    Write-Host "  Registering Power BI skills for Claude Code (pbi setup)..." -ForegroundColor Cyan
+    & $pbiExe setup 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Done "Power BI skills registered (pbi setup)." }
+    else { Write-Warn "pbi setup may have had issues — run 'pbi setup' manually if Power BI tasks fail." }
 }
 
 # uvx check (installed via `uv` in python-requirements.txt)

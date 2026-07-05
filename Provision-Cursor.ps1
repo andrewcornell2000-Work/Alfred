@@ -42,7 +42,9 @@ param(
     [switch]$SkipClaudeDesktop,
     [switch]$SkipCodex,
     [switch]$SkipLeanCtx,
-    [switch]$SkipThirdPartySkills
+    [switch]$SkipThirdPartySkills,
+    [switch]$SkipOptionalPlugins,
+    [switch]$InstallerMode
 )
 
 $ErrorActionPreference = "Continue"
@@ -70,14 +72,41 @@ function Get-LeanCtxBinaryPath {
 }
 
 function Invoke-McpCliAdd([string]$toolName, [string]$serverName, [string[]]$argList) {
-    $stderr = & $toolName @argList 2>&1
-    if ($LASTEXITCODE -eq 0) {
+    $exe = (Get-Command $toolName -ErrorAction SilentlyContinue).Source
+    if (-not $exe) {
+        Write-Warn2 "$toolName not found -- skipped '$serverName'."
+        return $false
+    }
+
+    if ($InstallerMode) {
+        $tag = "$PID-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $outF = Join-Path $env:TEMP "alfred_mcp_$tag.out"
+        $errF = Join-Path $env:TEMP "alfred_mcp_$tag.err"
+        try {
+            $p = Start-Process -FilePath $exe -ArgumentList $argList -NoNewWindow -PassThru `
+                -RedirectStandardOutput $outF -RedirectStandardError $errF
+            if (-not $p.WaitForExit(120000)) {
+                & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+                Write-Warn2 "$toolName mcp add '$serverName' timed out -- configure manually later."
+                return $false
+            }
+            $stderr = if (Test-Path $errF) { Get-Content $errF -Raw } else { '' }
+            $exitCode = $p.ExitCode
+        } finally {
+            Remove-Item $outF, $errF -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        $stderr = & $toolName @argList 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    }
+
+    if ($exitCode -eq 0) {
         Write-OK "Registered '$serverName' ($toolName)."
         return $true
     }
-    $detail = ($stderr | Out-String).Trim()
+    $detail = "$stderr".Trim()
     if ($detail.Length -gt 300) { $detail = $detail.Substring(0, 300) + "..." }
-    $msg = "$toolName mcp add '$serverName' failed (exit $LASTEXITCODE): $detail"
+    $msg = "$toolName mcp add '$serverName' failed (exit $exitCode): $detail"
     $script:ProvisionErrors += $msg
     Write-Warn2 $msg
     return $false
@@ -359,6 +388,8 @@ function Install-ThirdPartyAgentSkills {
 
     if (Test-VercelPluginInstalled) {
         Write-Skip "vercel/vercel-plugin already installed -- skipping npx install."
+    } elseif ($SkipOptionalPlugins -or $InstallerMode) {
+        Write-Skip "vercel/vercel-plugin deferred -- install later if you use Vercel: npx plugins add vercel/vercel-plugin"
     } else {
         Write-Step "Third-party plugin: vercel/vercel-plugin (skills, agents, slash commands)"
         if (Invoke-NpxBackgroundJob 'vercel/vercel-plugin' @('--yes', 'plugins', 'add', 'vercel/vercel-plugin', '--yes', '--target', 'claude-code', '--target', 'cursor', '--target', 'codex') 180) {
@@ -503,6 +534,7 @@ function Test-CommandMissing([string]$command) {
 $McpTemplatePath = Join-Path $Root "cursor\mcp.json"
 $managed         = [ordered]@{}   # name -> ordered hashtable { command, args, env } or { url }
 $managedEnvLists = @{}            # name -> array of "KEY=VALUE" (for claude --env)
+$oauthDeferred   = @{}            # name -> $true when OAuth happens at first use in the IDE
 $skippedServers  = @()
 
 if (-not (Test-Path $McpTemplatePath)) {
@@ -521,6 +553,9 @@ if (-not (Test-Path $McpTemplatePath)) {
 
             $requires = @(); if ($defKeys -contains '_requires') { $requires = @($def._requires) }
             $requiresCmd = $null; if ($defKeys -contains '_requiresCommand') { $requiresCmd = $def._requiresCommand }
+            if ($defKeys -contains '_oauthOnFirstUse' -and $def._oauthOnFirstUse) {
+                $oauthDeferred[$name] = $true
+            }
             $aliases = @{}
             if ($defKeys -contains '_aliases') {
                 foreach ($ap in $def._aliases.PSObject.Properties) { $aliases[$ap.Name] = @($ap.Value) }
@@ -661,6 +696,10 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
         }
         foreach ($name in $managed.Keys) {
             $srv = $managed[$name]
+            if ($oauthDeferred[$name]) {
+                Write-Info "$name : in mcp.json only -- sign in from Cursor/Claude when you first use it."
+                continue
+            }
             try { & claude mcp remove $name --scope user 2>$null | Out-Null } catch {}
             if ($srv.url) {
                 $argList = @('mcp', 'add', $name, '--scope', 'user', '--transport', 'http', [string]$srv.url)
@@ -731,6 +770,10 @@ if (-not $SkipCodex -and $managed.Count -gt 0) {
         }
         foreach ($name in $managed.Keys) {
             $srv = $managed[$name]
+            if ($oauthDeferred[$name]) {
+                Write-Info "$name : in mcp.json only -- sign in from Codex when you first use it."
+                continue
+            }
             try { & codex mcp remove $name 2>$null | Out-Null } catch {}
             if ($srv.url) {
                 $argList = @('mcp', 'add', $name, '--url', [string]$srv.url)
@@ -954,33 +997,41 @@ function Invoke-LeanCtxGuarded([string]$Arguments, [int]$TimeoutSec = 120) {
     $exe = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
     if (-not $exe) { $exe = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
     if (-not $exe) { return $false }
-    $inF  = Join-Path $env:TEMP "leanctx_empty.in"
-    $outF = Join-Path $env:TEMP "leanctx_$PID.out"
-    $errF = Join-Path $env:TEMP "leanctx_$PID.err"
-    New-Item -ItemType File -Path $inF -Force | Out-Null
+
+    # Unique temp files per call — a shared leanctx_empty.in caused file-lock failures
+    # when playwright/uvx or a prior lean-ctx run still held the handle open.
+    $tag  = "$PID-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+    $inF  = Join-Path $env:TEMP "leanctx_$tag.in"
+    $outF = Join-Path $env:TEMP "leanctx_$tag.out"
+    $errF = Join-Path $env:TEMP "leanctx_$tag.err"
+
     try {
+        [System.IO.File]::WriteAllText($inF, '')
         $p = Start-Process -FilePath $exe -ArgumentList $Arguments -NoNewWindow -PassThru `
              -RedirectStandardInput $inF -RedirectStandardOutput $outF -RedirectStandardError $errF
     } catch {
         Write-Warn2 "Could not start lean-ctx: $_"
         return $false
     }
-    if (-not $p.WaitForExit($TimeoutSec * 1000)) {
-        Write-Warn2 "lean-ctx $Arguments exceeded ${TimeoutSec}s -- killing and skipping (install continues)."
-        & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
-        return $false
-    }
-    # onboard returns a non-zero "already connected" code on idempotent re-runs even
-    # though it succeeded, so treat a clear success marker in the output as success too.
-    $connected = $false
-    foreach ($f in @($outF, $errF)) {
-        if (Test-Path $f) {
-            $raw = Get-Content $f -Raw
-            if ($raw -match 'is connected|init complete|already configured') { $connected = $true }
-            ($raw -split "`r?`n") | Where-Object { $_.Trim() } | ForEach-Object { Write-Info $_ }
+
+    try {
+        if (-not $p.WaitForExit($TimeoutSec * 1000)) {
+            Write-Warn2 "lean-ctx $Arguments exceeded ${TimeoutSec}s -- killing and skipping (install continues)."
+            & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+            return $false
         }
+        $connected = $false
+        foreach ($f in @($outF, $errF)) {
+            if (Test-Path $f) {
+                $raw = Get-Content $f -Raw -ErrorAction SilentlyContinue
+                if ($raw -match 'is connected|init complete|already configured') { $connected = $true }
+                ($raw -split "`r?`n") | Where-Object { $_.Trim() } | ForEach-Object { Write-Info $_ }
+            }
+        }
+        return (($p.ExitCode -eq 0) -or $connected)
+    } finally {
+        Remove-Item $inF, $outF, $errF -Force -ErrorAction SilentlyContinue
     }
-    return (($p.ExitCode -eq 0) -or $connected)
 }
 
 if (-not $SkipLeanCtx) {

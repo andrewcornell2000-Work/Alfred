@@ -12,7 +12,7 @@
 
 param(
     # Version stamped into the .exe metadata. CI passes the git tag (without the leading "v").
-    [string]$Version = "2.4.0"
+    [string]$Version = "2.6.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,17 +74,22 @@ function Get-InstallerModuleBody([string]$Path) {
 }
 
 $moduleParts = @()
-foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Progress.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1", "installer\Install-RepoTools.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
-    if (Test-Path $path) {
-        $moduleParts += Get-InstallerModuleBody $path
-    } else {
+    if (-not (Test-Path $path)) {
+        if ($rel -eq 'installer\Install-RepoTools.ps1') { continue }
         Write-Host "WARN: Missing $rel - GUI installer may not work in the .exe" -ForegroundColor Yellow
+        continue
     }
+    if ($rel -eq 'installer\Install-RepoTools.ps1') {
+        $moduleParts += Get-InstallerModuleBody $path
+        continue
+    }
+    $moduleParts += Get-InstallerModuleBody $path
 }
 
 $mainRaw = Get-Content $InputFile -Raw
-$splitMarker = 'Import-AlfredInstallerModules $ScriptRoot'
+$splitMarker = '# ALFRED_INSTALLER_WIZARD_START'
 $split = $mainRaw -split [regex]::Escape($splitMarker), 2
 if ($split.Count -lt 2) {
     throw "Could not locate '$splitMarker' in Alfred-Install.ps1"
@@ -113,6 +118,7 @@ $ps2exeArgs = @{
     Version     = $Version
     STA         = $true
     noConsole   = $true
+    noOutput    = $true
 }
 if (Test-Path $IconFile) {
     $ps2exeArgs['iconFile'] = $IconFile

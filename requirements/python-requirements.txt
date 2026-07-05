@@ -13,6 +13,7 @@ openpyxl
 pandas
 pywin32
 anthropic
+openai
 xlwings
 csvkit
 visidata

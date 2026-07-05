@@ -25,7 +25,7 @@ function Show-AlfredInstallWizard {
     $root.RowCount = 1
     $root.Padding = [System.Windows.Forms.Padding]::Empty
     $root.Margin = [System.Windows.Forms.Padding]::Empty
-    [void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 320)))
+    [void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 348)))
     [void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
     [void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
     $form.Controls.Add($root)
@@ -37,69 +37,65 @@ function Show-AlfredInstallWizard {
     $brandStack = New-Object System.Windows.Forms.TableLayoutPanel
     $brandStack.Dock = 'Fill'
     $brandStack.ColumnCount = 1
-    $brandStack.RowCount = 6
-    $brandStack.Padding = New-Object System.Windows.Forms.Padding(36, 40, 32, 32)
+    $brandStack.RowCount = 5
+    $brandStack.Padding = New-Object System.Windows.Forms.Padding(32, 36, 28, 36)
     $brandStack.BackColor = [System.Drawing.Color]::Transparent
-    foreach ($pct in @(0, 0, 0, 0, 100, 0)) {
+    $brandContentWidth = 276
+    foreach ($pct in @(0, 0, 0, 100, 0)) {
         $st = if ($pct -eq 100) { [System.Windows.Forms.SizeType]::Percent } else { [System.Windows.Forms.SizeType]::AutoSize }
         [void]$brandStack.RowStyles.Add((New-Object System.Windows.Forms.RowStyle($st, [float]$pct)))
     }
     $brand.Controls.Add($brandStack)
 
-    $logoBox = New-AlfredLogoPictureBox -Root $AssetsRoot -Width 220 -Height 220
+    $logoBox = New-AlfredLogoPictureBox -Root $AssetsRoot -Width 168 -Height 168 -BackgroundVariant Plain
+    $logoBox.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 16)
     $brandStack.Controls.Add($logoBox, 0, 0)
 
-    $brandTitle = New-Object System.Windows.Forms.Label
-    $brandTitle.Text = 'Alfred'
-    $brandTitle.AutoSize = $true
-    $brandTitle.Font = Get-AlfredUiFont 28 'Semibold'
-    $brandTitle.ForeColor = $script:AlfredUiTheme.Text
-    $brandTitle.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
+    $brandTitle = New-AlfredWrappedLabel -Text 'Alfred' -MaxWidth $brandContentWidth `
+        -Font (Get-AlfredUiFont 28 'Semibold') -ForeColor $script:AlfredUiTheme.Text `
+        -Margin (New-Object System.Windows.Forms.Padding(0, 0, 0, 8))
     $brandStack.Controls.Add($brandTitle, 0, 1)
 
-    $brandTag = New-Object System.Windows.Forms.Label
-    $brandTag.Text = 'Your AI toolchain for Cursor, Claude Code, and Codex.'
-    $brandTag.AutoSize = $true
-    $brandTag.MaximumSize = New-Object System.Drawing.Size(248, 0)
-    $brandTag.Font = Get-AlfredUiFont 10.5
-    $brandTag.ForeColor = $script:AlfredUiTheme.TextMuted
-    $brandTag.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 28)
+    $brandTag = New-AlfredWrappedLabel -Text 'Your AI toolchain for Cursor, Claude Code, and Codex.' `
+        -MaxWidth $brandContentWidth -Font (Get-AlfredUiFont 10.5) -ForeColor $script:AlfredUiTheme.TextMuted `
+        -Margin (New-Object System.Windows.Forms.Padding(0, 0, 0, 20))
     $brandStack.Controls.Add($brandTag, 0, 2)
 
-    $featurePanel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $featurePanel.AutoSize = $true
-    $featurePanel.FlowDirection = 'TopDown'
-    $featurePanel.WrapContents = $false
+    $featurePanel = New-Object System.Windows.Forms.Panel
+    $featurePanel.Dock = 'Fill'
+    $featurePanel.AutoScroll = $false
     $featurePanel.BackColor = [System.Drawing.Color]::Transparent
     $featurePanel.Margin = [System.Windows.Forms.Padding]::Empty
+
+    $featureStack = New-Object System.Windows.Forms.FlowLayoutPanel
+    $featureStack.Dock = 'Fill'
+    $featureStack.FlowDirection = 'TopDown'
+    $featureStack.WrapContents = $false
+    $featureStack.AutoSize = $true
+    $featureStack.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $featureStack.BackColor = [System.Drawing.Color]::Transparent
+    $featureStack.Margin = [System.Windows.Forms.Padding]::Empty
+    $featurePanel.Controls.Add($featureStack)
+
     foreach ($feature in @(
         'Power BI, Excel, and GitHub MCPs',
         'Skills, MCPs, and rules wired globally',
         'Restart Cursor after install for MCP changes',
-        'User-scope installs — no admin'
+        'User-scope installs - no admin'
     )) {
-        $mark = New-Object System.Windows.Forms.Label
-        $mark.Text = [char]0x2713 + '  ' + $feature
-        $mark.AutoSize = $true
-        $mark.MaximumSize = New-Object System.Drawing.Size(248, 0)
-        $mark.Font = Get-AlfredUiFont 10
-        $mark.ForeColor = $script:AlfredUiTheme.TextMuted
-        $mark.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 10)
-        [void]$featurePanel.Controls.Add($mark)
+        $mark = New-AlfredWrappedLabel -Text ([char]0x2713 + '  ' + $feature) `
+            -MaxWidth $brandContentWidth -Font (Get-AlfredUiFont 10) `
+            -ForeColor $script:AlfredUiTheme.TextMuted `
+            -Margin (New-Object System.Windows.Forms.Padding(0, 0, 0, 12))
+        [void]$featureStack.Controls.Add($mark)
     }
     $brandStack.Controls.Add($featurePanel, 0, 3)
 
-    $spacerBrand = New-Object System.Windows.Forms.Panel
-    $spacerBrand.Dock = 'Fill'
-    $spacerBrand.BackColor = [System.Drawing.Color]::Transparent
-    $brandStack.Controls.Add($spacerBrand, 0, 4)
-
-    $version = New-Object System.Windows.Forms.Label
-    $version.Text = 'github.com/andrewcornell2000-Work/Alfred'
-    $version.AutoSize = $true
-    $version.Font = Get-AlfredUiFont 8.5
-    $version.ForeColor = $script:AlfredUiTheme.TextDim
-    $brandStack.Controls.Add($version, 0, 5)
+    $version = New-AlfredWrappedLabel -Text 'github.com/andrewcornell2000-Work/Alfred' `
+        -MaxWidth $brandContentWidth -Font (Get-AlfredUiFont 8.5) `
+        -ForeColor $script:AlfredUiTheme.TextDim `
+        -Margin (New-Object System.Windows.Forms.Padding(0, 16, 0, 0))
+    $brandStack.Controls.Add($version, 0, 4)
 
     [void]$root.Controls.Add($brand, 0, 0)
 
@@ -159,8 +155,9 @@ function Show-AlfredInstallWizard {
     $pathBox.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 0)
     $pathRow.Controls.Add($pathBox, 0, 0)
 
-    $browse = New-AlfredModernButton -Text 'Browse' -Variant 'ghost' -Width 96
-    $browse.Dock = 'Fill'
+    $browse = New-AlfredModernButton -Text 'Browse' -Variant 'ghost' -Width 96 -Height 40
+    $browse.Anchor = 'Top,Right'
+    $browse.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 0)
     $browse.Add_Click({
         $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
         $dlg.Description = 'Choose where Alfred should be installed'
@@ -233,17 +230,4 @@ function Show-AlfredInstallWizard {
     if ($logoBox.Image) { $logoBox.Image.Dispose() }
     $form.Dispose()
     return $outcome
-}
-
-function Show-AlfredInstallComplete {
-    param([string]$InstallPath)
-
-    Show-AlfredModernDialog -Title 'Alfred is ready' -Message @"
-Installation finished successfully.
-
-Folder:
-$InstallPath
-
-Launch Alfred from your desktop shortcut or run run-alfred.bat.
-"@ -Mode 'info' | Out-Null
 }

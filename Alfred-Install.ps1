@@ -25,9 +25,25 @@ param(
     [switch]$NoWizard
 )
 
+$script:AlfredRunningAsExe = $false
+if ($MyInvocation.MyCommand.Path -match '(?i)Alfred-Install\.exe$') {
+    $script:AlfredRunningAsExe = $true
+} else {
+    try {
+        $exePath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        if ($exePath -match '(?i)Alfred-Install\.exe$') { $script:AlfredRunningAsExe = $true }
+    } catch { }
+}
+
 $ErrorActionPreference = "Continue"
 
 function Show-InstallerFatalError([string]$Message) {
+    $logPath = $script:AlfredInstallLogPath
+    if ($logPath) { Write-AlfredInstallLog -LogPath $logPath -Level 'ERROR' -Message $Message }
+    if ($script:InstallProgress -and (Get-Command Show-AlfredInstallError -ErrorAction SilentlyContinue)) {
+        Show-AlfredInstallError -Message $Message -LogPath $logPath
+        return
+    }
     try {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
         [System.Windows.Forms.MessageBox]::Show(
@@ -43,6 +59,7 @@ function Show-InstallerFatalError([string]$Message) {
 }
 
 trap {
+    if ($script:InstallProgress) { $script:InstallProgress.Close() }
     Show-InstallerFatalError "Alfred installer failed:`n`n$($_.Exception.Message)"
     exit 1
 }
@@ -68,13 +85,20 @@ $ScriptRoot = Get-AlfredInstallerRoot
 
 function Import-AlfredInstallerModules([string]$Root) {
     if ([string]::IsNullOrWhiteSpace($Root)) { $Root = Get-AlfredInstallerRoot }
-    foreach ($rel in @("installer\Alfred-UiCommon.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1")) {
+    foreach ($rel in @(
+        'installer\Alfred-UiCommon.ps1',
+        'installer\Install-Progress.ps1',
+        'installer\Install-Wizard.ps1',
+        'installer\Update-Alert.ps1'
+    )) {
         $path = Join-Path $Root $rel
         if (Test-Path $path) { . $path }
     }
 }
 Import-AlfredInstallerModules $ScriptRoot
-if (-not $NoWizard -and (Get-Command Hide-AlfredConsole -ErrorAction SilentlyContinue)) {
+$repoToolsBootstrap = Join-Path $ScriptRoot 'installer\Install-RepoTools.ps1'
+if (Test-Path $repoToolsBootstrap) { . $repoToolsBootstrap }
+if ($script:AlfredRunningAsExe -and (Get-Command Hide-AlfredConsole -ErrorAction SilentlyContinue)) {
     Hide-AlfredConsole
 }
 
@@ -84,21 +108,142 @@ function Write-Banner([string]$Text) {
     Write-Host "  $Text" -ForegroundColor Cyan
     Write-Host ("=" * 50) -ForegroundColor Cyan
 }
+function Test-AlfredGuiInstall {
+    if ($script:InstallProgress) { return $true }
+    if ($script:AlfredGuiInstallMode) { return $true }
+    return [bool]$script:AlfredRunningAsExe
+}
+
+function Get-InstallDefaultYes([string]$Prompt) {
+    if (Test-AlfredGuiInstall) { return $true }
+    return -not ((Read-Host $Prompt) -match '^[Nn]')
+}
+
 function Write-Step([string]$Msg) {
+    if (Test-AlfredGuiInstall) {
+        if ($script:InstallProgress) { $script:InstallProgress.SetDetail($Msg) }
+        return
+    }
     Write-Host ""
     Write-Host $Msg -ForegroundColor Cyan
-    if ($script:InstallProgress) { $script:InstallProgress.SetStatus($Msg) }
 }
-function Write-OK([string]$Msg)    { Write-Host "  [OK]     $Msg" -ForegroundColor Green }
-function Write-Done([string]$Msg)  { Write-Host "  [DONE]   $Msg" -ForegroundColor Green }
-function Write-Warn([string]$Msg)  { Write-Host "  [WARN]   $Msg" -ForegroundColor Yellow }
-function Write-Fail([string]$Msg)  { Write-Host "  [FAIL]   $Msg" -ForegroundColor Red }
+
+function Confirm-AlfredAuthLogin([string]$Title, [string]$Message) {
+    if (-not (Test-AlfredGuiInstall)) { return $true }
+    # GUI install: launch auth automatically — no blocking confirm dialog.
+    return $true
+}
+
+function Set-InstallStage([string]$StageId, [string]$Detail) {
+    if (-not $script:InstallProgress) { return }
+    $script:InstallProgress.SetStage($StageId)
+    if ($Detail) { $script:InstallProgress.SetDetail($Detail) }
+}
+
+function Complete-InstallStage([string]$StageId) {
+    if ($script:InstallProgress) { $script:InstallProgress.CompleteStage($StageId) }
+}
+
+function Write-InstallLogOnly([string]$Msg) {
+    if ($script:AlfredInstallLogPath -and (Get-Command Write-AlfredInstallLog -ErrorAction SilentlyContinue)) {
+        Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Message $Msg
+    }
+}
+
+function Start-AlfredCliAuth {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Exe,
+        [string[]]$ArgumentList = @()
+    )
+
+    if (-not (Test-Path $Exe)) { return }
+    $argText = ($ArgumentList -join ' ')
+
+    if (Test-AlfredGuiInstall -or $script:AlfredRunningAsExe) {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        if ($Exe -like '*.cmd' -or $Exe -like '*.bat') {
+            $psi.FileName = 'cmd.exe'
+            $psi.Arguments = "/c `"$Exe`" $argText"
+        } else {
+            $psi.FileName = $Exe
+            $psi.Arguments = $argText
+        }
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        [System.Diagnostics.Process]::Start($psi) | Out-Null
+        Write-InstallLogOnly ('Started auth (no window): ' + $Exe + ' ' + $argText)
+    } else {
+        Start-Process 'cmd.exe' -ArgumentList @('/k', "`"$Exe`" $argText")
+    }
+}
+
+function Invoke-InstallExternal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [string[]]$ArgumentList = @(),
+        [string]$StatusMessage,
+        [int]$TimeoutSec = 0
+    )
+
+    if (Test-AlfredGuiInstall -and $StatusMessage -and $script:InstallProgress) {
+        $script:InstallProgress.SetDetail($StatusMessage)
+    }
+
+    $logPath = $script:AlfredInstallLogPath
+    if (Test-AlfredGuiInstall -and $logPath) {
+        Write-InstallLogOnly "Running: $FilePath $($ArgumentList -join ' ')"
+        try {
+            $tag = "$PID-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $outF = Join-Path $env:TEMP "alfred_out_$tag.log"
+            $errF = Join-Path $env:TEMP "alfred_err_$tag.log"
+            $p = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -NoNewWindow -PassThru `
+                -RedirectStandardOutput $outF -RedirectStandardError $errF
+            $waitMs = if ($TimeoutSec -gt 0) { $TimeoutSec * 1000 } else { [int]::MaxValue }
+            if (-not $p.WaitForExit($waitMs)) {
+                & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+                Write-InstallLogOnly "Timed out after ${TimeoutSec}s"
+                Remove-Item $outF, $errF -Force -ErrorAction SilentlyContinue
+                return 1
+            }
+            if (Test-Path $outF) { Get-Content $outF | Add-Content $logPath }
+            if (Test-Path $errF) { Get-Content $errF | Add-Content $logPath }
+            Remove-Item $outF, $errF -Force -ErrorAction SilentlyContinue
+            return $p.ExitCode
+        } catch {
+            Write-InstallLogOnly "ERROR: $($_.Exception.Message)"
+            return 1
+        }
+    }
+
+    & $FilePath @ArgumentList
+    return $LASTEXITCODE
+}
+
+function Write-OK([string]$Msg) {
+    if (Test-AlfredGuiInstall) { Write-InstallLogOnly "[OK] $Msg"; return }
+    Write-Host "  [OK]     $Msg" -ForegroundColor Green
+}
+function Write-Done([string]$Msg) {
+    if (Test-AlfredGuiInstall) { Write-InstallLogOnly "[DONE] $Msg"; return }
+    Write-Host "  [DONE]   $Msg" -ForegroundColor Green
+}
+function Write-Warn([string]$Msg) {
+    if (Test-AlfredGuiInstall) { Write-InstallLogOnly "[WARN] $Msg"; return }
+    Write-Host "  [WARN]   $Msg" -ForegroundColor Yellow
+}
+function Write-Fail([string]$Msg) {
+    if (Test-AlfredGuiInstall) { Write-InstallLogOnly "[FAIL] $Msg"; return }
+    Write-Host "  [FAIL]   $Msg" -ForegroundColor Red
+}
 
 function Write-CommandOutput {
     process {
-        if ($null -ne $_ -and "$_".Trim()) {
-            Write-Host "  $_" -ForegroundColor DarkGray
-        }
+        if ($null -eq $_ -or -not "$_".Trim()) { return }
+        if (Test-AlfredGuiInstall) { Write-InstallLogOnly "$_" }
+        else { Write-Host "  $_" -ForegroundColor DarkGray }
     }
 }
 
@@ -196,7 +341,7 @@ function Install-Tool([string]$WingetId, [string]$ScoopName, [string]$DisplayNam
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if ($winget) {
         # --scope user avoids UAC — installs to %LOCALAPPDATA% with no admin needed
-        Write-Host "  Installing $DisplayName via winget (user scope, no admin)..." -ForegroundColor Cyan
+        Write-Host ('  Installing ' + $DisplayName + ' via winget (user scope, no admin)...') -ForegroundColor Cyan
         winget install --id $WingetId --scope user --silent --accept-package-agreements --accept-source-agreements
         Refresh-Path
         if ($LASTEXITCODE -eq 0) { return $true }
@@ -207,7 +352,7 @@ function Install-Tool([string]$WingetId, [string]$ScoopName, [string]$DisplayNam
     }
 
     # Fall back to scoop (no admin required)
-    Write-Warn "winget unavailable or failed — trying scoop (no admin required)..."
+    Write-Warn 'winget unavailable or failed — trying scoop (no admin required)...'
     if (-not (Find-Command "scoop")) {
         Write-Host "  Installing scoop..." -ForegroundColor Cyan
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
@@ -272,7 +417,7 @@ function Install-Node-Portable([string]$RepoPath) {
         Refresh-Path
         return $true
     } catch {
-        Write-Warn "Portable Node.js download failed: $_"
+        Write-Warn ('Portable Node.js download failed: ' + $_)
         return $false
     }
 }
@@ -309,6 +454,7 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
     }
 }
 
+# ALFRED_INSTALLER_WIZARD_START
 # ── Install wizard ────────────────────────────────────────────────────────────
 
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
@@ -318,15 +464,27 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
         Show-InstallerFatalError "Could not open the install wizard:`n`n$($_.Exception.Message)"
         exit 1
     }
-    if (-not $wizard.Confirmed) { Write-Host "Cancelled."; exit 0 }
+    if (-not $wizard.Confirmed) { exit 0 }
     $InstallPath = $wizard.InstallPath
-    $script:InstallProgress = Start-AlfredInstallProgress
+    Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
+    Complete-InstallStage 'prepare'
+} elseif ($NoWizard -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue) -and $script:AlfredRunningAsExe) {
+    Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
+    Complete-InstallStage 'prepare'
+} elseif ($script:AlfredRunningAsExe -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue)) {
+    Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
+    Complete-InstallStage 'prepare'
+} elseif ($NoWizard) {
+    if (Get-Command Get-AlfredInstallLogPath -ErrorAction SilentlyContinue) {
+        $script:AlfredInstallLogPath = Get-AlfredInstallLogPath -InstallPath $InstallPath
+        Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Message 'Installer started.'
+    }
 } else {
     Write-Banner "Alfred Installer"
     Write-Host ""
     Write-Host "  Install path : $InstallPath" -ForegroundColor White
     Write-Host "  Repository   : $RepoUrl" -ForegroundColor White
-    Write-Host "  No admin required — falls back to portable/user installs automatically." -ForegroundColor DarkGray
+    Write-Host "  No admin required - falls back to portable/user installs automatically." -ForegroundColor DarkGray
     Write-Host ""
     $confirm = Read-Host "  Install / update Alfred here? (Y/n)"
     if ($confirm -match "^[Nn]") { Write-Host "Cancelled."; exit 0 }
@@ -334,6 +492,7 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
 
 # ── Step 1: Git ───────────────────────────────────────────────────────────────
 
+Set-InstallStage 'requirements' 'Checking Git...'
 Write-Step "Step 1: Git"
 
 if (Find-Command "git") {
@@ -348,6 +507,8 @@ if (Find-Command "git") {
 
 # ── Step 2: Clone or pull ─────────────────────────────────────────────────────
 
+Complete-InstallStage 'requirements'
+Set-InstallStage 'core' 'Syncing Alfred repository...'
 Write-Step "Step 2: Alfred repository"
 
 if (Test-Path (Join-Path $InstallPath ".git")) {
@@ -363,7 +524,9 @@ if (Test-Path (Join-Path $InstallPath ".git")) {
             $behind = (git -C $InstallPath rev-list --count "HEAD..origin/$Branch" 2>&1).Trim()
             $commitLog = @(git -C $InstallPath log --oneline "HEAD..origin/$Branch" 2>&1)
             $applyUpdate = $true
-            if ((Get-Command Show-AlfredUpdateAlert -ErrorAction SilentlyContinue) -and -not $NoWizard) {
+            if (Test-AlfredGuiInstall) {
+                Write-OK "Updates available — pulling latest ($behind commit(s))."
+            } elseif ((Get-Command Show-AlfredUpdateAlert -ErrorAction SilentlyContinue) -and -not $NoWizard) {
                 Import-AlfredInstallerModules $InstallPath
                 $choice = Show-AlfredUpdateAlert -BehindCount ([int]$behind) -CommitLines $commitLog -Root $InstallPath
                 $applyUpdate = ($choice -eq 'update')
@@ -399,8 +562,13 @@ if (Test-Path (Join-Path $InstallPath ".git")) {
     Write-Done "Repository cloned."
 }
 
+Import-AlfredInstallerModules $InstallPath
+$repoToolsPath = Join-Path $InstallPath 'installer\Install-RepoTools.ps1'
+if (Test-Path $repoToolsPath) { . $repoToolsPath }
+
 # ── Step 3: Python ────────────────────────────────────────────────────────────
 
+Set-InstallStage 'core' 'Setting up Python environment...'
 Write-Step "Step 3: Python"
 
 $PythonInfo = Get-PythonExe
@@ -410,7 +578,7 @@ if ($PythonInfo) {
     $ok = Install-Tool "Python.Python.3.13" "python" "Python 3.13"
     $PythonInfo = Get-PythonExe
     if (-not $PythonInfo) {
-        Write-Warn "winget/scoop failed — trying direct Python download (no admin)..."
+        Write-Warn 'winget/scoop failed — trying direct Python download (no admin)...'
         $ok = Install-Python-NoAdmin
         $PythonInfo = Get-PythonExe
     }
@@ -456,58 +624,56 @@ if (Test-Path $PipExe) {
         Invoke-PipInstall @("openai", "rich", "python-dotenv", "typer")
     }
     Write-Done "Python packages installed."
+    Install-AlfredVenvPostSetup -VenvPath $VenvPath
 } else {
     Write-Fail "pip not found in .venv — package install skipped."
 }
 
 # ── Step 4: Node.js + CLIs ────────────────────────────────────────────────────
 
+Refresh-Path
+
+Set-InstallStage 'core' 'Installing Node.js and AI CLIs...'
 Write-Step "Step 4: Node.js"
 
 if (Find-Command "node") {
-    Write-OK "Node.js — $(& node --version 2>&1 | Select-Object -First 1)"
+    Write-OK ("Node.js — " + (& node --version 2>&1 | Select-Object -First 1))
 } else {
     $ok = Install-Tool "OpenJS.NodeJS.LTS" "nodejs" "Node.js LTS"
     if (-not $ok -and -not (Find-Command "node")) {
-        Write-Warn "winget/scoop failed — downloading portable Node.js (no admin)..."
+        Write-Warn 'winget/scoop failed — downloading portable Node.js (no admin)...'
         Install-Node-Portable $InstallPath | Out-Null
+        Refresh-Path
     }
 }
 
 if (Find-Command "node") {
-    # Add npm global dir to PATH (user-level, no admin)
-    $NpmExe = Find-Command "npm"
-    if (-not $NpmExe) {
-        Write-Warn "npm not found — Claude Code and Codex CLIs skipped. Re-run after repairing Node.js."
-    } else {
-        $npmGlobal = & $NpmExe prefix -g 2>$null | Select-Object -First 1
-        if ($npmGlobal) { Add-PathEntry $npmGlobal.Trim() }
+    $nodeVerStr = & node --version 2>&1 | Select-Object -First 1
+    $nodeMajor = ($nodeVerStr -replace 'v', '').Split('.')[0] -as [int]
+    Write-OK "Node.js — $nodeVerStr"
+    if ($nodeMajor -lt 18) {
+        Write-Warn "Node.js $nodeMajor is below MCP minimum (18+). Upgrade at https://nodejs.org/"
+    }
 
-        if (-not (Find-Command "claude")) {
-            Write-Host "  Installing Claude Code CLI (user-level)..." -ForegroundColor Cyan
-            & $NpmExe install -g @anthropic-ai/claude-code
-            Refresh-Path
-            if (Find-Command "claude") { Write-Done "Claude Code CLI installed." }
-            else { Write-Warn "Claude Code CLI installed — open a new terminal if it is not found." }
-        } else {
-            Write-OK "Claude Code CLI already present."
-        }
-
-        if (-not (Find-Command "codex")) {
-            Write-Host "  Installing Codex CLI (user-level)..." -ForegroundColor Cyan
-            & $NpmExe install -g @openai/codex
-            Refresh-Path
-            Write-Done "Codex CLI installed."
-        } else {
-            Write-OK "Codex CLI already present."
-        }
+    $npmToolStatus = Install-AlfredNpmTools -RepoRoot $InstallPath
+    if ($npmToolStatus['claude'] -ne $true) {
+        Write-Warn "Claude Code CLI missing — MCP features unavailable until installed."
+    }
+    if ($npmToolStatus['codex'] -ne $true) {
+        Write-Warn "Codex CLI missing — install via requirements/npm-tools.txt."
+    }
+    if ($npmToolStatus['lean-ctx'] -ne $true) {
+        Write-Warn "lean-ctx missing — LeanCTX compression layer skipped until lean-ctx-bin is installed."
     }
 } else {
-    Write-Warn "Node.js not found — Claude Code and Codex CLIs skipped. Re-run after installing Node.js."
+    Write-Warn "Node.js not found — Claude Code, Codex, and lean-ctx CLIs skipped. Re-run after installing Node.js."
 }
+
+Complete-InstallStage 'core'
 
 # ── Step 5: Claude login ──────────────────────────────────────────────────────
 
+Set-InstallStage 'configure' 'Setting up Claude authentication...'
 Write-Step "Step 5: Claude login (Anthropic account — browser, no API key)"
 Write-Host ""
 
@@ -526,12 +692,21 @@ if (-not $claudeExe) {
 }
 
 if ($claudeExe) {
-    $doLogin = Read-Host "  Run claude auth login now? (Y/n)"
-    if ($doLogin -notmatch "^[Nn]") {
-        Write-Host "  Opening a new terminal for Claude authentication..." -ForegroundColor Cyan
-        Write-Host "  Sign in via the browser that opens, then close the new window." -ForegroundColor DarkGray
-        Start-Process "cmd.exe" -ArgumentList "/k `"$claudeExe`" auth login"
-        Read-Host "  Press Enter here once you have finished authenticating"
+    $doLogin = $true
+    if (-not (Test-AlfredGuiInstall)) {
+        $doLogin = -not ((Read-Host '  Run claude auth login now? (Y/n)') -match '^[Nn]')
+    }
+    if ($doLogin) {
+        if (Test-AlfredGuiInstall) {
+            $script:InstallProgress.SetDetail('Opening Claude sign-in in your browser...')
+        } else {
+            Write-Host '  Opening a new terminal for Claude authentication...' -ForegroundColor Cyan
+            Write-Host '  Sign in via the browser that opens, then close the new window.' -ForegroundColor DarkGray
+        }
+        Start-AlfredCliAuth -Exe $claudeExe -ArgumentList @('auth', 'login')
+        if (-not (Test-AlfredGuiInstall)) {
+            Read-Host '  Press Enter here once you have finished authenticating'
+        }
     }
 } else {
     Write-Warn "Claude Code CLI not found on PATH. Open a new terminal and run 'claude auth login' to authenticate."
@@ -554,12 +729,21 @@ if (-not $codexExe) {
 }
 
 if ($codexExe) {
-    $doCodex = Read-Host "  Run codex login now? (Y/n)"
-    if ($doCodex -notmatch "^[Nn]") {
-        Write-Host "  Opening a new terminal for Codex authentication..." -ForegroundColor Cyan
-        Write-Host "  Sign in via the browser that opens, then close the new window." -ForegroundColor DarkGray
-        Start-Process "cmd.exe" -ArgumentList "/k `"$codexExe`""
-        Read-Host "  Press Enter here once you have finished authenticating"
+    $doCodex = $true
+    if (-not (Test-AlfredGuiInstall)) {
+        $doCodex = -not ((Read-Host '  Run codex login now? (Y/n)') -match '^[Nn]')
+    }
+    if ($doCodex) {
+        if (Test-AlfredGuiInstall) {
+            $script:InstallProgress.SetDetail('Opening Codex sign-in in your browser...')
+        } else {
+            Write-Host '  Opening a new terminal for Codex authentication...' -ForegroundColor Cyan
+            Write-Host '  Sign in via the browser that opens, then close the new window.' -ForegroundColor DarkGray
+        }
+        Start-AlfredCliAuth -Exe $codexExe -ArgumentList @('login')
+        if (-not (Test-AlfredGuiInstall)) {
+            Read-Host '  Press Enter here once you have finished authenticating'
+        }
     }
 } else {
     Write-Warn "Codex CLI not found on PATH. Run 'codex login' after opening a new terminal."
@@ -582,6 +766,8 @@ if (Test-Path $EnvFile) {
 if ($existingTavily) {
     $tavilyKey = $existingTavily
     Write-OK "Tavily API key already saved."
+} elseif (Test-AlfredGuiInstall) {
+    Write-Warn "Tavily key not set — add TAVILY_API_KEY to .env later for live web research."
 } else {
     $openTavily = Read-Host "  Open app.tavily.com in browser? (Y/n)"
     if ($openTavily -notmatch "^[Nn]") { Start-Process "https://app.tavily.com" }
@@ -615,6 +801,8 @@ if (Test-Path $EnvFile) {
 if ($existingAnthropic) {
     $anthropicKey = $existingAnthropic
     Write-OK "Anthropic API key already saved — fast response mode active."
+} elseif (Test-AlfredGuiInstall) {
+    Write-Warn "Anthropic API key not set — Alfred will use Claude CLI (slower). Add to .env later."
 } else {
     $openAnthropic = Read-Host "  Open console.anthropic.com in browser? (Y/n)"
     if ($openAnthropic -notmatch "^[Nn]") { Start-Process "https://console.anthropic.com/settings/keys" }
@@ -648,6 +836,8 @@ if (Test-Path $EnvFile) {
 if ($existingGithub) {
     $githubToken = $existingGithub
     Write-OK "GitHub token already saved."
+} elseif (Test-AlfredGuiInstall) {
+    Write-Warn "GitHub token not set — GitHub MCP skipped. Add GITHUB_TOKEN to .env later."
 } else {
     $openGithub = Read-Host "  Open github.com/settings/tokens in browser? (Y/n)"
     if ($openGithub -notmatch "^[Nn]") { Start-Process "https://github.com/settings/tokens/new" }
@@ -663,34 +853,14 @@ if ($existingGithub) {
     }
 }
 
-# ── Step 8: Desktop shortcut ──────────────────────────────────────────────────
-
-Write-Step "Step 8: Desktop shortcut"
-
-$Desktop    = [System.Environment]::GetFolderPath("Desktop")
-$Shortcut   = Join-Path $Desktop "Alfred.lnk"
-$LauncherPs = Join-Path $InstallPath "run-alfred.bat"
-$IconPath   = Join-Path $InstallPath "assets\alfred.ico"
-
-try {
-    $existed = Test-Path $Shortcut
-    $wsh = New-Object -ComObject WScript.Shell
-    $lnk = $wsh.CreateShortcut($Shortcut)
-    $lnk.TargetPath       = "cmd.exe"
-    $lnk.Arguments        = "/c `"$LauncherPs`""
-    $lnk.WorkingDirectory = $InstallPath
-    $lnk.Description      = "Alfred AI Assistant"
-    if (Test-Path $IconPath) { $lnk.IconLocation = "$IconPath,0" } else { $lnk.IconLocation = "cmd.exe,0" }
-    $lnk.Save()
-    if ($existed) { Write-OK "Desktop shortcut refreshed — Alfred.lnk (custom icon)" }
-    else { Write-Done "Desktop shortcut created — Alfred.lnk (custom icon)" }
-} catch {
-    Write-Warn "Could not create desktop shortcut: $_"
-}
+Complete-InstallStage 'configure'
 
 # ── Step 9: MCP Tools ────────────────────────────────────────────────────────
 
+Set-InstallStage 'mcps' 'Configuring Power BI, Excel, and browser MCPs...'
 Write-Step "Step 9: MCP Tools (Power BI + Excel)"
+
+Install-AlfredOptionalCliTools -InstallPath $InstallPath -VenvPath $VenvPath
 
 $ClaudeSettingsDir = Join-Path $InstallPath ".claude"
 New-Item -ItemType Directory -Path $ClaudeSettingsDir -Force | Out-Null
@@ -714,8 +884,10 @@ if (-not $vscodeCLI) {
 
 if (-not $vscodeCLI) {
     Write-Warn "VS Code not found — required for Power BI MCP."
-    $installVSCode = Read-Host "  Install VS Code now (user install, no admin)? (Y/n)"
-    if ($installVSCode -notmatch "^[Nn]") {
+    $installVSCode = if (Test-AlfredGuiInstall) { $true } else {
+        -not ((Read-Host '  Install VS Code now (user install, no admin)? (Y/n)') -match '^[Nn]')
+    }
+    if ($installVSCode) {
         Install-Tool "Microsoft.VisualStudioCode" "vscode" "VS Code" | Out-Null
         Refresh-Path
         foreach ($cand in @(
@@ -823,7 +995,7 @@ if ($githubToken -and $NpxExe) {
 } elseif ($githubToken) {
     Write-Warn "GitHub MCP skipped (npx not found — install Node.js first)."
 } else {
-    Write-Warn "GitHub MCP skipped (no token). Re-run installer to add it."
+    Write-Warn 'GitHub MCP skipped (no token). Re-run installer to add it.'
 }
 
 # ── Playwright MCP ────────────────────────────────────────────────────────────
@@ -867,12 +1039,28 @@ if ($uvxReady) {
     Write-Host "  Pre-fetching uvx MCP packages (first run only — may take a minute)..." -ForegroundColor Cyan
     foreach ($pkg in $uvxPkgs) {
         try {
-            $p = Start-Process -FilePath $uvxExe -ArgumentList @($pkg, "--help") `
-                -NoNewWindow -PassThru -RedirectStandardOutput $env:TEMP\uvx-warm.out -RedirectStandardError $env:TEMP\uvx-warm.err
+            if (Test-AlfredGuiInstall -and $script:AlfredInstallLogPath) {
+                Write-InstallLogOnly "Pre-fetching uvx package: $pkg"
+                $tag = "$PID-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+                $outF = Join-Path $env:TEMP "alfred_uvx_$tag.out"
+                $errF = Join-Path $env:TEMP "alfred_uvx_$tag.err"
+                $p = Start-Process -FilePath $uvxExe -ArgumentList @($pkg, '--help') `
+                    -NoNewWindow -PassThru -RedirectStandardOutput $outF -RedirectStandardError $errF
+            } else {
+                $p = Start-Process -FilePath $uvxExe -ArgumentList @($pkg, '--help') `
+                    -NoNewWindow -PassThru -RedirectStandardOutput $env:TEMP\uvx-warm.out -RedirectStandardError $env:TEMP\uvx-warm.err
+            }
             if (-not $p.WaitForExit(180000)) { $p.Kill() }  # 3-min cap per package
+            if (Test-AlfredGuiInstall -and $script:AlfredInstallLogPath) {
+                if (Test-Path $outF) { Get-Content $outF | Add-Content $script:AlfredInstallLogPath }
+                if (Test-Path $errF) { Get-Content $errF | Add-Content $script:AlfredInstallLogPath }
+                Remove-Item $outF, $errF -Force -ErrorAction SilentlyContinue
+            }
         } catch {}
     }
-    Remove-Item "$env:TEMP\uvx-warm.out","$env:TEMP\uvx-warm.err" -ErrorAction SilentlyContinue
+    if (-not (Test-AlfredGuiInstall)) {
+        Remove-Item "$env:TEMP\uvx-warm.out","$env:TEMP\uvx-warm.err" -ErrorAction SilentlyContinue
+    }
     Write-Done "uvx MCP packages cached — markitdown, fetch, duckdb will connect on first launch."
 }
 
@@ -928,14 +1116,24 @@ if ($mcpServers.Count -gt 0) {
 
 # ── Playwright Chromium browser ───────────────────────────────────────────────
 
-if ($mcpServers.ContainsKey("playwright")) {
-    Write-Host ""
-    Write-Host "  Playwright needs a Chromium browser to run (~150 MB download)." -ForegroundColor White
-    $doChrome = Read-Host "  Download Chromium now for browser automation? (Y/n)"
-    if ($doChrome -notmatch "^[Nn]") {
-        Write-Host "  Installing Chromium — this may take a few minutes..." -ForegroundColor Cyan
-        & $NpxExe -y playwright install chromium
-        if ($LASTEXITCODE -eq 0) {
+if ($mcpServers.Keys -contains 'playwright') {
+    if (-not (Test-AlfredGuiInstall)) {
+        Write-Host ''
+        Write-Host '  Playwright needs a Chromium browser to run (~150 MB download).' -ForegroundColor White
+    }
+    $doChrome = if (Test-AlfredGuiInstall) { $true } else {
+        -not ((Read-Host '  Download Chromium now for browser automation? (Y/n)') -match '^[Nn]')
+    }
+    if ($doChrome) {
+        if (Test-AlfredGuiInstall) {
+            $script:InstallProgress.SetDetail('Downloading Chromium (~150 MB)...')
+        } else {
+            Write-Host "  Installing Chromium — this may take a few minutes..." -ForegroundColor Cyan
+        }
+        $chromeExit = Invoke-InstallExternal -FilePath $NpxExe `
+            -ArgumentList @('-y', 'playwright', 'install', 'chromium') `
+            -StatusMessage 'Downloading Chromium (~150 MB)...'
+        if ($chromeExit -eq 0) {
             Write-Done "Chromium installed for Playwright browser automation."
         } else {
             Write-Warn "Chromium install may have had issues. Run 'npx playwright install chromium' manually if browser tasks fail."
@@ -985,20 +1183,58 @@ if ($pbiCliExe) {
     Write-Host "  Try manually: .venv\Scripts\pip install pbi-cli-tool" -ForegroundColor DarkGray
 }
 
+Complete-InstallStage 'mcps'
+
 # ── Step 10: Cursor + Claude Code provisioning (shared MCPs + skills) ──────────
 
+Set-InstallStage 'verify' 'Provisioning MCPs, skills, and rules for Cursor and Claude Code...'
 Write-Step "Step 10: Provisioning MCPs + skills + LeanCTX for Cursor, Claude Code, and Codex"
 
 $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {
     try {
-        & $provisionScript -ProjectPath $InstallPath
+        $provisionParams = @{ ProjectPath = $InstallPath }
+        if (Test-AlfredGuiInstall) { $provisionParams.InstallerMode = $true }
+        & $provisionScript @provisionParams
     } catch {
         Write-Warn "Cursor/Claude provisioning failed: $_"
         Write-Host "  Re-run later: powershell -ExecutionPolicy Bypass -File `"$provisionScript`"" -ForegroundColor DarkGray
     }
 } else {
     Write-Warn "Provision-Cursor.ps1 not found — update Alfred (git pull) and re-run the installer."
+}
+
+Complete-InstallStage 'verify'
+
+# ── Step 8: Desktop shortcut ──────────────────────────────────────────────────
+
+Set-InstallStage 'finalize' 'Creating desktop shortcut...'
+Write-Step "Step 8: Desktop shortcut"
+
+$Desktop    = [System.Environment]::GetFolderPath("Desktop")
+$Shortcut   = Join-Path $Desktop "Alfred.lnk"
+$LauncherPs = Join-Path $InstallPath "run-alfred.bat"
+$IconPath   = Join-Path $InstallPath "assets\alfred.ico"
+
+try {
+    $existed = Test-Path $Shortcut
+    $wsh = New-Object -ComObject WScript.Shell
+    $lnk = $wsh.CreateShortcut($Shortcut)
+    $lnk.TargetPath       = "cmd.exe"
+    $lnk.Arguments        = "/c `"$LauncherPs`""
+    $lnk.WorkingDirectory = $InstallPath
+    $lnk.Description      = "Alfred AI Assistant"
+    if (Test-Path $IconPath) { $lnk.IconLocation = "$IconPath,0" } else { $lnk.IconLocation = "cmd.exe,0" }
+    $lnk.Save()
+    if ($existed) { Write-OK 'Desktop shortcut refreshed — Alfred.lnk (custom icon)' }
+    else { Write-Done 'Desktop shortcut created — Alfred.lnk (custom icon)' }
+} catch {
+    Write-Warn "Could not create desktop shortcut: $_"
+}
+
+Complete-InstallStage 'finalize'
+if ($script:AlfredInstallLogPath) {
+    Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Message 'Alfred installed successfully.'
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -1008,14 +1244,25 @@ Write-Host ""
 Write-Host "  Launch: double-click Alfred on your desktop" -ForegroundColor Green
 Write-Host "  Or run: $LauncherPs" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  Quant plugin running at: $QuantUrl" -ForegroundColor DarkGray
+Write-Host "  Optional: Quant plugin — pip install -r plugins\quant\requirements.txt" -ForegroundColor DarkGray
+Write-Host "  Optional: add API keys to .env (Tavily, Anthropic, GitHub) for full MCP stack" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  To update Alfred in future: re-run this installer." -ForegroundColor DarkGray
 Write-Host ""
 
+$completeSummary = @(
+    'Alfred core files and Python environment'
+    'npm tools from requirements/npm-tools.txt (Claude, Codex, lean-ctx)'
+    'Optional CLIs: gh, jq, pandoc, excel-mcp, Azure CLI when available'
+    'Cursor / Claude Code / Codex skills, rules and MCPs'
+    'Desktop shortcut (Alfred.lnk)'
+)
+if (-not (Test-Path (Join-Path $InstallPath '.env'))) {
+    $completeSummary += 'Optional: add .env keys later for Tavily, Anthropic API, GitHub MCP'
+}
+
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction SilentlyContinue)) {
-    if ($script:InstallProgress) { $script:InstallProgress.Close() }
-    Show-AlfredInstallComplete -InstallPath $InstallPath
+    Show-AlfredInstallComplete -InstallPath $InstallPath -SummaryItems $completeSummary
 } elseif ($script:InstallProgress) {
     $script:InstallProgress.Close()
 }
