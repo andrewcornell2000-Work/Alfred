@@ -1,4 +1,6 @@
 <!-- lean-ctx-owned: cooperative -->
+<!-- alfred-provision: cooperative — do not replace with lean-ctx onboard defaults -->
+
 # lean-ctx — optional context compression
 
 Alfred ships lean-ctx for token savings. It complements — does not replace — native Cursor tools or domain MCPs.

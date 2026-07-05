@@ -65,5 +65,5 @@ After `Alfred-Install.exe` or `setup.ps1`:
 1. Restart Cursor / Claude Code / Codex
 2. `claude auth login` and `codex login` (once)
 3. Optional: add `GITHUB_TOKEN`, `TAVILY_API_KEY` to `.env`, re-run `Provision-Cursor.ps1 -ProjectPath <repo>`
-4. If you ran `lean-ctx onboard` alone and agents hang on reads, re-run `Provision-Cursor.ps1` (repairs cooperative rules)
+4. If you ran `lean-ctx onboard` alone and agents hang on reads, re-run `Provision-Cursor.ps1` (final step always overwrites cooperative rules)
 5. Power BI MCP: install VS Code extension `analysis-services.powerbi-modeling-mcp`, re-provision

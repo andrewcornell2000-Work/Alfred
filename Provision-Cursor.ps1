@@ -246,6 +246,31 @@ Full stack rules: `cursor/rules/00-agent-tooling.mdc` in the Alfred repo.
     Write-OK "Repaired repo ctx rules (.cursorrules, LEAN-CTX.md) -> cooperative native-first"
 }
 
+function Repair-CooperativeLeanCtxRule {
+    param([Parameter(Mandatory = $true)][string]$DestDir)
+
+    $src = Join-Path $Root "cursor\rules\lean-ctx.mdc"
+    if (-not (Test-Path $src)) { return $false }
+    if (-not (Test-Path $DestDir)) {
+        New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
+    }
+
+    $dest = Join-Path $DestDir "lean-ctx.mdc"
+    $cooperative = Get-Content $src -Raw -Encoding UTF8
+    Write-TextNoBom $dest $cooperative
+
+    $written = Get-Content $dest -Raw -Encoding UTF8
+    $ok = ($written -match 'alfred-provision:\s*cooperative') -and
+          ($written -match 'alwaysApply:\s*false') -and
+          ($written -notmatch 'MANDATORY')
+    if (-not $ok) {
+        Write-Warn2 "lean-ctx rule at $dest still looks aggressive after repair — forcing Alfred cooperative copy again."
+        Write-TextNoBom $dest $cooperative
+        $ok = $true
+    }
+    return $ok
+}
+
 function Sync-GlobalCursorRules {
     if ($SkipCursor) { return }
     $rulesSrc = Join-Path $Root "cursor\rules"
@@ -255,7 +280,21 @@ function Sync-GlobalCursorRules {
     foreach ($f in Get-ChildItem $rulesSrc -Filter '*.mdc' -File) {
         Copy-Item $f.FullName (Join-Path $rulesDest $f.Name) -Force
     }
-    Write-OK "Synced global Cursor rules -> $rulesDest (overrides lean-ctx onboard's aggressive rule)"
+    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest)
+    Write-OK "Synced global Cursor rules -> $rulesDest"
+}
+
+function Sync-ProjectCursorRules {
+    param([Parameter(Mandatory = $true)][string]$RepoPath)
+
+    if ($SkipCursor) { return }
+    $rulesSrc = Join-Path $Root "cursor\rules"
+    if (-not (Test-Path $rulesSrc)) { return }
+    $rulesDest = Join-Path $RepoPath ".cursor\rules"
+    if (-not (Test-Path $rulesDest)) { return }
+    Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
+    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest)
+    Write-OK "Re-synced project Cursor rules -> $rulesDest (cooperative lean-ctx enforced)"
 }
 
 function Remove-WorkspaceLeanCtxMcp([string]$repoPath) {
@@ -1047,7 +1086,6 @@ if (-not $SkipLeanCtx) {
             $leanOk = Invoke-LeanCtxGuarded -Arguments 'onboard' -TimeoutSec 120
             Repair-LeanCtxForCursor
             Sync-LeanCtxToClaudeDesktop
-            Sync-GlobalCursorRules
             if ($leanOk) {
                 Write-OK "LeanCTX connected (ctx_* tools + hooks). No API keys required."
             } else {
@@ -1057,18 +1095,22 @@ if (-not $SkipLeanCtx) {
             Write-Warn2 "lean-ctx onboard failed: $_ -- install continues."
             Repair-LeanCtxForCursor
             Sync-LeanCtxToClaudeDesktop
-            Sync-GlobalCursorRules
         }
     }
-} else {
-    Sync-GlobalCursorRules
 }
 
 Sync-AlfredRepoCtxRules -RepoRoot $Root
 if ($ProjectPath) { Sync-AlfredRepoCtxRules -RepoRoot $ProjectPath }
 
-# ── Impeccable Cursor hook (runs after lean-ctx so onboard's merge can't drop it) ──
+# ── Impeccable Cursor hook (runs after lean-ctx MCP wiring) ──
 Wire-ImpeccableCursorHook
+
+# ── Final Cursor rules (MUST run last — overwrites lean-ctx onboard's aggressive rule) ──
+Write-Step "Cursor rules: enforcing Alfred cooperative lean-ctx (final overwrite)"
+Sync-GlobalCursorRules
+if ($ProjectPath -and (Test-Path $ProjectPath)) {
+    Sync-ProjectCursorRules -RepoPath $ProjectPath
+}
 
 # ── summary ───────────────────────────────────────────────────────────────────
 if ($skippedServers.Count -gt 0) {
