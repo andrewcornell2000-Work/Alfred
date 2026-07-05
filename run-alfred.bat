@@ -27,36 +27,25 @@ for /f "delims=" %%I in ('npm prefix -g 2^>nul') do (
     if exist "%%I" set "PATH=%%I;%PATH%"
 )
 
-if exist "%REPO%\.git" (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\check-updates.ps1" -Gui
-    set "UPDATE_EXIT=%ERRORLEVEL%"
-    if "%UPDATE_EXIT%"=="10" (
-        echo.
-        echo Applying updated requirements...
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\setup.ps1"
-        set "SETUP_EXIT=%ERRORLEVEL%"
-        if not "%SETUP_EXIT%"=="0" (
-            echo.
-            echo [ERROR] Setup after update exited with code %SETUP_EXIT%.
-            pause
-            exit /b %SETUP_EXIT%
-        )
-        echo.
-    )
-)
-
-if not exist "%REPO%\.venv\Scripts\activate.bat" (
+if not exist "%REPO%\.venv\Scripts\python.exe" (
     echo [ERROR] .venv not found. Run Install-Alfred.bat first.
     pause
     exit /b 1
 )
 
-call "%REPO%\.venv\Scripts\activate.bat"
-
 cd /d "%REPO%"
-"%REPO%\.venv\Scripts\python.exe" .\backend\main.py
+"%REPO%\.venv\Scripts\python.exe" -m backend.cli update
+set "CLI_EXIT=%ERRORLEVEL%"
+
+if not "%CLI_EXIT%"=="0" (
+    echo.
+    echo [ERROR] Alfred update/provision failed with exit code %CLI_EXIT%.
+    pause
+    exit /b %CLI_EXIT%
+)
 
 echo.
-echo Alfred has exited. Press any key to close.
+echo Alfred is ready. Use Cursor, Claude Code, or Codex for AI tasks.
+echo.
 pause >nul
 endlocal

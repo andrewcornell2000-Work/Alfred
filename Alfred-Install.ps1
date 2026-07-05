@@ -83,6 +83,12 @@ function Get-AlfredInstallerRoot {
 
 $ScriptRoot = Get-AlfredInstallerRoot
 
+# ALFRED_COMMON_INLINE
+if (-not (Get-Command Find-Command -ErrorAction SilentlyContinue)) {
+    $alfCommon = Join-Path $ScriptRoot 'Alfred-Common.ps1'
+    if (Test-Path $alfCommon) { . $alfCommon }
+}
+
 function Import-AlfredInstallerModules([string]$Root) {
     if ([string]::IsNullOrWhiteSpace($Root)) { $Root = Get-AlfredInstallerRoot }
     foreach ($rel in @(
@@ -249,92 +255,6 @@ function Write-CommandOutput {
 
 function Invoke-PipInstall([string[]]$Packages) {
     & $PipExe install --quiet --disable-pip-version-check @Packages
-}
-
-function Find-Command([string]$Name) {
-    foreach ($candidate in @("$Name.cmd", "$Name.exe", "$Name.bat", $Name)) {
-        $found = Get-Command $candidate -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandType -ne "Alias" } |
-            Select-Object -First 1
-        if ($found) { return $found.Source }
-    }
-    return $null
-}
-
-function Get-PythonExe {
-    $candidatePaths = @()
-    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
-        $cmd = Find-Command $candidate
-        if ($cmd) { $candidatePaths += $cmd }
-    }
-    foreach ($root in @(
-        "$env:LOCALAPPDATA\Programs\Python",
-        "$env:ProgramFiles",
-        "${env:ProgramFiles(x86)}"
-    )) {
-        if ($root -and (Test-Path $root)) {
-            $candidatePaths += @(
-                Get-ChildItem -Path $root -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
-                    Sort-Object Name -Descending |
-                    ForEach-Object {
-                        $exe = Join-Path $_.FullName "python.exe"
-                        if (Test-Path $exe) { $exe }
-                    }
-            )
-        }
-    }
-    foreach ($regRoot in @(
-        "HKCU:\Software\Python\PythonCore",
-        "HKLM:\Software\Python\PythonCore",
-        "HKLM:\Software\WOW6432Node\Python\PythonCore"
-    )) {
-        if (Test-Path $regRoot) {
-            $candidatePaths += @(
-                Get-ChildItem $regRoot -ErrorAction SilentlyContinue |
-                    Sort-Object PSChildName -Descending |
-                    ForEach-Object {
-                        $install = Get-ItemProperty "$($_.PSPath)\InstallPath" -ErrorAction SilentlyContinue
-                        $exes = @()
-                        if ($install.ExecutablePath) { $exes += $install.ExecutablePath }
-                        if ($install.'(default)') { $exes += (Join-Path $install.'(default)' "python.exe") }
-                        foreach ($exe in $exes) {
-                            if ($exe -and (Test-Path $exe)) { $exe }
-                        }
-                    }
-            )
-        }
-    }
-
-    $orderedCandidates = @($candidatePaths | Where-Object { $_ -notlike "*\Microsoft\WindowsApps\*" } | Select-Object -Unique)
-    $orderedCandidates += @($candidatePaths | Where-Object { $_ -like "*\Microsoft\WindowsApps\*" } | Select-Object -Unique)
-    foreach ($cmd in $orderedCandidates) {
-        if (-not $cmd) { continue }
-        $isLauncher = [IO.Path]::GetFileNameWithoutExtension($cmd) -eq "py"
-        $args = if ($isLauncher) { @("-3", "--version") } else { @("--version") }
-        $output = & $cmd @args 2>&1 | Select-Object -First 1
-        if ("$output" -match "^Python\s+3\.(1[0-9])\.") {
-            return [PSCustomObject]@{
-                Exe      = $cmd
-                VenvArgs = if ($isLauncher) { @("-3", "-m", "venv") } else { @("-m", "venv") }
-                Version  = "$output"
-            }
-        }
-    }
-    return $null
-}
-
-function Refresh-Path {
-    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("PATH","User")
-}
-
-function Add-PathEntry([string]$Entry) {
-    if (-not $Entry -or -not (Test-Path $Entry)) { return }
-    if ($env:PATH -notlike "*$Entry*") { $env:PATH = "$Entry;$env:PATH" }
-    $user = [System.Environment]::GetEnvironmentVariable("PATH","User")
-    if ($user -notlike "*$Entry*") {
-        [System.Environment]::SetEnvironmentVariable("PATH", "$user;$Entry", "User")
-    }
 }
 
 function Install-Tool([string]$WingetId, [string]$ScoopName, [string]$DisplayName) {
@@ -565,6 +485,8 @@ if (Test-Path (Join-Path $InstallPath ".git")) {
 Import-AlfredInstallerModules $InstallPath
 $repoToolsPath = Join-Path $InstallPath 'installer\Install-RepoTools.ps1'
 if (Test-Path $repoToolsPath) { . $repoToolsPath }
+$coreSetupPath = Join-Path $InstallPath 'Alfred-CoreSetup.ps1'
+if (Test-Path $coreSetupPath) { . $coreSetupPath }
 
 # ── Step 3: Python ────────────────────────────────────────────────────────────
 
@@ -592,41 +514,27 @@ if ($PythonInfo) {
 $VenvPath = Join-Path $InstallPath ".venv"
 $PipExe   = Join-Path $VenvPath "Scripts\pip.exe"
 
-if (-not (Test-Path $VenvPath)) {
-    Write-Host "  Creating virtual environment..." -ForegroundColor Cyan
-    & $PythonInfo.Exe @($PythonInfo.VenvArgs + @($VenvPath))
-    if ($LASTEXITCODE -eq 0) {
-        Write-Done ".venv created."
+$pySetup = Install-AlfredPythonEnvironment -RepoRoot $InstallPath -PythonInfo $PythonInfo -OnStep {
+    param($Msg)
+    if (Test-AlfredGuiInstall) {
+        if ($script:InstallProgress) { $script:InstallProgress.SetDetail($Msg) }
     } else {
-        Write-Fail "Could not create .venv."
+        Write-Host "  $Msg" -ForegroundColor Cyan
     }
-} else {
-    Write-OK ".venv exists."
 }
-
-$ReqFile = Join-Path $InstallPath "requirements\python-requirements.txt"
-if (Test-Path $PipExe) {
-    Write-Host "  Installing Python packages..." -ForegroundColor Cyan
-    if (Test-Path $ReqFile) {
-        $failedPythonPackages = @()
-        Get-Content $ReqFile | ForEach-Object {
-            $pkg = $_.Trim()
-            if ($pkg -and -not $pkg.StartsWith("#")) {
-                Invoke-PipInstall @($pkg)
-                if ($LASTEXITCODE -ne 0) { $failedPythonPackages += $pkg }
-            }
-        }
-        if ($failedPythonPackages.Count -gt 0) {
-            Write-Warn "Some optional Python packages failed: $($failedPythonPackages -join ', ')"
-            Write-Host "  Alfred will continue; repair affected specialist features from Control Tower." -ForegroundColor DarkGray
-        }
-    } else {
-        Invoke-PipInstall @("openai", "rich", "python-dotenv", "typer")
-    }
-    Write-Done "Python packages installed."
-    Install-AlfredVenvPostSetup -VenvPath $VenvPath
+if (-not $pySetup.Ok) {
+    Write-Fail $pySetup.Message
 } else {
-    Write-Fail "pip not found in .venv — package install skipped."
+    if (Test-Path $VenvPath) { Write-OK ".venv ready." }
+    if ($pySetup.Failed -and $pySetup.Failed.Count -gt 0) {
+        Write-Warn "Some optional Python packages failed: $($pySetup.Failed -join ', ')"
+        Write-Host "  Alfred will continue; re-run setup or: python -m backend.cli diagnose" -ForegroundColor DarkGray
+    } else {
+        Write-Done "Python packages installed."
+    }
+    if (Get-Command Install-AlfredVenvPostSetup -ErrorAction SilentlyContinue) {
+        Install-AlfredVenvPostSetup -VenvPath $VenvPath
+    }
 }
 
 # ── Step 4: Node.js + CLIs ────────────────────────────────────────────────────
@@ -823,7 +731,7 @@ if ($existingAnthropic) {
 
 Write-Step "Step 7c: GitHub Personal Access Token (create PRs, manage issues, search repos)"
 Write-Host ""
-Write-Host "  Alfred uses GitHub MCP to manage repositories directly from chat." -ForegroundColor White
+Write-Host "  GitHub MCP lets Cursor and Claude Code manage repositories (PRs, issues, search)." -ForegroundColor White
 Write-Host "  Create a token (classic): https://github.com/settings/tokens/new" -ForegroundColor DarkGray
 Write-Host "  Recommended scopes: repo, read:org, workflow" -ForegroundColor DarkGray
 Write-Host ""
@@ -1223,7 +1131,7 @@ try {
     $lnk.TargetPath       = "cmd.exe"
     $lnk.Arguments        = "/c `"$LauncherPs`""
     $lnk.WorkingDirectory = $InstallPath
-    $lnk.Description      = "Alfred AI Assistant"
+    $lnk.Description      = "Alfred - update and provision"
     if (Test-Path $IconPath) { $lnk.IconLocation = "$IconPath,0" } else { $lnk.IconLocation = "cmd.exe,0" }
     $lnk.Save()
     if ($existed) { Write-OK 'Desktop shortcut refreshed — Alfred.lnk (custom icon)' }
@@ -1241,7 +1149,7 @@ if ($script:AlfredInstallLogPath) {
 
 Write-Banner "Alfred is ready"
 Write-Host ""
-Write-Host "  Launch: double-click Alfred on your desktop" -ForegroundColor Green
+Write-Host "  Launch: double-click Alfred on your desktop (update + provision)" -ForegroundColor Green
 Write-Host "  Or run: $LauncherPs" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  Optional: add API keys to .env (Tavily, Anthropic, GitHub) for full MCP stack" -ForegroundColor DarkGray

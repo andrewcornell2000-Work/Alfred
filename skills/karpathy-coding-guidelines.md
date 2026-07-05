@@ -15,7 +15,7 @@ Alfred should apply these guidelines when a task is classified as `CLAUDE_EXECUT
 - Debugging errors, exceptions, or unexpected behaviour
 - Architecture decisions (how to structure modules, APIs, data flows)
 - UI or app/dashboard design and layout changes
-- Alfred self-modification (changes to `backend/main.py`, prompts, routing rules, or manifests)
+- Alfred self-modification (changes to installer scripts, `backend/cli.py`, routing rules, or manifests)
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial or clearly-scoped tasks, use judgment.
 

@@ -22,6 +22,8 @@ function Test-PowerShellParse([string]$Path) {
 }
 
 Write-Host '=== Parse-check installer modules ===' -ForegroundColor Cyan
+Test-PowerShellParse (Join-Path $Root 'Alfred-Common.ps1')
+Test-PowerShellParse (Join-Path $Root 'Alfred-CoreSetup.ps1')
 Get-ChildItem (Join-Path $Root 'installer\*.ps1') | ForEach-Object { Test-PowerShellParse $_.FullName }
 Test-PowerShellParse (Join-Path $Root 'Alfred-Install.ps1')
 

@@ -23,7 +23,7 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 
 | Tool | Try asking |
 |------|------------|
-| LeanCTX | "Read `backend/main.py` in map mode — don't dump the whole file" |
+| LeanCTX | "Use lean-ctx map mode on large files — don't dump the whole file" |
 | Power BI MCP | "Add a measure for labour cost per FTE in the open Desktop model" |
 | Excel (excellm) | "Update the pivot on the **open** wages workbook" |
 | Excel-mcp | "Inspect Power Query steps in the **closed** billing template xlsm" |

@@ -9,7 +9,7 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 
 ## Currently Configured (cursor/mcp.json)
 
-**10 domain MCPs** + **LeanCTX** (merged via `lean-ctx onboard`). Tavily web search is **not** an MCP — it runs from `backend/main.py`.
+**10 domain MCPs** + **LeanCTX** (merged via `lean-ctx onboard`). Tavily web search is optional via `TAVILY_API_KEY` in `.env` (not provisioned as an MCP).
 
 | Server | Role |
 |--------|------|
@@ -43,7 +43,7 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 - **Command:** `<extension-path>\server\powerbi-modeling-mcp.exe --start`
 - **Purpose:** Read and edit Power BI data models — measures, columns, tables, relationships, hierarchies, calculation groups
 - **Trust:** official (Microsoft)
-- **Destructive:** true (can modify live Power BI models — represented in Alfred's DANGEROUS_KEYWORDS gate)
+- **Destructive:** true (can modify live Power BI models — see `requirements/safety-gates.md`)
 - **Install:** Install VS Code extension `analysis-services.powerbi-modeling-mcp` — Alfred installer auto-detects the path
 
 ### excel
@@ -138,8 +138,8 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 - **Requires:** No API keys or accounts for core use
 - **Skill:** `skills/lean-ctx.md`
 
-### Web search (Tavily — not an MCP)
-- **Source:** Direct HTTP API from `backend/main.py` (not provisioned via `cursor/mcp.json`)
+### Web search (Tavily — optional, not an MCP)
+- **Source:** Optional `TAVILY_API_KEY` in Alfred `.env` (not provisioned via `cursor/mcp.json`)
 - **Requires:** `TAVILY_API_KEY` in Alfred `.env`
 - **Purpose:** Live web search for latest docs, versions, news, and current public information
 - **Skill:** `skills/web-search.md`
@@ -160,9 +160,7 @@ When Alfred encounters or learns about a new MCP server during a session:
 ### Hard Rules
 
 - Never store MCP server credentials, tokens, or API keys in this file or any manifest.
-- Tools marked `destructive: true` must be represented in Alfred's safety gate in
-  `backend/main.py` (`DANGEROUS_KEYWORDS` and dispatch checks) before they are
-  allowed to dispatch.
+- Tools marked `destructive: true` must be documented in `requirements/safety-gates.md` and skill safety notes before they are provisioned.
 - Never auto-pull from GitHub or auto-install tools without explicit user approval.
 
 ---

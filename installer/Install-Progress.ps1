@@ -477,7 +477,7 @@ $InstallPath
 
 $items
 
-Launch Alfred from your desktop shortcut or run run-alfred.bat.
+Launch Alfred from your desktop shortcut or run run-alfred.bat (update + provision).
 If browser sign-in windows opened for Claude or Codex, complete them when convenient.
 Restart Cursor after install so MCP changes take effect.
 "@

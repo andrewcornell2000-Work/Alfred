@@ -79,8 +79,8 @@ if not "%SETUP_EXIT%"=="0" (
     exit /b %SETUP_EXIT%
 )
 
-:: All prerequisites met. Launch Alfred.
-echo Starting Alfred...
+:: All prerequisites met. Provision and sync Alfred.
+echo Provisioning Alfred...
 echo.
 call "%REPO%\run-alfred.bat"
 

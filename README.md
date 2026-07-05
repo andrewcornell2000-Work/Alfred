@@ -1,6 +1,6 @@
 # Alfred Pack 2.0
 
-**Alfred is a Windows toolchain pack** — not a chatbot you use every day.
+**Alfred is a Windows installer and toolchain pack** — not a chat app you use every day.
 
 Run `Alfred-Install.exe` once and it wires your PC for AI work:
 
@@ -11,7 +11,7 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
 
 **Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
 
-**Alfred CLI** (`run-alfred.bat`) is for updates, health checks, and viewing discovered tools — see [PACK.md](PACK.md).
+**Maintenance:** re-run the installer or `run-alfred.bat` to update and re-provision — see [PACK.md](PACK.md).
 
 ---
 
@@ -52,7 +52,7 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
    - Print login instructions for Claude and Codex
    - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
    - Run `lean-ctx onboard` — merges LeanCTX context compression (no API keys required)
-   - Launch Alfred only when the required local toolchain is ready
+   - Create a desktop shortcut that runs **update + provision** (not a chat window)
 
 4. **Log in once**
 
@@ -110,7 +110,7 @@ Before Alfred is fully useful, you need:
 | Node.js 18+ and npm | Install Claude Code and Codex CLIs | https://nodejs.org/ |
 | Claude Code login | File/app/MCP execution provider | `claude auth login` |
 | Codex login | Code implementation provider | `codex login` |
-| Optional API keys | Faster chat, web research, GitHub MCP | `.env` |
+| Optional API keys | Web research, GitHub MCP, optional API paths | `.env` |
 
 Claude and Codex use browser-based CLI login. Alfred can run from those logins; API keys are optional enhancements.
 
@@ -167,28 +167,32 @@ codex login
 
 **Use Cursor** (or Claude Code / Codex) for real work. MCPs, LeanCTX, and skills are global.
 
+Alfred itself is **not** your workspace — it installs, provisions, updates, and validates.
+
 ### Keep the pack current
 
 ```powershell
 # Re-run installer, or:
-.\run-alfred.bat          # checks git pull → setup → provision
+.\run-alfred.bat          # git update check → setup → provision
 ```
 
-### Alfred CLI menu (optional)
+### Developer maintenance commands (non-interactive)
 
-| Option | Purpose |
-|---|---|
-| 2 | **Control Tower** — what's installed and ready on this machine |
-| 3 | View Skills |
-| 4 | **Discovered Tools** — things the loop found that you can try in Cursor |
-| 7 | Publish update to GitHub |
-| 1 | Ask Alfred (legacy chat — Cursor is better for daily work) |
+These are for diagnostics and automation — **not** a user-facing chat CLI:
 
-New tools land in `requirements/discovered-tools.md` with **"Try asking:"** prompts. Re-provision after pulling updates.
+```powershell
+python -m backend.cli status      # short installed/provisioned summary
+python -m backend.cli diagnose    # detailed health report
+python -m backend.cli validate    # catalog, template, rules sync, tests
+python -m backend.cli provision   # re-run Provision-Cursor.ps1
+python -m backend.cli update      # same flow as run-alfred.bat
+```
+
+New tools land in `requirements/discovered-tools.md` with **"Try asking:"** prompts for use **inside Cursor**. Re-provision after pulling updates.
 
 ## Office Mastery
 
-Alfred is being shaped into an Office operator, not just a chat router:
+Alfred provisions Office-capable MCPs and skills. Use them from Cursor / Claude Code:
 
 | Domain | Tool path |
 |---|---|
@@ -200,7 +204,7 @@ Alfred is being shaped into an Office operator, not just a chat router:
 | PowerPoint decks | `python-pptx` |
 | PDFs | `pypdf` |
 
-Use `Control Tower` to see which capabilities are ready on the current machine.
+Check readiness: `python -m backend.cli diagnose` or `lean-ctx doctor`.
 
 ---
 
@@ -231,20 +235,13 @@ Each is auto-skipped by `Provision-Cursor.ps1` if its key/command is missing, so
 
 ## Continuous Learning (instincts)
 
-Alfred now learns **instincts** — confidence-scored `when X → do Y` lessons that
-**surface automatically at the start of every session** (via a `SessionStart`
-hook), instead of sitting inert in a memory file.
+Alfred learns **instincts** — confidence-scored `when X → do Y` lessons surfaced via Claude Code hooks (not via an Alfred chat UI):
 
 ```powershell
 python scripts/instinct-cli.py status     # see what Alfred has learned
 ```
 
-Slash commands `/instinct-status` and `/instinct-learn` drive it; the autonomous
-loop records a lesson each iteration and ages out stale ones. Two guardrail hooks
-ship alongside (wired in `.claude/settings.json`): **config-protection** (blocks
-weakening linter configs) and **pre-commit-quality** (secret/debugger scan before
-`git commit`). Details: `skills/continuous-learning.md` and
-`memory/instincts/README.md`.
+Details: `skills/continuous-learning.md` and `memory/instincts/README.md`.
 
 ---
 
@@ -252,27 +249,31 @@ weakening linter configs) and **pre-commit-quality** (secret/debugger scan befor
 
 ```powershell
 .venv\Scripts\activate
-python backend\main.py
+python -m backend.cli validate    # safe checks
+python -m backend.cli status      # quick health summary
 ```
+
+Legacy entry point `python backend\main.py` forwards to the maintenance CLI (no chat).
 
 ## Project Layout
 
 ```text
-backend/                         Core Alfred CLI and routing logic
+backend/cli.py                   Non-interactive maintenance runner (update/provision/validate/…)
+backend/diagnostics/             MCP status, setup scan, plain-text reports
+backend/provision/registry.py    Capability registry
+backend/skills_loader.py           Skill inventory for diagnostics (status/diagnose)
 requirements/                    Python, npm, MCP, and tool manifests
-skills/                          Markdown skill modules
-memory/                          Conversation memory, routing notes, learning log
-memory/instincts/                Confidence-scored learned instincts (continuous learning)
+requirements/safety-gates.md       Destructive-tool safety keywords for skill authors
+skills/                          Markdown skill modules (provisioned globally)
+memory/                          Learning log, routing notes, instincts
 scripts/instinct-cli.py          Instinct engine (status/record/decay/prune)
-scripts/hooks/                   Claude Code hooks (instinct surfacing + guardrails)
-logs/                            Interaction logs
-Alfred-Install.ps1               Source script compiled into Alfred-Install.exe for releases
-Install-Alfred.bat               Repo-local installer and launcher fallback
-Install-From-GitHub.bat          Legacy bootstrap fallback when the .exe is unavailable
-run-alfred.bat                   Day-to-day launcher with update check
+Alfred-Install.ps1               Source compiled into Alfred-Install.exe for releases
+Install-Alfred.bat               Repo-local installer fallback
+run-alfred.bat                   Update + provision launcher (desktop shortcut target)
 check-updates.ps1                Prompts before pulling GitHub updates
-setup.ps1                        Idempotent setup script
-CLAUDE.md                        Claude Code instructions
+Provision-Cursor.ps1             MCP + skills + rules provisioning
+setup.ps1                        Idempotent environment setup
+CLAUDE.md                        Claude Code instructions for this repo
 AGENTS.md                        Coding agent guidelines
 ```
 

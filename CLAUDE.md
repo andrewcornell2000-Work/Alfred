@@ -4,127 +4,111 @@ This file provides guidance to Claude Code and other coding agents working in th
 
 ## Project Overview
 
-Alfred is a CLI-based AI task routing and prompt optimization orchestrator. It accepts natural-language task descriptions, classifies them with OpenAI, and routes work to one of three paths:
+Alfred is a **Windows installer + provision + update + validation pack**. It is **not** an interactive chat or menu CLI.
 
-- `GENERAL` -> OpenAI Mini response in the terminal
-- `POWERBI` -> scoped Claude Code execution plan and dispatch
-- `CLAUDE_EXECUTION` -> Codex or Claude Code, chosen by deterministic keyword scoring
+Normal user flow:
 
-Claude Code and Codex are invoked through their local CLIs. Alfred currently uses CLI login for those providers, not provider API keys.
+1. Install via **`Alfred-Install.exe`** (or `Install-Alfred.bat` from a clone).
+2. Alfred runs **`setup.ps1`** and **`Provision-Cursor.ps1`** — MCPs, skills, and rules land in Cursor, Claude Code, and Codex.
+3. User works in those tools day-to-day.
+4. Re-run **`run-alfred.bat`** or **`python -m backend.cli update`** to pull updates and re-provision.
 
-## Running the App
+## Maintenance CLI (developer / automation only)
+
+Non-interactive command runner — **not** a chat interface:
 
 ```powershell
-# Activate the virtual environment (Windows)
 .venv\Scripts\activate
-
-# Run Alfred
-python backend\main.py
+python -m backend.cli status      # short summary
+python -m backend.cli diagnose    # detailed health report
+python -m backend.cli validate    # catalog + template + rules + tests
+python -m backend.cli provision   # Provision-Cursor.ps1
+python -m backend.cli update      # check-updates → setup (if needed) → provision
 ```
 
-At the `Alfred >` prompt, type a task description. Enter `back`, `menu`, or `exit` to return to the main menu.
+`python backend\main.py` is a deprecated shim that forwards to `backend.cli`.
 
 ## Environment Setup
 
-The core app expects:
-
 ```text
+# Optional in .env — only keys you use:
+TAVILY_API_KEY=...
+GITHUB_TOKEN=...
 OPENAI_API_KEY=...
 ```
 
 Use `claude auth login` and `codex login` for Claude Code and Codex authentication.
 
-Python packages for Alfred core are declared in `requirements/python-requirements.txt` and installed into `.venv` by `setup.ps1`.
+Python packages: `requirements/python-requirements.txt` → `.venv` via `setup.ps1`.
 
 ## Architecture
 
-Most orchestration logic lives in `backend/main.py`.
+| Module | Purpose |
+|--------|---------|
+| `backend/cli.py` | Maintenance command runner |
+| `backend/diagnostics/` | MCP status, setup scan, plain-text reports |
+| `backend/provision/registry.py` | Capability registry (`TOOL_REGISTRY`) |
+| `backend/updater/git.py` | Git fetch / behind-count helpers |
+| `backend/config/env.py` | `.env` and secret helpers |
+| `backend/context.py` | Project root, console, `.env` loading |
+| `Provision-Cursor.ps1` | Single source of truth for MCP + skill provisioning |
+| `Alfred-Install.ps1` | Full installer (compiled to `Alfred-Install.exe`) |
+| `check-updates.ps1` | User-approved git pull |
+| `setup.ps1` | Idempotent venv, npm, PATH setup |
 
-1. **Classify** - `classify_task()` sends input to OpenAI with `CLASSIFIER_PROMPT`, returning `GENERAL`, `POWERBI`, or `CLAUDE_EXECUTION`.
-2. **Choose provider** - `choose_provider()` routes by category plus keyword scoring:
-   - `GENERAL` -> `openai_mini`
-   - `POWERBI` -> `claude_code`
-   - `CLAUDE_EXECUTION` -> `codex`, `claude_code`, or `openai_mini`
-3. **Scope** - `generate_claude_scope()` asks Claude CLI to produce a constrained execution plan for `POWERBI` and `CLAUDE_EXECUTION` tasks.
-4. **Dispatch** - `run_claude()` or `run_codex()` executes the scoped prompt when auto-dispatch gates allow it.
-5. **Render/log** - Rich terminal panels display results; logs and autosave entries are written under `logs/` and `memory/`.
+Shared PowerShell: `Alfred-Common.ps1`, `Alfred-CoreSetup.ps1`.
 
-## Routing Rules
+### Legacy routing modules (removed)
 
-Routing documentation lives in `memory/routing-rules.md`. Keep it aligned with these constants/functions in `backend/main.py`:
+Interactive task routing (`routing/brain.py`, `routing/keywords.py`) was removed.
+Capability metadata lives in `backend/provision/registry.py`.
+Safety keywords for skill authors: `requirements/safety-gates.md`.
 
-- `CLASSIFIER_PROMPT`
-- `DANGEROUS_KEYWORDS`
-- `CODEX_ROUTING_KEYWORDS`
-- `CLAUDE_CODE_ROUTING_KEYWORDS`
-- `LEARNING_MODE_KEYWORDS`
-- `choose_provider()`
-- `should_send_to_claude()`
-- `detect_provider_override()`
+## Capability registry
 
-Explicit provider override phrases such as `use claude ...` and `use codex ...` should bypass normal keyword scoring when present.
+Human-readable capability list: `memory/routing-rules.md`.
 
-## Prompt Engineering Conventions
+Code: `backend/provision/registry.py` — `TOOL_REGISTRY`, `register_tool()`, `iter_control_tower_capabilities()`.
 
-`CLAUDE_SCOPE_PROMPT` encodes rules for generated Claude Code prompts:
-
-- Minimize MCP usage
-- Avoid broad scans
-- Inspect minimum necessary scope before acting
-- Stop after diagnosis unless the user asked for fixes
-- For Power Query column errors, inspect query steps before source files
-- Include hard stop conditions
-- Never tell Claude to scan all source files indiscriminately
-
-When modifying or extending this prompt, preserve these scoping principles.
+Diagnostics display: `python -m backend.cli diagnose`.
 
 ## Tool Manifests
 
-Tool and dependency metadata is tracked in `requirements/`:
-
 | File | Purpose |
 |---|---|
-| `python-requirements.txt` | Core Alfred pip packages used by `setup.ps1` |
-| `npm-tools.txt` | npm global CLI tools; format `package:command:description` |
-| `alfred-tools.json` | Reference manifest for tool/plugin metadata |
-| `mcp-tools.md` | MCP server documentation and candidate registry |
+| `python-requirements.txt` | Core Alfred pip packages |
+| `npm-tools.txt` | npm global CLI tools |
+| `alfred-tools.json` | MCP/tool metadata for diagnostics |
+| `mcp-tools.md` | MCP server documentation |
+| `safety-gates.md` | Destructive-tool safety keywords for skill authors |
+| `discovered-tools.md` | Growth-loop catalog |
 
-`setup.ps1` reads `requirements/python-requirements.txt` and `requirements/npm-tools.txt`.
-
-## Learning Mode: Adding External Tools
+## Adding External Tools
 
 When Alfred learns about a new external tool:
 
-1. Add the tool to the appropriate install manifest when persistent installation is required.
-2. Update `alfred-tools.json` with the full tool entry.
+1. Add to install manifest if persistent installation is required.
+2. Update `alfred-tools.json`.
 3. Update `requirements/mcp-tools.md` if it is an MCP server.
-4. Update `README.md` if the tool changes setup, login, API key, or local dependency steps.
-5. Commit manifest and documentation changes before the session ends.
+4. Add MCP entry to `cursor/mcp.json` if provisioned.
+5. Update `README.md` if setup/login steps change.
+6. Run `Provision-Cursor.ps1` and `python -m backend.cli validate`.
 
 Rules:
 
-- Never add API keys, tokens, or credentials to committed files.
-- Never auto-pull from GitHub or auto-install tools without explicit user approval.
-- New tools with file-write or destructive capabilities must be represented in the safety gates before dispatch is allowed.
+- Never add API keys to committed files.
+- Never auto-pull or auto-install without explicit user approval.
+- Destructive tools: document in `requirements/safety-gates.md` and skill safety notes.
 
 ## Update Flow
 
-`run-alfred.bat` calls `check-updates.ps1` on each startup:
+`run-alfred.bat` / `backend.cli update`:
 
-1. Runs `git fetch origin main`.
-2. Compares local HEAD with `origin/main`.
-3. If behind, shows the commit list and asks before pulling.
-4. If updates are pulled, `run-alfred.bat` re-runs `setup.ps1`.
+1. `check-updates.ps1` — fetch, prompt, pull if approved (exit 10 = pulled).
+2. `setup.ps1` — if updates were pulled.
+3. `Provision-Cursor.ps1` — re-provision MCPs and skills.
 
-`backend/main.py` also has a startup update check when run directly, and it follows the same approval-before-pull rule.
-
-## Current Known Gaps
-
-- Project Mode is planned but not implemented yet.
-- Learning / Creator Mode exists as Dev Portal, but deterministic file-writing workflows for skills/rules/tools are still evolving.
 ## Coding Guidelines
-
-For coding, refactoring, debugging, architecture, UI/app design, and Alfred self-improvement tasks, apply:
 
 - `skills/karpathy-coding-guidelines.md`
 - `AGENTS.md`

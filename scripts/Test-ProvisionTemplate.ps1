@@ -35,8 +35,8 @@ if (-not $tpl._retiredServers) {
 
 foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
     $def = $prop.Value
-    if (-not $def.command) {
-        Write-Error "Server '$($prop.Name)' has no command"
+    if (-not $def.command -and -not $def.url) {
+        Write-Error "Server '$($prop.Name)' has no command or url"
     }
     if ($prop.Name -in @('sqlite', 'duckdb', 'fetch', 'time', 'markitdown')) {
         if ($def.command -ne 'uvx') {

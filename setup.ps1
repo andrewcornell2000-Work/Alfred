@@ -18,126 +18,8 @@
 $ErrorActionPreference = "Continue"
 $Root = $PSScriptRoot
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-function Find-Command([string]$Name) {
-    foreach ($candidate in @("$Name.cmd", "$Name.exe", "$Name.bat", $Name)) {
-        $cmd = Get-Command $candidate -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandType -ne "Alias" } |
-            Select-Object -First 1
-        if ($null -ne $cmd) { return $cmd.Source }
-    }
-    return $null
-}
-
-function Get-PythonExe {
-    $candidatePaths = @()
-    foreach ($candidate in @("py.exe", "python.exe", "python3.exe", "py", "python", "python3")) {
-        $cmd = Find-Command $candidate
-        if ($cmd) { $candidatePaths += $cmd }
-    }
-    foreach ($root in @(
-        "$env:LOCALAPPDATA\Programs\Python",
-        "$env:ProgramFiles",
-        "${env:ProgramFiles(x86)}"
-    )) {
-        if ($root -and (Test-Path $root)) {
-            $candidatePaths += @(
-                Get-ChildItem -Path $root -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
-                    Sort-Object Name -Descending |
-                    ForEach-Object {
-                        $exe = Join-Path $_.FullName "python.exe"
-                        if (Test-Path $exe) { $exe }
-                    }
-            )
-        }
-    }
-    foreach ($regRoot in @(
-        "HKCU:\Software\Python\PythonCore",
-        "HKLM:\Software\Python\PythonCore",
-        "HKLM:\Software\WOW6432Node\Python\PythonCore"
-    )) {
-        if (Test-Path $regRoot) {
-            $candidatePaths += @(
-                Get-ChildItem $regRoot -ErrorAction SilentlyContinue |
-                    Sort-Object PSChildName -Descending |
-                    ForEach-Object {
-                        $install = Get-ItemProperty "$($_.PSPath)\InstallPath" -ErrorAction SilentlyContinue
-                        $exes = @()
-                        if ($install.ExecutablePath) { $exes += $install.ExecutablePath }
-                        if ($install.'(default)') { $exes += (Join-Path $install.'(default)' "python.exe") }
-                        foreach ($exe in $exes) {
-                            if ($exe -and (Test-Path $exe)) { $exe }
-                        }
-                    }
-            )
-        }
-    }
-
-    $orderedCandidates = @($candidatePaths | Where-Object { $_ -notlike "*\Microsoft\WindowsApps\*" } | Select-Object -Unique)
-    $orderedCandidates += @($candidatePaths | Where-Object { $_ -like "*\Microsoft\WindowsApps\*" } | Select-Object -Unique)
-    foreach ($cmd in $orderedCandidates) {
-        if (-not $cmd) { continue }
-        $isLauncher = [IO.Path]::GetFileNameWithoutExtension($cmd) -eq "py"
-        $args = if ($isLauncher) { @("-3", "--version") } else { @("--version") }
-        $output = & $cmd @args 2>&1 | Select-Object -First 1
-        if ("$output" -match "^Python\s+3\.(1[0-9])\.") {
-            return [PSCustomObject]@{
-                Exe      = $cmd
-                VenvArgs = if ($isLauncher) { @("-3", "-m", "venv") } else { @("-m", "venv") }
-                Version  = "$output"
-            }
-        }
-    }
-    return $null
-}
-
-function Refresh-Path {
-    # Reload Machine + User PATH into the current process after a winget install.
-    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("PATH","User")
-}
-
-function Add-ProcessPathEntry([string]$PathEntry) {
-    if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
-        return $false
-    }
-
-    $currentParts = @($env:PATH -split ';' | Where-Object { $_ })
-    if (-not ($currentParts | Where-Object { $_.TrimEnd('\') -ieq $PathEntry.TrimEnd('\') })) {
-        $env:PATH = "$PathEntry;$env:PATH"
-    }
-
-    return $true
-}
-
-function Invoke-PipInstall([string[]]$Packages) {
-    & $PipExe install --quiet --disable-pip-version-check @Packages
-}
-
-function Add-PathEntry([string]$PathEntry) {
-    if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
-        return $false
-    }
-
-    $currentParts = @($env:PATH -split ';' | Where-Object { $_ })
-    if (-not ($currentParts | Where-Object { $_.TrimEnd('\') -ieq $PathEntry.TrimEnd('\') })) {
-        $env:PATH = "$PathEntry;$env:PATH"
-    }
-
-    $userPath = [System.Environment]::GetEnvironmentVariable("PATH","User")
-    $userParts = @($userPath -split ';' | Where-Object { $_ })
-    if (-not ($userParts | Where-Object { $_.TrimEnd('\') -ieq $PathEntry.TrimEnd('\') })) {
-        $updatedUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
-            $PathEntry
-        } else {
-            "$userPath;$PathEntry"
-        }
-        [System.Environment]::SetEnvironmentVariable("PATH", $updatedUserPath, "User")
-    }
-
-    return $true
-}
+. (Join-Path $Root 'Alfred-Common.ps1')
+. (Join-Path $Root 'Alfred-CoreSetup.ps1')
 
 function Add-RepoLocalNodeToPath {
     $candidates = @()
@@ -434,49 +316,27 @@ $PipExe   = Join-Path $VenvPath "Scripts\pip.exe"
 if (-not $hasPython) {
     Write-Skip "Python not found -- skipping venv and package install."
 } else {
-    if (-not (Test-Path $VenvPath)) {
-        Write-Host "  Creating .venv..." -ForegroundColor Cyan
-        & $PythonInfo.Exe @($PythonInfo.VenvArgs + @($VenvPath))
-        if ($LASTEXITCODE -eq 0) {
-            Write-Done ".venv created."
-        } else {
-            Write-Fail "Could not create .venv."
-        }
-    } else {
-        Write-OK ".venv already exists."
+    $pySetup = Install-AlfredPythonEnvironment -RepoRoot $Root -PythonInfo $PythonInfo -OnStep {
+        param($Msg)
+        Write-Host "  $Msg" -ForegroundColor Cyan
     }
-
-    if (Test-Path $PipExe) {
-        if (Test-Path $PythonReqFile) {
-            Write-Host "  Installing Python packages from requirements/python-requirements.txt..." -ForegroundColor Cyan
-            $failedPythonPackages = @()
-            Get-Content $PythonReqFile | ForEach-Object {
-                $pkg = $_.Trim()
-                if ($pkg -and -not $pkg.StartsWith("#")) {
-                    Invoke-PipInstall @($pkg)
-                    if ($LASTEXITCODE -ne 0) { $failedPythonPackages += $pkg }
-                }
-            }
-            if ($failedPythonPackages.Count -eq 0) {
-                Write-Done "Packages installed from requirements/python-requirements.txt"
-            } else {
-                Write-Warn "Some optional Python packages failed: $($failedPythonPackages -join ', ')"
-                Write-Info "Alfred will continue; affected specialist features can be repaired from Control Tower."
-            }
-
-            # xlwings Excel add-in — register after pip install
-            $xlwingsExe = Join-Path $VenvPath "Scripts\xlwings.exe"
-            if (Test-Path $xlwingsExe) {
-                & $xlwingsExe addin install 2>&1 | Out-Null
-                Write-Done "xlwings Excel add-in registered."
-            }
-        } else {
-            Write-Host "  Installing Python packages (fallback)..." -ForegroundColor Cyan
-            Invoke-PipInstall @("anthropic", "openai", "rich", "python-dotenv", "typer")
-            Write-Done "Packages installed: anthropic, openai, rich, python-dotenv, typer"
-        }
+    if (-not $pySetup.Ok) {
+        Write-Fail $pySetup.Message
+    } elseif (-not (Test-Path $VenvPath)) {
+        Write-Fail "Could not create .venv."
     } else {
-        Write-Fail "pip not found in .venv -- package install skipped."
+        if (Test-Path $VenvPath) { Write-OK ".venv ready." }
+        if ($pySetup.Failed -and $pySetup.Failed.Count -gt 0) {
+            Write-Warn "Some optional Python packages failed: $($pySetup.Failed -join ', ')"
+            Write-Info "Alfred will continue; re-run setup or python -m backend.cli diagnose to check optional packages."
+        } else {
+            Write-Done "Packages installed from requirements/python-requirements.txt"
+        }
+        $xlwingsExe = Join-Path $VenvPath "Scripts\xlwings.exe"
+        if (Test-Path $xlwingsExe) {
+            & $xlwingsExe addin install 2>&1 | Out-Null
+            Write-Done "xlwings Excel add-in registered."
+        }
     }
 }
 
@@ -682,7 +542,7 @@ try {
         $lnk.TargetPath       = "cmd.exe"
         $lnk.Arguments        = "/c `"$LauncherBat`""
         $lnk.WorkingDirectory = $Root
-        $lnk.Description      = "Alfred AI Assistant"
+        $lnk.Description      = "Alfred - update and provision"
         if (Test-Path $IconPath) { $lnk.IconLocation = "$IconPath,0" } else { $lnk.IconLocation = "cmd.exe,0" }
         $lnk.Save()
         if ($existed) { Write-OK "Desktop shortcut refreshed (custom icon)." }

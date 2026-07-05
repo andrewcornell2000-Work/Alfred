@@ -1,4 +1,8 @@
-<!-- lean-ctx-owned: cooperative -->
+---
+description: Optional lean-ctx helpers for large reads and compressed shell output. Native Cursor tools remain the default.
+alwaysApply: false
+---
+
 # lean-ctx — optional context compression
 
 Alfred ships lean-ctx for token savings. It complements — does not replace — native Cursor tools or domain MCPs.

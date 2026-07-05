@@ -40,6 +40,16 @@ jobs:
       - name: Validate catalog (dedup)
         run: python .github/scripts/validate_catalog.py
 
+      - name: Sync and verify Cursor rules
+        shell: pwsh
+        run: |
+          pwsh -File scripts/sync-cursor-rules.ps1
+          pwsh -File scripts/Test-CursorRulesSync.ps1
+
+      - name: Validate MCP provision template
+        shell: pwsh
+        run: pwsh -File scripts/Test-ProvisionTemplate.ps1
+
       - name: Commit and push improvements
         run: |
           git config user.name "Alfred"

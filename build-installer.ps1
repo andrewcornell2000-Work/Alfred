@@ -73,6 +73,9 @@ function Get-InstallerModuleBody([string]$Path) {
     return ($content -replace '(?m)^#Requires[^\r\n]*\r?\n', '').Trim()
 }
 
+$commonPath = Join-Path $PSScriptRoot "Alfred-Common.ps1"
+$commonBody = if (Test-Path $commonPath) { Get-InstallerModuleBody $commonPath } else { "" }
+
 $moduleParts = @()
 foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Progress.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1", "installer\Install-RepoTools.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
@@ -97,6 +100,10 @@ if ($split.Count -lt 2) {
 
 $mainHead = $split[0].TrimEnd()
 $mainTail = $split[1].TrimStart()
+if ($commonBody) {
+    $inlinePattern = '(?ms)# ALFRED_COMMON_INLINE[\s\S]*?(?=function Import-AlfredInstallerModules)'
+    $mainHead = [regex]::Replace($mainHead, $inlinePattern, { $commonBody + "`n`n" })
+}
 $merged = ($mainHead + "`n`n" + ($moduleParts -join "`n`n") + "`n`n" + $mainTail)
 Set-Content -Path $BuildFile -Value $merged -Encoding UTF8
 

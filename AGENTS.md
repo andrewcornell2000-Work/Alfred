@@ -32,9 +32,9 @@ Instructions for Codex, Claude Code, and other coding agents working in this rep
 ## Alfred-specific rules
 
 - Never add API keys, tokens, or credentials to committed files.
-- New tools with file-write or destructive capabilities must be represented in the safety gate in `backend/main.py` (`DANGEROUS_KEYWORDS` and dispatch checks) before dispatch is allowed.
+- New tools with file-write or destructive capabilities must be documented in `requirements/safety-gates.md` before they are provisioned.
 - Never auto-pull or auto-install tools without explicit user approval.
-- When modifying `CLAUDE_SCOPE_PROMPT`, preserve the minimum-scope principles documented in `CLAUDE.md`.
+- When modifying executor/scoping prompts in skills, preserve minimum-scope principles in `skills/karpathy-coding-guidelines.md`.
 
 ---
 

@@ -3,13 +3,11 @@
 Use this skill when Alfred needs real-time information: latest versions, current documentation,
 recent news, prices, or anything that requires up-to-date data beyond training knowledge.
 
-## Tool: Tavily (direct API — not an MCP)
+## Tool: Tavily (optional `.env` key — not an MCP)
 
-Alfred calls Tavily directly from Python (`backend/main.py`). No MCP server is needed.
-The API key lives in Alfred's `.env` as `TAVILY_API_KEY`.
+Tavily is optional web research. Configure `TAVILY_API_KEY` in Alfred's `.env` if you use live search from skills that reference it.
 
-Routing: requests with live/current-data keywords (latest, news, price, today, current version)
-are classified as **SEARCH** and run through Tavily before Claude synthesises the answer.
+Use **inside Cursor / Claude Code** — Alfred itself does not run a chat search UI.
 
 ## When to use
 
@@ -31,7 +29,7 @@ are classified as **SEARCH** and run through Tavily before Claude synthesises th
 
 1. Get a free key at https://app.tavily.com
 2. Add to Alfred `.env`: `TAVILY_API_KEY=tvly-...`
-3. Verify in Alfred Control Tower — Tavily should show **ready**
+3. Verify: `python -m backend.cli diagnose` — Tavily should show **ready** when configured
 
 ## Safety rules
 

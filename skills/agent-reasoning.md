@@ -48,5 +48,5 @@ Good reasoning **reduces** tokens overall:
 | Live Excel | `excel` MCP |
 | Office file creation | python-docx / python-pptx / pandoc |
 
-Alfred's router (`backend/main.py`) scores keywords — Dev Portal changes should update
+Alfred's capability registry (`backend/provision/registry.py`) and keyword hints — growth-loop / Dev Portal changes should update
 `TOOL_REGISTRY` keywords when a new tool skill is added.
