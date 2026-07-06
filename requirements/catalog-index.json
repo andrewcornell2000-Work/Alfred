@@ -35,11 +35,6 @@
     "mcp-routing": {
       "path": "skills/mcp-routing.md",
       "aliases": ["routing-keywords", "tool-routing"]
-    },
-    "lean-ctx": {
-      "path": "skills/lean-ctx.md",
-      "aliases": ["alfred-lean-ctx"],
-      "sync_as_skill": false
     }
   },
   "mcp_fingerprints": {
@@ -53,6 +48,6 @@
     "context7": "npx:@upstash/context7-mcp"
   },
   "retired_mcp": ["sequential-thinking", "memory", "time", "codegraph", "sqlite", "powerbi"],
-  "never_sync_skills": ["taste-*", "lean-ctx", "mcp-routing"],
+  "never_sync_skills": ["taste-*", "mcp-routing"],
   "never_write_skills": ["taste-*"]
 }

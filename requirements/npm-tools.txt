@@ -5,4 +5,3 @@
 # the user-facing setup flow changes, then commit all manifest changes.
 @anthropic-ai/claude-code:claude:Claude Code CLI
 @openai/codex:codex:OpenAI Codex CLI
-lean-ctx-bin:lean-ctx:LeanCTX context compression layer (Alfred 2.0)

@@ -2,7 +2,7 @@
 
 **Alfred is not a chatbot you talk to every day.** Alfred is a **Windows installer and toolchain pack** that:
 
-1. Installs CLIs (Claude Code, Codex, gh, pbi, LeanCTX, …)
+1. Installs CLIs (Claude Code, Codex, gh, pbi, …)
 2. Provisions **MCP servers** globally into Cursor, Claude Code, and Codex
 3. Syncs **skills** and **rules** into all three agents
 4. Runs a **discovery loop** (GitHub Actions) that finds new MCPs and tools you wouldn't think to search for
@@ -10,7 +10,7 @@
 
 ## What you do day-to-day
 
-**Work in Cursor** (or Claude Code / Codex). Just ask normally — MCPs, LeanCTX, and skills are already wired.
+**Work in Cursor** (or Claude Code / Codex). Just ask normally — MCPs and skills are already wired.
 
 You do **not** open Alfred to chat or use a menu.
 
@@ -35,7 +35,7 @@ Provision-Cursor.ps1     → ~/.cursor/mcp.json
                          → claude mcp add --scope user
                          → codex mcp add
                          → ~/.cursor/skills + ~/.claude/skills + ~/.codex/skills
-                         → lean-ctx onboard (merge, not replace)
+                         → removes any leftover lean-ctx config
 ```
 
 ## Discovery loop (the real value)

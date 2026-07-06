@@ -711,11 +711,8 @@ if (Find-Command "node") {
     if ($npmToolStatus['codex'] -ne $true) {
         Write-Warn "Codex CLI missing — install via requirements/npm-tools.txt."
     }
-    if ($npmToolStatus['lean-ctx'] -ne $true) {
-        Write-Warn "lean-ctx missing — LeanCTX compression layer skipped until lean-ctx-bin is installed."
-    }
 } else {
-    Write-Warn "Node.js not found — Claude Code, Codex, and lean-ctx CLIs skipped. Re-run after installing Node.js."
+    Write-Warn "Node.js not found — Claude Code and Codex CLIs skipped. Re-run after installing Node.js."
 }
 
 Complete-InstallStage 'core'
@@ -1242,7 +1239,7 @@ if (Get-Command Stop-AlfredAgentProcesses -ErrorAction SilentlyContinue) {
 }
 
 Set-InstallStage 'verify' 'Provisioning MCPs, skills, and rules for Cursor and Claude Code...'
-Write-Step "Step 10: Provisioning MCPs + skills + LeanCTX for Cursor, Claude Code, and Codex"
+Write-Step "Step 10: Provisioning MCPs + skills for Cursor, Claude Code, and Codex"
 
 $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {
@@ -1258,14 +1255,11 @@ if (Test-Path $provisionScript) {
     Write-Warn "Provision-Cursor.ps1 not found — update Alfred (git pull) and re-run the installer."
 }
 
-$repairScript = Join-Path $InstallPath 'installer\Repair-CooperativeLeanCtx.ps1'
-if (Test-Path $repairScript) {
-    Write-Step 'Final pass: enforcing cooperative lean-ctx rules and stripping hooks...'
-    $repairExit = Invoke-AlfredPowerShellScript -ScriptPath $repairScript -Parameters @{ RepoRoot = $InstallPath } `
-        -StatusMessage 'Enforcing cooperative lean-ctx rules and hooks...'
-    if ($repairExit -ne 0) {
-        Write-Warn 'Cooperative lean-ctx repair did not fully apply — quit Cursor and re-run the installer.'
-    }
+$removeScript = Join-Path $InstallPath 'installer\Remove-LeanCtx.ps1'
+if (Test-Path $removeScript) {
+    Write-Step 'Final pass: removing lean-ctx from agent configs...'
+    Invoke-AlfredPowerShellScript -ScriptPath $removeScript -Parameters @{ RepoRoot = $InstallPath; ProjectPath = $InstallPath } `
+        -StatusMessage 'Removing lean-ctx MCP, hooks, and rules...' | Out-Null
 }
 
 Complete-InstallStage 'verify'
@@ -1315,7 +1309,7 @@ Write-Host ""
 
 $completeSummary = @(
     'Alfred core files and Python environment'
-    'npm tools from requirements/npm-tools.txt (Claude, Codex, lean-ctx)'
+    'npm tools from requirements/npm-tools.txt (Claude, Codex)'
     'Optional CLIs: gh, jq, pandoc, excel-mcp, Azure CLI when available'
     'Cursor / Claude Code / Codex skills, rules and MCPs'
     'Desktop shortcut (Alfred.lnk)'

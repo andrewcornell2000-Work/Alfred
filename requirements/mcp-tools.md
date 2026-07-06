@@ -9,7 +9,7 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 
 ## Currently Configured (cursor/mcp.json)
 
-**10 domain MCPs** + **LeanCTX** (merged via `lean-ctx onboard`). Tavily web search is optional via `TAVILY_API_KEY` in `.env` (not provisioned as an MCP).
+**10 domain MCPs**. Tavily web search is optional via `TAVILY_API_KEY` in `.env` (not provisioned as an MCP).
 
 | Server | Role |
 |--------|------|
@@ -128,15 +128,6 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 - **Skill:** `skills/vercel.md`
 - **Docs:** https://vercel.com/docs/agent-resources/vercel-plugin
 - **Note:** Provisions to Cursor, Claude Code, and Codex via HTTP transport. Plugin adds skills, specialist agents, and slash commands.
-
-### lean-ctx (Alfred 2.0)
-- **Source:** npm package `lean-ctx-bin` → local `lean-ctx` binary
-- **Install:** `npm install -g lean-ctx-bin`; `Provision-Cursor.ps1` registers the MCP only (never run `lean-ctx onboard` — it installs aggressive always-on hooks)
-- **Purpose:** Context compression layer — `ctx_read`, `ctx_search`, session memory, compressed shell output
-- **Trust:** community (Apache 2.0, local-first)
-- **Destructive:** false (read/compress by default; some ctx_* tools can write memory)
-- **Requires:** No API keys or accounts for core use
-- **Skill:** `skills/lean-ctx.md`
 
 ### Web search (Tavily — optional, not an MCP)
 - **Source:** Optional `TAVILY_API_KEY` in Alfred `.env` (not provisioned via `cursor/mcp.json`)

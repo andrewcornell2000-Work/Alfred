@@ -272,7 +272,7 @@ if (-not $hasNpm) {
     }
 }
 
-# CodeGraph retired from Alfred MCP stack (LeanCTX ctx_search covers repo code).
+# CodeGraph retired from Alfred MCP stack.
 # Leave .codegraph/ on disk if present; it is no longer provisioned as an MCP.
 
 # Convenience flags used by login instructions below
@@ -513,7 +513,7 @@ if ($hasEnv) {
 
 # ── Cursor + Claude Code provisioning (shared MCPs + skills) ──────────────────
 
-Write-Step "Provisioning MCP servers + skills + LeanCTX for Cursor, Claude Code, and Codex..."
+Write-Step "Provisioning MCP servers + skills for Cursor, Claude Code, and Codex..."
 
 $provisionScript = Join-Path $Root "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {

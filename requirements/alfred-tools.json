@@ -172,15 +172,6 @@
         "purpose": "Primary coding engine for CODE routing: implement, refactor, test, and review repository work.",
         "loginRequired": true,
         "optional": false
-      },
-      {
-        "package": "lean-ctx-bin",
-        "command": "lean-ctx",
-        "description": "LeanCTX context compression layer",
-        "purpose": "Compress file reads and shell output, session memory, ctx_* MCP tools. Wired via lean-ctx onboard after Alfred MCP provision. No API keys required.",
-        "loginRequired": false,
-        "category": "CONTEXT",
-        "trust": "community"
       }
     ]
   },
@@ -258,7 +249,7 @@
         "name": "filesystem",
         "source": "npx",
         "package": "@modelcontextprotocol/server-filesystem",
-        "purpose": "Scoped read/write file access — finance OneDrive folder only (repo code via LeanCTX)",
+        "purpose": "Scoped read/write file access — finance OneDrive folder only (repo code via native Read/Grep)",
         "category": "EXECUTE",
         "destructive": true,
         "trust": "official",
@@ -276,7 +267,7 @@
         "trust": "official",
         "storage": "memory/mcp-knowledge-graph.json",
         "status": "retired",
-        "notes": "Removed from cursor/mcp.json — use LeanCTX ctx_knowledge for session memory."
+        "notes": "Removed from cursor/mcp.json — session memory not provisioned by Alfred."
       },
       {
         "name": "sequential-thinking",
@@ -326,18 +317,6 @@
         "storage": "data/analytics.duckdb"
       },
       {
-        "name": "lean-ctx",
-        "source": "npm",
-        "package": "lean-ctx-bin",
-        "command": "lean-ctx",
-        "purpose": "Context OS — compress reads/shell output, session memory, ctx_* MCP tools. Registered as MCP-only by Provision-Cursor.ps1 (cooperative mode). No API keys.",
-        "category": "CONTEXT",
-        "destructive": false,
-        "trust": "community",
-        "install": "npm install -g lean-ctx-bin (MCP registered by Provision-Cursor.ps1 — never run 'lean-ctx onboard')",
-        "notes": "Complements Alfred domain MCPs; does not replace Power BI / Excel / GitHub. Never run onboard/setup/doctor --fix: they reinstall aggressive hooks."
-      },
-      {
         "name": "ms365",
         "source": "npx",
         "package": "ms-365-mcp-server",
@@ -370,7 +349,7 @@
         "destructive": false,
         "trust": "community",
         "status": "retired",
-        "notes": "Removed from cursor/mcp.json — LeanCTX ctx_search covers repo code exploration."
+        "notes": "Removed from cursor/mcp.json — use native Grep/semantic search for repo code exploration."
       },
       {
         "name": "excel-mcp",

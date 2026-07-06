@@ -76,7 +76,7 @@
         "${financeDir}"
       ],
       "_requires": [],
-      "_note": "Finance OneDrive folder ONLY — repo code uses LeanCTX ctx_read. Never double-read the same file."
+      "_note": "Finance OneDrive folder ONLY — use native Read/Grep for repo code. Never double-read the same file."
     },
     "duckdb": {
       "command": "uvx",

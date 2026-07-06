@@ -7,7 +7,7 @@ from typing import Iterator
 
 from context import ROOT
 
-SKIP_SKILL_FILES = frozenset({"mcp-routing.md", "lean-ctx.md"})
+SKIP_SKILL_FILES = frozenset({"mcp-routing.md"})
 
 
 def iter_skill_files(root: str | None = None) -> Iterator[tuple[str, str]]:

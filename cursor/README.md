@@ -28,8 +28,8 @@ powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCodex
 | `mcp.json` | MCP server template (`${env:VAR}` placeholders, no secrets) | `~/.cursor/mcp.json` + `claude mcp add --scope user` + `codex mcp add` |
 | `skills/*.md` (repo root) | Agent + tool how-to skills | `~/.cursor/skills/`, `~/.claude/skills/`, `~/.codex/skills/` |
 | `rules/*.mdc` | Cursor project rules | `<project>/.cursor/rules/` (with `-ProjectPath`) |
-| `rules/*.mdc` | Global agent-tooling + lean-ctx policy | `~/.cursor/rules/` (always synced; overrides lean-ctx onboard's aggressive rule) |
-| Repo root | Cooperative ctx rules | `.cursorrules`, `LEAN-CTX.md`, `.claude/rules/lean-ctx.md` repaired on every provision |
+| `rules/*.mdc` | Global agent-tooling policy | `~/.cursor/rules/` (always synced) |
+| Repo root | Agent tooling pointer | `.cursorrules` synced on every provision |
 | `AGENTS.shared.md` | Cross-tool rules | `<project>/AGENTS.md` (with `-ProjectPath`) |
 
 Third-party skills and plugins install during provision via `npx`:
@@ -65,5 +65,4 @@ After `Alfred-Install.exe` or `setup.ps1`:
 1. Restart Cursor / Claude Code / Codex
 2. `claude auth login` and `codex login` (once)
 3. Optional: add `GITHUB_TOKEN`, `TAVILY_API_KEY` to `.env`, re-run `Provision-Cursor.ps1 -ProjectPath <repo>`
-4. If you ran `lean-ctx onboard` alone and agents hang on reads, re-run `Provision-Cursor.ps1` (final step always overwrites cooperative rules)
-5. Power BI MCP: install VS Code extension `analysis-services.powerbi-modeling-mcp`, re-provision
+4. Power BI MCP: install VS Code extension `analysis-services.powerbi-modeling-mcp`, re-provision

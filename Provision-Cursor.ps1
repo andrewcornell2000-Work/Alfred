@@ -29,10 +29,6 @@
     Skip Claude Desktop app (%APPDATA%\Claude\claude_desktop_config.json).
 .PARAMETER SkipCodex
     Skip Codex (codex mcp add) provisioning.
-.PARAMETER SkipLeanCtx
-    Skip lean-ctx onboard and Cursor lean-ctx repair.
-.PARAMETER SkipCloseAgentApps
-    Do not close Cursor, Claude Desktop, or ChatGPT before provisioning.
 .PARAMETER SkipThirdPartySkills
     Skip npx install of third-party agent skills (e.g. Leonxlnx/taste-skill).
 #>
@@ -43,7 +39,6 @@ param(
     [switch]$SkipClaude,
     [switch]$SkipClaudeDesktop,
     [switch]$SkipCodex,
-    [switch]$SkipLeanCtx,
     [switch]$SkipCloseAgentApps,
     [switch]$SkipThirdPartySkills,
     [switch]$SkipOptionalPlugins,
@@ -56,8 +51,8 @@ $Root = $PSScriptRoot
 $closeAppsScript = Join-Path $Root 'installer\Close-AgentApps.ps1'
 if (Test-Path $closeAppsScript) { . $closeAppsScript }
 
-$repairModule = Join-Path $Root 'installer\Repair-CooperativeLeanCtx.ps1'
-if (Test-Path $repairModule) { . $repairModule -RepoRoot $Root }
+$removeLeanCtxScript = Join-Path $Root 'installer\Remove-LeanCtx.ps1'
+if (Test-Path $removeLeanCtxScript) { . $removeLeanCtxScript -RepoRoot $Root }
 
 # ── output helpers ────────────────────────────────────────────────────────────
 function Write-Step([string]$m) { Write-Host ""; Write-Host "> $m" -ForegroundColor Cyan }
@@ -72,13 +67,6 @@ function Write-TextNoBom([string]$path, [string]$text) {
 }
 
 $script:ProvisionErrors = @()
-
-function Get-LeanCtxBinaryPath {
-    $bin = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
-    if (-not $bin) { $bin = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
-    if ($bin) { return ($bin -replace '\\', '/') }
-    return $null
-}
 
 function Invoke-McpCliAdd([string]$toolName, [string]$serverName, [string[]]$argList) {
     $exe = (Get-Command $toolName -ErrorAction SilentlyContinue).Source
@@ -121,104 +109,6 @@ function Invoke-McpCliAdd([string]$toolName, [string]$serverName, [string[]]$arg
     return $false
 }
 
-function Repair-LeanCtxMcpFile([string]$mcpPath, [string]$label) {
-    if (-not (Test-Path $mcpPath)) { return }
-    $leanCtxBin = Get-LeanCtxBinaryPath
-    if (-not $leanCtxBin) {
-        Write-Warn2 "lean-ctx not on PATH -- skipping $label MCP repair"
-        return
-    }
-    try {
-        $mcp = Get-Content $mcpPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $lc = $mcp.mcpServers.'lean-ctx'
-        if (-not $lc) { return }
-        if ($lc.PSObject.Properties.Name -contains 'autoApprove') {
-            $lc.PSObject.Properties.Remove('autoApprove')
-        }
-        $lc.command = $leanCtxBin
-        if ($lc.PSObject.Properties.Name -contains 'type') {
-            $lc.PSObject.Properties.Remove('type')
-        }
-        $json = $mcp | ConvertTo-Json -Depth 30
-        Write-TextNoBom $mcpPath $json
-        Write-OK "$label lean-ctx: removed autoApprove, command -> $leanCtxBin"
-    } catch {
-        Write-Warn2 "Could not repair lean-ctx in ${label} mcp config: $_"
-    }
-}
-
-function Sync-LeanCtxToClaudeDesktop {
-    if ($SkipClaudeDesktop) { return }
-    $desktopPath = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
-    if (-not (Test-Path $desktopPath)) { return }
-    $leanCtxBin = Get-LeanCtxBinaryPath
-    if (-not $leanCtxBin) { return }
-
-    $leanEntry = [ordered]@{
-        command = $leanCtxBin
-        env     = [ordered]@{ LEAN_CTX_DATA_DIR = (Join-Path $HOME ".config\lean-ctx") }
-    }
-    $claudeJson = Join-Path $HOME ".claude.json"
-    if (Test-Path $claudeJson) {
-        try {
-            $cj = Get-Content $claudeJson -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($cj.mcpServers.'lean-ctx') {
-                $src = $cj.mcpServers.'lean-ctx'
-                if ($src.command) { $leanEntry.command = ($src.command -replace '\\', '/') }
-                if ($src.env) {
-                    $leanEntry.env = [ordered]@{}
-                    foreach ($ep in $src.env.PSObject.Properties) { $leanEntry.env[$ep.Name] = $ep.Value }
-                }
-            }
-        } catch {}
-    }
-
-    try {
-        $desktop = Get-Content $desktopPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $finalDesktop = [ordered]@{}
-        if ($desktop.mcpServers) {
-            foreach ($p in $desktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
-        }
-        $finalDesktop['lean-ctx'] = $leanEntry
-        if ($finalDesktop['lean-ctx'].PSObject.Properties.Name -contains 'autoApprove') {
-            $finalDesktop['lean-ctx'].PSObject.Properties.Remove('autoApprove')
-        }
-        $finalDesktop['lean-ctx'].command = $leanCtxBin
-
-        $desktopRoot = [ordered]@{}
-        foreach ($p in $desktop.PSObject.Properties) {
-            if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
-        }
-        $desktopRoot['mcpServers'] = $finalDesktop
-        Write-TextNoBom $desktopPath ($desktopRoot | ConvertTo-Json -Depth 30)
-        Write-OK "Claude Desktop: lean-ctx merged (no autoApprove)"
-    } catch {
-        Write-Warn2 "Could not merge lean-ctx into Claude Desktop: $_"
-    }
-}
-
-function Repair-LeanCtxForCursor {
-    if ($SkipCursor) { return }
-    $mcpPath = Join-Path $env:USERPROFILE ".cursor\mcp.json"
-    Repair-LeanCtxMcpFile $mcpPath 'Cursor'
-
-    $leanCtxBin = Get-LeanCtxBinaryPath
-    if (-not $leanCtxBin) { return }
-    $hooksPath = Join-Path $env:USERPROFILE ".cursor\hooks.json"
-    if (Test-Path $hooksPath) {
-        try {
-            $hooksRaw = Get-Content $hooksPath -Raw -Encoding UTF8
-            $fixed = $hooksRaw -replace '"command":\s*"lean-ctx', "`"command`": `"$leanCtxBin"
-            if ($fixed -ne $hooksRaw) {
-                Write-TextNoBom $hooksPath $fixed
-                Write-OK "Cursor hooks: lean-ctx uses absolute path (hooks run without user PATH)"
-            }
-        } catch {
-            Write-Warn2 "Could not repair hooks.json: $_"
-        }
-    }
-}
-
 function Sync-AlfredRepoCtxRules {
     param([string]$RepoRoot = $Root)
 
@@ -228,31 +118,9 @@ function Sync-AlfredRepoCtxRules {
 # Alfred agent tooling
 
 See `cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).
-
-lean-ctx MCP is optional — large files, re-reads, `ctx_knowledge`. If it errors or hangs (>5s), use native tools for the rest of the turn.
 '@
     Write-TextNoBom (Join-Path $RepoRoot '.cursorrules') $cursorrules
-
-    $leanCtxSrc = Join-Path $RepoRoot 'cursor\rules\lean-ctx.mdc'
-    $leanCtxDst = Join-Path $RepoRoot 'LEAN-CTX.md'
-    if (Test-Path $leanCtxSrc) {
-        $body = (Get-Content $leanCtxSrc -Raw -Encoding UTF8) -replace '(?s)^---.*?---\r?\n', ''
-        Write-TextNoBom $leanCtxDst ("<!-- lean-ctx-owned: cooperative -->" + [Environment]::NewLine + $body.Trim())
-    }
-
-    $claudeRule = Join-Path $RepoRoot '.claude\rules\lean-ctx.md'
-    if (Test-Path (Split-Path $claudeRule -Parent)) {
-        Write-TextNoBom $claudeRule @'
-# lean-ctx — optional (Claude Code)
-
-Native Read/Grep/Shell/Edit are the default. Use lean-ctx only for large file maps, compressed shell, or `ctx_knowledge`.
-
-If lean-ctx MCP errors or hangs (>5s), stop using it for the rest of the turn.
-
-Full stack rules: `cursor/rules/00-agent-tooling.mdc` in the Alfred repo.
-'@
-    }
-    Write-OK "Repaired repo ctx rules (.cursorrules, LEAN-CTX.md) -> cooperative native-first"
+    Write-OK "Synced repo .cursorrules -> native-first agent tooling"
 }
 
 function Sync-GlobalCursorRules {
@@ -264,7 +132,6 @@ function Sync-GlobalCursorRules {
     foreach ($f in Get-ChildItem $rulesSrc -Filter '*.mdc' -File) {
         Copy-Item $f.FullName (Join-Path $rulesDest $f.Name) -Force
     }
-    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest -SourceRoot $Root)
     Write-OK "Synced global Cursor rules -> $rulesDest"
 }
 
@@ -277,23 +144,7 @@ function Sync-ProjectCursorRules {
     $rulesDest = Join-Path $RepoPath ".cursor\rules"
     if (-not (Test-Path $rulesDest)) { return }
     Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
-    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest -SourceRoot $Root)
-    Write-OK "Re-synced project Cursor rules -> $rulesDest (cooperative lean-ctx enforced)"
-}
-
-function Remove-WorkspaceLeanCtxMcp([string]$repoPath) {
-    if (-not $repoPath -or -not (Test-Path $repoPath)) { return }
-    $wsMcp = Join-Path $repoPath ".cursor\mcp.json"
-    if (-not (Test-Path $wsMcp)) { return }
-    try {
-        $mcp = Get-Content $wsMcp -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (-not $mcp.mcpServers.'lean-ctx') { return }
-        $mcp.mcpServers.PSObject.Properties.Remove('lean-ctx')
-        Write-TextNoBom $wsMcp ($mcp | ConvertTo-Json -Depth 30)
-        Write-OK "Removed duplicate workspace lean-ctx from $wsMcp (keep user-scope only)"
-    } catch {
-        Write-Warn2 "Could not strip workspace lean-ctx from $wsMcp : $_"
-    }
+    Write-OK "Re-synced project Cursor rules -> $rulesDest"
 }
 
 function Remove-AlfredVendoredTasteSkills([string[]]$roots) {
@@ -819,7 +670,7 @@ if (-not $SkipCodex -and $managed.Count -gt 0) {
 }
 
 # ── Skills: sync skills/*.md into both tools as alfred-<name>/SKILL.md ─────────
-$script:SkillSkipPatterns = @('taste-*', 'lean-ctx', 'mcp-routing')
+$script:SkillSkipPatterns = @('taste-*', 'mcp-routing')
 
 function Test-SkillSkipped([string]$base) {
     foreach ($pat in $script:SkillSkipPatterns) {
@@ -877,7 +728,7 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
             }
         }
     }
-    Write-OK "Synced $synced skill(s), skipped $skipped (taste/lean-ctx/mcp-routing) -> $($destRoots -join ', ')"
+    Write-OK "Synced $synced skill(s), skipped $skipped (taste/mcp-routing) -> $($destRoots -join ', ')"
 }
 
 # Folder skills (a directory with SKILL.md + bundled references) are copied whole,
@@ -937,8 +788,7 @@ function Sync-Impeccable([hashtable]$harnessRoots) {
 
 # Wire impeccable's deterministic pre-edit detector hook into Cursor's GLOBAL hooks.json
 # (preToolUse), with an absolute node path so it runs without relying on the user's PATH.
-# Merges into the existing file (preserves non-lean-ctx hooks). Idempotent.
-# Runs after lean-ctx hooks are stripped so onboard redirect hooks are not re-kept.
+# Merges into the existing file (preserves other hooks). Idempotent.
 function Wire-ImpeccableCursorHook {
     if ($SkipCursor) { return }
     $cursorDir   = Join-Path $HOME ".cursor"
@@ -1004,7 +854,6 @@ if ($ProjectPath) {
             Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
             Write-OK "Copied Cursor rules -> $rulesDest"
         }
-        Remove-WorkspaceLeanCtxMcp $ProjectPath
         $agentsSrc  = Join-Path $Root "cursor\AGENTS.shared.md"
         $agentsDest = Join-Path $ProjectPath "AGENTS.md"
         if (Test-Path $agentsDest) {
@@ -1018,82 +867,21 @@ if ($ProjectPath) {
     Write-Info "Rules are per-project. Re-run with -ProjectPath <repo> to seed Cursor rules + AGENTS.md."
 }
 
-# ── LeanCTX: context compression (merge-based — runs AFTER Alfred MCPs) ───────
-# Runs lean-ctx with stdin closed and a hard timeout so it can NEVER block the
-# install on an interactive prompt. Returns $true only on a clean exit 0.
-function Invoke-LeanCtxGuarded([string]$Arguments, [int]$TimeoutSec = 120) {
-    $exe = (Get-Command lean-ctx.cmd -ErrorAction SilentlyContinue).Source
-    if (-not $exe) { $exe = (Get-Command lean-ctx -ErrorAction SilentlyContinue).Source }
-    if (-not $exe) { return $false }
-
-    # Unique temp files per call — a shared leanctx_empty.in caused file-lock failures
-    # when playwright/uvx or a prior lean-ctx run still held the handle open.
-    $tag  = "$PID-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
-    $inF  = Join-Path $env:TEMP "leanctx_$tag.in"
-    $outF = Join-Path $env:TEMP "leanctx_$tag.out"
-    $errF = Join-Path $env:TEMP "leanctx_$tag.err"
-
-    try {
-        [System.IO.File]::WriteAllText($inF, '')
-        $p = Start-Process -FilePath $exe -ArgumentList $Arguments -NoNewWindow -PassThru `
-             -RedirectStandardInput $inF -RedirectStandardOutput $outF -RedirectStandardError $errF
-    } catch {
-        Write-Warn2 "Could not start lean-ctx: $_"
-        return $false
-    }
-
-    try {
-        if (-not $p.WaitForExit($TimeoutSec * 1000)) {
-            Write-Warn2 "lean-ctx $Arguments exceeded ${TimeoutSec}s -- killing and skipping (install continues)."
-            & taskkill /PID $p.Id /T /F 2>&1 | Out-Null
-            return $false
-        }
-        $connected = $false
-        foreach ($f in @($outF, $errF)) {
-            if (Test-Path $f) {
-                $raw = Get-Content $f -Raw -ErrorAction SilentlyContinue
-                if ($raw -match 'is connected|init complete|already configured') { $connected = $true }
-                ($raw -split "`r?`n") | Where-Object { $_.Trim() } | ForEach-Object { Write-Info $_ }
-            }
-        }
-        return (($p.ExitCode -eq 0) -or $connected)
-    } finally {
-        Remove-Item $inF, $outF, $errF -Force -ErrorAction SilentlyContinue
-    }
-}
-
-if (-not $SkipLeanCtx) {
-    Write-Step "LeanCTX: MCP registration only (Alfred cooperative mode)"
-    if (-not (Get-Command lean-ctx -ErrorAction SilentlyContinue)) {
-        Write-Skip "lean-ctx not on PATH -- install lean-ctx-bin (npm-tools.txt), then re-run."
-    } else {
-        # Do NOT run `lean-ctx onboard` — it installs aggressive always-on rules and
-        # Read/Grep/Shell redirect hooks that fight Alfred's native-first tooling and
-        # cause agent hangs. Alfred registers the MCP only; ctx_* tools stay optional.
-        Repair-LeanCtxForCursor
-        Sync-LeanCtxToClaudeDesktop
-        Write-OK "LeanCTX MCP registered (optional ctx_* tools). Native Read/Grep/Shell remain default."
-    }
-}
-
 Sync-AlfredRepoCtxRules -RepoRoot $Root
 if ($ProjectPath) { Sync-AlfredRepoCtxRules -RepoRoot $ProjectPath }
 
-# ── Final Cursor rules + hooks (strip lean-ctx hooks BEFORE impeccable merge) ──
-Write-Step "Cursor rules: enforcing Alfred cooperative lean-ctx (final overwrite)"
+Write-Step "Cursor rules: syncing Alfred rules"
 Sync-GlobalCursorRules
 if ($ProjectPath -and (Test-Path $ProjectPath)) {
     Sync-ProjectCursorRules -RepoPath $ProjectPath
 }
-if (Get-Command Repair-CooperativeLeanCtxHooks -ErrorAction SilentlyContinue) {
-    [void](Repair-CooperativeLeanCtxHooks)
-}
 
-# ── Impeccable Cursor hook (after lean-ctx hooks stripped) ──
+# ── Impeccable Cursor hook ──
 Wire-ImpeccableCursorHook
 
-if (Get-Command Invoke-CooperativeLeanCtxRepair -ErrorAction SilentlyContinue) {
-    [void](Invoke-CooperativeLeanCtxRepair -SourceRoot $Root)
+Write-Step "Removing lean-ctx from agent configs"
+if (Get-Command Invoke-RemoveLeanCtxFromMachine -ErrorAction SilentlyContinue) {
+    [void](Invoke-RemoveLeanCtxFromMachine -SourceRoot $Root -Project $ProjectPath)
 }
 
 # ── summary ───────────────────────────────────────────────────────────────────

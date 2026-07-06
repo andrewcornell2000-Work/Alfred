@@ -4,9 +4,9 @@
 
 Run `Alfred-Install.exe` once and it wires your PC for AI work:
 
-- **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, LeanCTX, …)
+- **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, …)
 - **Skills + rules** → all three agents globally
-- **CLIs** → Claude, Codex, gh, pbi, jq, LeanCTX, …
+- **CLIs** → Claude, Codex, gh, pbi, jq, …
 - **Discovery loop** → nightly search for new tools you wouldn't think to look for
 
 **Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
@@ -51,7 +51,6 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
    - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
    - Print login instructions for Claude and Codex
    - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
-   - Register LeanCTX as an **optional MCP only** — never `lean-ctx onboard` (onboard installs aggressive always-on hooks)
    - Create a desktop shortcut that runs **update + provision** (not a chat window)
 
 4. **Log in once**
@@ -82,20 +81,6 @@ Re-provision after pulling updates:
 ```powershell
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1
 ```
-
-### LeanCTX (Alfred 2.0 — no new accounts)
-
-LeanCTX compresses file reads and shell output, persists session memory, and exposes `ctx_*` MCP tools.
-It merges into your existing MCP configs — Alfred domain tools are untouched.
-
-| | Alfred MCPs | LeanCTX |
-|---|-------------|---------|
-| Power BI / Excel / GitHub | ✓ | — |
-| Code read/search compression | — | ✓ |
-| Session memory / knowledge graph | basic `memory` MCP | rich `ctx_*` memory |
-| Web search | Tavily direct API | — |
-
-Verify: `lean-ctx doctor` · Savings: `lean-ctx gain` · Skill: `skills/lean-ctx.md`
 
 ---
 
@@ -165,7 +150,7 @@ codex login
 
 ## Day-To-Day Use
 
-**Use Cursor** (or Claude Code / Codex) for real work. MCPs, LeanCTX, and skills are global.
+**Use Cursor** (or Claude Code / Codex) for real work. MCPs and skills are global.
 
 Alfred itself is **not** your workspace — it installs, provisions, updates, and validates.
 
@@ -204,7 +189,7 @@ Alfred provisions Office-capable MCPs and skills. Use them from Cursor / Claude 
 | PowerPoint decks | `python-pptx` |
 | PDFs | `pypdf` |
 
-Check readiness: `python -m backend.cli diagnose` or `lean-ctx doctor`.
+Check readiness: `python -m backend.cli diagnose`
 
 ---
 

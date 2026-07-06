@@ -1,5 +1,3 @@
 # Alfred agent tooling
 
 See `cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).
-
-lean-ctx MCP is optional — large files, re-reads, `ctx_knowledge`. If it errors or hangs (>5s), use native tools for the rest of the turn.
