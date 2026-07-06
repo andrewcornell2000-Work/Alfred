@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 11] TECHNIQUE — MCP Security and Prompt Injection Defense
+**Date:** 2026-07-09
+**Type:** TECHNIQUE
+**What I found:** MCP prompt injection is a documented, real attack class (Simon Willison, April 2025; Microsoft Developer Blog). Three attack vectors: (1) indirect injection — hidden instructions in files/pages the agent reads, (2) tool poisoning — malicious text in MCP server tool description fields, (3) "rug pull" — a package the operator vetted at v1.0 publishes v1.1 with a poisoned description, and `npx -y @latest` silently picks it up. The "lethal trifecta" (Willison) is the threat model: an attack needs private data access + untrusted content exposure + an outbound channel simultaneously. Removing any one leg breaks it.
+**Why it matters:** Andrew's Alfred pack runs `filesystem` (Finance OneDrive), `ms-365` (mail + SharePoint), `fetch` (any URL), and `playwright` (any live page) simultaneously. The `fetch` + `filesystem` combination is the textbook trifecta entry point. The ms-365 MCP with `--read-only` removed would be the highest-risk configuration. There are no headline-grabbing incidents yet (Johann Rehberger's "normalization of deviance" concern) — but security researchers have demonstrated the attack chains work.
+**What it unlocks:** A mental model Andrew can apply before every session: which MCPs are active? Does this task need all of them? Am I about to read external content while write tools are live? The pre-flight checklist and paste-ready detection prompts give him a practical workflow. Version pinning guidance prevents silent rug-pull updates.
+**Artifact:** `skills/agent-mcp-security.md`
+
+---
+
 ### [ITERATION 10] TECHNIQUE — Agent Handoff Pattern (HANDOFF.md)
 **Date:** 2026-07-03
 **Type:** TECHNIQUE
@@ -43,37 +53,7 @@
 ### [ITERATION 11] TECHNIQUE — Agent Workflow Orchestration Patterns
 **Date:** 2026-06-17
 **Type:** TECHNIQUE
-**What I found:** Three concrete orchestration patterns for multi-step agent workflows: (A) linear chain with checkpoint artifacts, (B) orchestrator + parallel workers via worktrees, (C) human-in-the-loop gate for destructive steps. Claude Code now natively supports up to 1,000 sub-agents with 16 concurrent execution paths and native checkpointing. The critical design insight is the HANDOFF.md + checkpoint file pattern — each step writes a self-contained artifact (status, decisions with rationale, outputs) so the next session can run with ONLY that file + the original brief, surviving context resets entirely.
-**Why it matters:** Andrew regularly does multi-phase tasks spanning Excel + Power BI + code. Without explicit orchestration design, long sessions hit context limits mid-task, lose early decisions, and agents re-do work. The checkpoint pattern is the missing piece — it turns a fragile long session into a reliable chain of short, focused sessions.
-**What it unlocks:** Any task that today requires Andrew to babysit a single long agent session can be refactored into a reliable 3-step chain. Especially: data→report→Power BI pipelines, multi-module refactors, Excel-clean→Power BI-load workflows.
+**What I found:** Three concrete orchestration patterns for multi-step agent workflows: (A) linear chain with checkpoint artifacts, (B) orchestrator + parallel workers via worktrees, (C) human-in-the-loop gate for destructive steps. Claude Code now natively supports up to 1,000 sub-agents with 16 concurrent execution paths and native checkpointing. The critical design insight is the HANDOFF.md + checkpoint file pattern — each step writes a self-contained artifact the next step reads. The orchestrator's only job is routing + error recovery, not content.
+**Why it matters:** Andrew runs multi-step report pipelines: extract → transform → format → email. Without an explicit orchestration pattern, each handoff point either loses context or requires manual re-instruction. The three patterns give him a vocabulary for designing these pipelines and a recovery prompt when one step fails.
+**What it unlocks:** Reliable multi-step automations. The "gate" pattern for destructive operations (confirm before overwriting a workbook) is immediately applicable to the finance workflow.
 **Artifact:** `skills/agent-workflow-orchestration.md`
-
----
-
-### [ITERATION 10] TECHNIQUE — Agent Loop Debugging & Recovery
-**Date:** 2026-06-16
-**Type:** TECHNIQUE
-**What I found:** Six named failure modes for agent sessions (tool misuse, context loss, goal drift, retry loop, cascading failure, sycophantic confirmation) with specific symptoms, diagnosis questions, and recovery prompts for each. The key insight is that each failure mode requires a different intervention — using a generic "try again" prompt on a goal-drift failure makes it worse.
-**Why it matters:** Knowing how to recognise and name the specific failure type lets Andrew apply the right recovery in seconds rather than guessing. The pre-flight checklist prevents most failures before they start.
-**What it unlocks:** Faster recovery from stuck agents. The structured output enforcement patterns are immediately useful for any task that needs a specific output format (tables, JSON, markdown reports).
-**Artifact:** `skills/agent-loop-debugging.md`
-
----
-
-### [ITERATION 9] TECHNIQUE — Context Engineering (Agent Window Management)
-**Date:** 2026-06-15
-**Type:** TECHNIQUE
-**What I found:** Context engineering is a structured discipline for deciding what information enters an agent's context window, in what order, and how to compress and manage it over long sessions. The key finding: KV-cache structure (stable prefix → varying suffix) cuts time-to-first-token by up to 80% on Claude; MCP tool descriptions need 6 components (purpose, trigger, return type, param guidance, negative scope, example) or agents pick the wrong tool; the optimal context load order is system → conventions → task → history → files → prompt.
-**Why it matters:** Most agent failures are context failures — agents don't have the right information, have too much noise, or have the right information in the wrong order. Context engineering is the layer above prompt engineering.
-**What it unlocks:** Faster sessions via cache hits. Better tool selection via improved MCP descriptions. Reliable multi-session work via structured context resets.
-**Artifact:** `skills/agent-context-engineering.md`
-
----
-
-### [ITERATION 8] TECHNIQUE — Agent Self-Check Patterns
-**Date:** 2026-06-19
-**Type:** TECHNIQUE
-**What I found:** Four escalating self-verification patterns: (1) inline critique before output, (2) output contracts (agent states success criteria before writing), (3) reflection pass (agent reviews its own output as a sceptic), (4) test-first loop (agent writes a test before the implementation). Key insight: "You're not done until X" is more reliable than "check your work" — it gives the agent a concrete stopping condition.
-**Why it matters:** Agents default to confidence even when wrong. Self-check patterns shift the agent from "I think this is right" to "I can prove this is right."
-**What it unlocks:** Reliable DAX measure verification, Power Query step validation, and any task where Andrew needs numbers he can stake his name on.
-**Artifact:** `skills/agent-self-check.md`

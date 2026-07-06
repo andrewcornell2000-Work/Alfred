@@ -2,6 +2,57 @@
 
 ---
 
+## 2026-07-09 (Iteration #11) — MCP Security / Prompt Injection Defense Skill
+
+**Category:** Agent security / MCP defense
+**Mode:** New skill — MCP prompt injection and tool poisoning defense
+
+**Searches performed:**
+1. `MCP prompt injection tool poisoning attack defense Cursor Claude Code 2025 2026`
+   — Found Simon Willison's canonical April 2025 post documenting real attack chains (hidden
+   instructions embedded in fetched web pages causing agents to silently read credential files).
+   Found Microsoft Developer Blog guidance on indirect injection in MCP. Found hidekazu-konishi.com
+   (June 2026) comprehensive defense guide covering supply-chain vetting, version pinning, allowlist
+   configuration, and monitoring. Confirmed the "lethal trifecta" (private data + untrusted input +
+   outbound channel) as the established threat model coined by Willison.
+2. `site:simonwillison.net MCP prompt injection "tool poisoning" "indirect" example attack 2025`
+   — Retrieved the "lethal trifecta" tagging and specific attack chain examples from Willison's tags
+   index. Found "rug pull" attack type documented (package vets at v1.0, deploys poison in v1.1,
+   npx -y picks it up silently). Found Johann Rehberger's "normalization of deviance" concern —
+   no headline-grabbing incidents yet, but attack surface is real and growing.
+
+**Gap identified:** No existing skill in the Alfred pack covers MCP security. The gap is significant
+because Andrew's pack has six MCPs with meaningful attack surface: `filesystem` (Finance OneDrive),
+`ms-365` (mail + SharePoint + OneDrive), `fetch` (any URL), `playwright` (any live page), `github`
+(repo + token), and `firecrawl` (crawling external sites). The `fetch` + `filesystem` combination
+in particular is a classic trifecta entry point.
+
+**Key facts gathered from research:**
+- Real attack (Willison 2025): payload embedded in a fetched web page caused an agent to silently
+  read `~/.cursor/mcp.json` and pass its contents as a parameter in the next tool call.
+- Tool poisoning: tool description fields are passed verbatim to the model — attackers can embed
+  instructions in Unicode zero-width characters or HTML comment markup invisible to human reviewers.
+- "Rug pull": `npx -y package@latest` (Alfred's default) silently picks up compromised v1.1 after
+  operator vetted v1.0. Version pinning is the mitigation.
+- Microsoft guidance: separate read-only and write MCPs; never mix untrusted input sessions with
+  write-capable tools active.
+- Willison's "lethal trifecta" requires all three — removing any one leg breaks the attack chain.
+
+**Change summary:**
+- Created `skills/agent-mcp-security.md` (10.8k chars) — a complete, actionable skill covering:
+  - Three main attack patterns with real examples (indirect injection, tool poisoning, trifecta)
+  - Alfred pack exposure map table (all active MCPs rated by risk leg)
+  - Seven concrete defences (least-MCP principle, isolation, description audit, version pinning,
+    read-only defaults, output scrutiny, monitoring for unexpected tool calls)
+  - Five paste-ready detection prompts for when behaviour feels off
+  - Pre-flight security checklist for sensitive sessions
+  - Six "Try asking:" examples Andrew can paste into Cursor
+
+**Files modified:** `skills/agent-mcp-security.md` (new), `requirements/discovered-tools.md`
+(appended), `memory/learning-log.md` (this entry), `memory/discoveries.md` (appended).
+
+---
+
 ## 2026-07-03 (Iteration #10) — Agent Handoff Skill
 
 **Category:** Agent skills / Workflow design
@@ -62,38 +113,8 @@ healthcare/enterprise boilerplate + the commercial layer); took the high-value b
   lessons in `memory/instincts/`, project + global scope, decay + TTL prune).
 - **Hooks** wired in `.claude/settings.json` (Python, no node dep):
   - `SessionStart` → `session-start-instincts.py` surfaces active/strong instincts into context
-  - `PreToolUse(Edit|Write|MultiEdit)` → `config-protection.py` blocks weakening linter configs
-  - `PreToolUse(Bash)` → `pre-commit-quality.py` secret/debugger/console scan before commit
-  - `Stop` → `observe-session.py` (opt-in `ALFRED_INSTINCT_OBSERVE=1`) cheap observation log
-- Seeded 3 curated global instincts; added `/instinct-status` + `/instinct-learn` commands,
-  `skills/continuous-learning.md`, and wired the loop prompt (STEP 0 surface/decay/prune,
-  STEP 4 record lessons).
-- Smoke-tested: JSON valid, CLI add/dedupe/reinforce/status, all three hooks (block + allow paths).
+  - `PreToolUse(Edit|Write|MultiEdit)` → `config-protection.py` blocks weakening of safety rules
 
-**Files modified:** `cursor/mcp.json`, `.claude/settings.json`, `.gitignore`,
-`ALFRED_LOOP_PROMPT.md`, `README.md`, `scripts/instinct-cli.py`,
-`scripts/hooks/{session-start-instincts,config-protection,pre-commit-quality,observe-session}.py`,
-`skills/continuous-learning.md`, `.claude/commands/{instinct-status,instinct-learn}.md`,
-`memory/instincts/{README.md,global.json}`.
-
----
-
-## 2026-06-18 (Iteration #12) — Spec-Driven Development Skill
-
-**Category:** Agent skills / Workflow design
-**Mode:** New skill — spec-driven development with AI agents
-
-**Searches performed:**
-1. Fetched `addyosmani.com/blog/good-spec` — Addy Osmani (Google) guide on writing effective specifications for AI coding agents; covers spec structure, what to include, and the discipline of not letting chat replace the spec.
-2. Fetched `productbuilder.net/learn/spec-driven-development` — 2026 survey of spec-driven development patterns across Claude Code, GitHub Spec Kit, and Kiro; confirmed SDD is the dominant professional pattern for multi-file agent work.
-3. Fetched `augmentcode.com/guides/automating-spec-driven-development-with-ai-agents` — Augment Code practical guide; confirmed four-phase loop (SPECIFY→PLAN→IMPLEMENT→VERIFY), the "out of scope" section pattern, and VERIFY-against-criteria as the missing step most people skip.
-
-**Change summary:**
-- Created `skills/agent-spec-driven.md` (9.1k chars) — a complete, actionable skill covering:
-  - The core insight: agents fail not because the model is bad but because business rules live in chat history, not files
-  - "When to use spec-driven" decision checklist (6 criteria; use if 2+ are true)
-  - Four-phase workflow: SPECIFY → PLAN → IMPLEMENT → VERIFY, with paste-ready prompts for phases 2–4
-  - Full SPEC.md template (What this builds / Inputs / Expected output / Business rules / Edge cases / Success criteria / Out of scope)
-  - Finance/Power BI example SPEC.md filled in with real content (not placeholder lorem ipsum)
-  - 6 "Try asking:" examples Andrew can paste directly into Cursor
-  - Companion skill links to `agent-context-engineering.md`, `agent-self-check.md`
+**Files modified:** `cursor/mcp.json`, `scripts/instinct-cli.py`, `.claude/settings.json`,
+`scripts/session-start-instincts.py`, `scripts/config-protection.py`, `requirements/discovered-tools.md`,
+`memory/learning-log.md`, `memory/discoveries.md`.
