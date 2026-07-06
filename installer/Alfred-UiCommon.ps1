@@ -108,9 +108,12 @@ function Get-AlfredLogoBitmap {
         [int]$Size = 120
     )
 
+    if ($Size -lt 1) { return $null }
+
     $source = Get-AlfredLogoSource -Root $Root
     if (-not $source) { return $null }
 
+    try {
     $canvas = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $graphics = [System.Drawing.Graphics]::FromImage($canvas)
     $graphics.Clear([System.Drawing.Color]::Transparent)
@@ -150,6 +153,10 @@ function Get-AlfredLogoBitmap {
     $graphics.Dispose()
     if ($source) { $source.Dispose() }
     return $canvas
+    } catch {
+        if ($source) { try { $source.Dispose() } catch { } }
+        return $null
+    }
 }
 
 function Set-AlfredLogoPaint {
@@ -207,10 +214,10 @@ function New-AlfredLogoPictureBox {
     $box.BackColor = if ($BackgroundVariant -eq 'Plain') { $script:AlfredUiTheme.BgDeep } else { $script:AlfredUiTheme.BgPanel }
     $box.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::CenterImage
 
-    $bitmap = Get-AlfredLogoBitmap -Root $Root -Size $Width
-    if ($bitmap) {
-        $box.Image = $bitmap
-    }
+    try {
+        $bitmap = Get-AlfredLogoBitmap -Root $Root -Size $Width
+        if ($bitmap) { $box.Image = $bitmap }
+    } catch { }
     return $box
 }
 
@@ -253,16 +260,17 @@ function Get-AlfredUiFont {
         [ValidateSet('Regular', 'Semibold', 'Bold')]
         [string]$Weight = 'Regular'
     )
-    if ($Size -lt 1) { $Size = 10 }
-    $emSize = [single]$Size
+    if ($Size -lt 8) { $Size = 10 }
+    $emSize = [single]([Math]::Max(8, [Math]::Round($Size, 1)))
     $style = [System.Drawing.FontStyle]::Regular
     if ($Weight -eq 'Semibold' -or $Weight -eq 'Bold') { $style = [System.Drawing.FontStyle]::Bold }
 
-    try {
-        return New-Object System.Drawing.Font('Segoe UI', $emSize, $style)
-    } catch {
-        return New-Object System.Drawing.Font([System.Drawing.SystemFonts]::DefaultFont.FontFamily, [Math]::Max($emSize, 10), $style)
+    foreach ($family in @('Segoe UI', 'Tahoma', [System.Drawing.SystemFonts]::DefaultFont.FontFamily.Name)) {
+        try {
+            return New-Object System.Drawing.Font($family, $emSize, $style)
+        } catch { }
     }
+    return [System.Drawing.SystemFonts]::DefaultFont
 }
 
 function New-AlfredBrandPanel {
@@ -292,14 +300,20 @@ function New-AlfredBrandPanel {
             param($sender, $e)
             $g = $e.Graphics
             $rect = $sender.ClientRectangle
-            $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-                $rect,
-                $script:AlfredUiTheme.BgPanel,
-                $script:AlfredUiTheme.BgPanelEnd,
-                90
-            )
-            $g.FillRectangle($brush, $rect)
-            $brush.Dispose()
+            if ($rect.Width -gt 0 -and $rect.Height -gt 0) {
+                try {
+                    $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+                        $rect,
+                        $script:AlfredUiTheme.BgPanel,
+                        $script:AlfredUiTheme.BgPanelEnd,
+                        90
+                    )
+                    $g.FillRectangle($brush, $rect)
+                    $brush.Dispose()
+                } catch {
+                    $g.Clear($script:AlfredUiTheme.BgPanel)
+                }
+            }
             $border = New-Object System.Drawing.Pen $script:AlfredUiTheme.Border
             $g.DrawLine($border, $rect.Width - 1, 0, $rect.Width - 1, $rect.Height)
             $border.Dispose()
@@ -579,10 +593,9 @@ function Show-AlfredModernDialog {
     return $result
 }
 
-function Hide-AlfredConsole {
-    try {
-        if (-not ([System.Management.Automation.PSTypeName]'AlfredConsoleWindow').Type) {
-            Add-Type @"
+function Initialize-AlfredConsoleWindowType {
+    if (-not ([System.Management.Automation.PSTypeName]'AlfredConsoleWindow').Type) {
+        Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class AlfredConsoleWindow {
@@ -590,10 +603,25 @@ public class AlfredConsoleWindow {
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 }
 "@
-        }
+    }
+}
+
+function Hide-AlfredConsole {
+    try {
+        Initialize-AlfredConsoleWindowType
         $hwnd = [AlfredConsoleWindow]::GetConsoleWindow()
         if ($hwnd -ne [IntPtr]::Zero) {
             [void][AlfredConsoleWindow]::ShowWindow($hwnd, 0)
+        }
+    } catch { }
+}
+
+function Show-AlfredConsole {
+    try {
+        Initialize-AlfredConsoleWindowType
+        $hwnd = [AlfredConsoleWindow]::GetConsoleWindow()
+        if ($hwnd -ne [IntPtr]::Zero) {
+            [void][AlfredConsoleWindow]::ShowWindow($hwnd, 5)
         }
     } catch { }
 }

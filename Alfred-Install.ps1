@@ -26,6 +26,7 @@ param(
 )
 
 $script:AlfredRunningAsExe = $false
+$script:HeadlessInstall = $false
 if ($MyInvocation.MyCommand.Path -match '(?i)Alfred-Install\.exe$') {
     $script:AlfredRunningAsExe = $true
 } else {
@@ -116,9 +117,61 @@ function Write-Banner([string]$Text) {
     Write-Host ("=" * 50) -ForegroundColor Cyan
 }
 function Test-AlfredGuiInstall {
+    if ($script:HeadlessInstall) { return $false }
     if ($script:InstallProgress) { return $true }
     if ($script:AlfredGuiInstallMode) { return $true }
-    return [bool]$script:AlfredRunningAsExe
+    return $false
+}
+
+function Enable-AlfredHeadlessInstallLogging {
+    param([string]$InstallPath)
+
+    if (-not $script:AlfredInstallLogPath -and (Get-Command Get-AlfredInstallLogPath -ErrorAction SilentlyContinue)) {
+        $script:AlfredInstallLogPath = Get-AlfredInstallLogPath -InstallPath $InstallPath
+    }
+    if (-not $script:AlfredInstallLogPath) { return }
+
+    $msg = if ($script:HeadlessInstall) {
+        'Installer started (headless — GUI unavailable).'
+    } else {
+        'Installer started.'
+    }
+    Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Message $msg
+}
+
+function Initialize-AlfredInstallUi {
+    param(
+        [string]$InstallPath,
+        [string]$AssetsRoot,
+        [string]$DetailOnFallback
+    )
+
+    if ($script:HeadlessInstall) { return $false }
+
+    try {
+        Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $AssetsRoot)
+        if ($DetailOnFallback -and $script:InstallProgress) {
+            $script:InstallProgress.SetDetail($DetailOnFallback)
+        }
+        return $true
+    } catch {
+        $uiMsg = $_.Exception.Message
+        if (-not $script:AlfredInstallLogPath -and (Get-Command Get-AlfredInstallLogPath -ErrorAction SilentlyContinue)) {
+            $script:AlfredInstallLogPath = Get-AlfredInstallLogPath -InstallPath $InstallPath
+        }
+        if ($script:AlfredInstallLogPath) {
+            Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Level 'WARN' -Message "Install UI unavailable: $uiMsg"
+        }
+        $script:HeadlessInstall = $true
+        $script:AlfredGuiInstallMode = $false
+        $script:InstallProgress = $null
+        if ($script:AlfredRunningAsExe -and (Get-Command Show-AlfredConsole -ErrorAction SilentlyContinue)) {
+            Show-AlfredConsole
+        }
+        Write-Host "Alfred install running without GUI. Log: $script:AlfredInstallLogPath" -ForegroundColor Yellow
+        Enable-AlfredHeadlessInstallLogging -InstallPath $InstallPath
+        return $false
+    }
 }
 
 function Get-InstallDefaultYes([string]$Prompt) {
@@ -142,13 +195,24 @@ function Confirm-AlfredAuthLogin([string]$Title, [string]$Message) {
 }
 
 function Set-InstallStage([string]$StageId, [string]$Detail) {
-    if (-not $script:InstallProgress) { return }
-    $script:InstallProgress.SetStage($StageId)
-    if ($Detail) { $script:InstallProgress.SetDetail($Detail) }
+    if ($script:InstallProgress) {
+        $script:InstallProgress.SetStage($StageId)
+        if ($Detail) { $script:InstallProgress.SetDetail($Detail) }
+        return
+    }
+    Write-InstallLogOnly "Stage: $StageId"
+    if ($Detail) {
+        Write-InstallLogOnly $Detail
+        if ($script:HeadlessInstall) { Write-Host $Detail -ForegroundColor Cyan }
+    }
 }
 
 function Complete-InstallStage([string]$StageId) {
-    if ($script:InstallProgress) { $script:InstallProgress.CompleteStage($StageId) }
+    if ($script:InstallProgress) {
+        $script:InstallProgress.CompleteStage($StageId)
+        return
+    }
+    Write-InstallLogOnly "Completed stage: $StageId"
 }
 
 function Write-InstallLogOnly([string]$Msg) {
@@ -431,22 +495,17 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
     }
     if (-not $wizard.Confirmed) { exit 0 }
     $InstallPath = $wizard.InstallPath
-    Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
-    if ($script:WizardUsedDefaults) {
-        $script:InstallProgress.SetDetail('Install wizard unavailable — continuing with default folder...')
-    }
+    $uiDetail = if ($script:WizardUsedDefaults) { 'Install wizard unavailable — continuing with default folder...' } else { $null }
+    Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot -DetailOnFallback $uiDetail | Out-Null
     Complete-InstallStage 'prepare'
 } elseif ($NoWizard -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue) -and $script:AlfredRunningAsExe) {
-    Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
+    Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot | Out-Null
     Complete-InstallStage 'prepare'
 } elseif ($script:AlfredRunningAsExe -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue)) {
-    Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
+    Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot | Out-Null
     Complete-InstallStage 'prepare'
 } elseif ($NoWizard) {
-    if (Get-Command Get-AlfredInstallLogPath -ErrorAction SilentlyContinue) {
-        $script:AlfredInstallLogPath = Get-AlfredInstallLogPath -InstallPath $InstallPath
-        Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Message 'Installer started.'
-    }
+    Enable-AlfredHeadlessInstallLogging -InstallPath $InstallPath
 } else {
     Write-Banner "Alfred Installer"
     Write-Host ""
@@ -1236,8 +1295,31 @@ if (-not (Test-Path (Join-Path $InstallPath '.env'))) {
     $completeSummary += 'Optional: add .env keys later for Tavily, Anthropic API, GitHub MCP'
 }
 
-if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction SilentlyContinue)) {
-    Show-AlfredInstallComplete -InstallPath $InstallPath -SummaryItems $completeSummary
-} elseif ($script:InstallProgress) {
+if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction SilentlyContinue) -and -not $script:HeadlessInstall) {
+    try {
+        Show-AlfredInstallComplete -InstallPath $InstallPath -SummaryItems $completeSummary
+    } catch {
+        if ($script:AlfredInstallLogPath) {
+            Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Level 'WARN' -Message "Install complete dialog unavailable: $($_.Exception.Message)"
+        }
+        $script:HeadlessInstall = $true
+    }
+}
+if ($script:InstallProgress) {
     $script:InstallProgress.Close()
+}
+if ($script:HeadlessInstall -and $script:AlfredRunningAsExe) {
+    $doneMsg = "Alfred installed successfully.`n`nLog: $script:AlfredInstallLogPath"
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        [System.Windows.Forms.MessageBox]::Show(
+            $doneMsg,
+            'Alfred Installer',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
+    } catch {
+        Write-Host $doneMsg -ForegroundColor Green
+        Read-Host 'Press Enter to close'
+    }
 }
