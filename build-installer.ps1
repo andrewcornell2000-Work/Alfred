@@ -72,8 +72,15 @@ function Get-InstallerModuleBody([string]$Path) {
     $content = Get-Content $Path -Raw
     $content = ($content -replace '(?m)^#Requires[^\r\n]*\r?\n', '').Trim()
     # Script-level param() blocks cannot be inlined into the merged exe body.
-    if ($content -match '(?ms)^\s*param\s*\(') {
-        $content = ($content -replace '(?ms)^\s*param\s*\(.*?\)\s*\r?\n', '').Trim()
+    # Use the AST so function-level param blocks are never touched (a naive regex
+    # here once stripped params from every UI function and broke the exe GUI).
+    $tokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($content, [ref]$tokens, [ref]$parseErrors)
+    if (-not $parseErrors -and $ast.ParamBlock) {
+        $start = $ast.ParamBlock.Extent.StartOffset
+        $end = $ast.ParamBlock.Extent.EndOffset
+        $content = ($content.Substring(0, $start) + $content.Substring($end)).Trim()
     }
     return $content
 }
@@ -129,9 +136,8 @@ $ps2exeArgs = @{
     Description = 'Alfred AI Assistant - one-click installer'
     Version     = $Version
     STA         = $true
-    # Keep a console attached so headless/fatal paths can show progress (hidden while GUI runs).
-    noConsole   = $false
-    noOutput    = $false
+    noConsole   = $true
+    noOutput    = $true
 }
 if (Test-Path $IconFile) {
     $ps2exeArgs['iconFile'] = $IconFile

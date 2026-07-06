@@ -329,13 +329,13 @@
         "name": "lean-ctx",
         "source": "npm",
         "package": "lean-ctx-bin",
-        "command": "lean-ctx onboard",
-        "purpose": "Context OS — compress reads/shell output, session memory, 76 ctx_* MCP tools. Merged after Alfred MCPs via Provision-Cursor.ps1. No API keys.",
+        "command": "lean-ctx",
+        "purpose": "Context OS — compress reads/shell output, session memory, ctx_* MCP tools. Registered as MCP-only by Provision-Cursor.ps1 (cooperative mode). No API keys.",
         "category": "CONTEXT",
         "destructive": false,
         "trust": "community",
-        "install": "npm install -g lean-ctx-bin; lean-ctx onboard",
-        "notes": "Complements Alfred domain MCPs; does not replace Power BI / Excel / GitHub."
+        "install": "npm install -g lean-ctx-bin (MCP registered by Provision-Cursor.ps1 — never run 'lean-ctx onboard')",
+        "notes": "Complements Alfred domain MCPs; does not replace Power BI / Excel / GitHub. Never run onboard/setup/doctor --fix: they reinstall aggressive hooks."
       },
       {
         "name": "ms365",

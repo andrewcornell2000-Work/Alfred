@@ -26,8 +26,10 @@ between your repo and the agent — it does not replace Power BI, Excel, or GitH
 lean-ctx read path/to/file -m map      # API surface, ~13 tokens on re-read
 lean-ctx -c "git status"               # compressed shell output
 lean-ctx gain                          # show token savings
-lean-ctx doctor                        # verify wiring
-lean-ctx doctor --fix                  # repair MCP + hooks after Cursor/Alfred updates
+lean-ctx doctor                        # verify wiring (read-only status check)
+# NEVER run `lean-ctx doctor --fix`, `lean-ctx onboard`, or `lean-ctx setup` —
+# they reinstall aggressive always-on rules and Read/Grep/Shell redirect hooks.
+# Repair via: .\Provision-Cursor.ps1  (or installer\Repair-CooperativeLeanCtx.ps1)
 lean-ctx overview                      # project recap after a new chat
 ```
 
@@ -62,9 +64,10 @@ Restart Cursor, Claude Code, and Codex once. Then run `lean-ctx gain` after a co
 Cursor does not support `autoApprove` in `~/.cursor/mcp.json` (lean-ctx onboard adds it). Fix:
 
 ```powershell
-lean-ctx doctor --fix
 .\Provision-Cursor.ps1 -SkipClaude -SkipCodex   # strips autoApprove + fixes hook paths
 ```
+
+Do **not** use `lean-ctx doctor --fix` — it reinstalls the aggressive hooks Alfred removes.
 
 Then fully restart Cursor.
 

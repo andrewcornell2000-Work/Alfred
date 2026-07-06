@@ -57,7 +57,6 @@ function Show-InstallerFatalError([string]$Message) {
         Show-AlfredInstallError -Message $Message -LogPath $logPath
         return
     }
-    Show-InstallerConsole
     $shownDialog = $false
     try {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
@@ -69,8 +68,8 @@ function Show-InstallerFatalError([string]$Message) {
         ) | Out-Null
         $shownDialog = $true
     } catch { }
-    Write-Host $Message -ForegroundColor Red
-    if ($script:AlfredRunningAsExe -or -not $shownDialog) {
+    if (-not $shownDialog) {
+        Write-Host $Message -ForegroundColor Red
         Wait-InstallerExitPause
     }
 }
@@ -187,10 +186,18 @@ function Initialize-AlfredInstallUi {
         $script:AlfredGuiInstallMode = $false
         $script:InstallProgress = $null
         Show-InstallerConsole
-        Write-Host ""
-        Write-Host "Alfred install running without GUI (graphics failed on this PC)." -ForegroundColor Yellow
-        Write-Host "Log: $script:AlfredInstallLogPath" -ForegroundColor DarkGray
-        Write-Host ""
+        if ($script:AlfredRunningAsExe) {
+            try {
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+                [System.Windows.Forms.MessageBox]::Show(
+                    "The install window could not be shown on this PC.`n`nAlfred will keep installing in the background and tell you when it is done.`n`nLog: $script:AlfredInstallLogPath",
+                    'Alfred Installer',
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Information
+                ) | Out-Null
+            } catch { }
+        }
+        Write-Host "Alfred install running without GUI. Log: $script:AlfredInstallLogPath" -ForegroundColor Yellow
         Enable-AlfredHeadlessInstallLogging -InstallPath $InstallPath
         return $false
     }
@@ -498,11 +505,7 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 # ALFRED_INSTALLER_WIZARD_START
 # ── Install wizard ────────────────────────────────────────────────────────────
 
-# .exe skips the wizard by default — it uses the same GDI+ stack and often fails on locked-down PCs.
-# Set ALFRED_INSTALL_WIZARD=1 to force the wizard. Progress UI is tried next; then console fallback.
-$useInstallWizard = (-not $NoWizard) -and ($env:ALFRED_INSTALL_WIZARD -eq '1' -or -not $script:AlfredRunningAsExe)
-
-if ($useInstallWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
+if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
     $script:WizardUsedDefaults = $false
     try {
         $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $ScriptRoot
@@ -519,14 +522,7 @@ if ($useInstallWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Si
             exit 1
         }
     }
-    if (-not $wizard.Confirmed) {
-        if ($script:AlfredRunningAsExe) {
-            Show-InstallerConsole
-            Write-Host 'Installation cancelled.' -ForegroundColor Yellow
-            Wait-InstallerExitPause
-        }
-        exit 0
-    }
+    if (-not $wizard.Confirmed) { exit 0 }
     $InstallPath = $wizard.InstallPath
     $uiDetail = if ($script:WizardUsedDefaults) { 'Install wizard unavailable — continuing with default folder...' } else { $null }
     Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot -DetailOnFallback $uiDetail | Out-Null
@@ -1341,13 +1337,18 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallComplete -ErrorAction Sil
 if ($script:InstallProgress) {
     $script:InstallProgress.Close()
 }
-if ($script:AlfredRunningAsExe) {
-    Show-InstallerConsole
-    if ($script:HeadlessInstall) {
-        Write-Host ""
-        Write-Host "Alfred installed successfully." -ForegroundColor Green
-        Write-Host "Log: $script:AlfredInstallLogPath" -ForegroundColor DarkGray
-        Write-Host ""
+if ($script:HeadlessInstall -and $script:AlfredRunningAsExe) {
+    $doneMsg = "Alfred installed successfully.`n`nLog: $script:AlfredInstallLogPath"
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        [System.Windows.Forms.MessageBox]::Show(
+            $doneMsg,
+            'Alfred Installer',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
+    } catch {
+        Write-Host $doneMsg -ForegroundColor Green
+        Wait-InstallerExitPause
     }
-    Wait-InstallerExitPause
 }

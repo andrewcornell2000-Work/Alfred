@@ -51,7 +51,7 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
    - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
    - Print login instructions for Claude and Codex
    - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
-   - Run `lean-ctx onboard` — merges LeanCTX context compression (no API keys required)
+   - Register LeanCTX as an **optional MCP only** — never `lean-ctx onboard` (onboard installs aggressive always-on hooks)
    - Create a desktop shortcut that runs **update + provision** (not a chat window)
 
 4. **Log in once**
