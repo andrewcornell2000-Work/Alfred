@@ -96,8 +96,7 @@ function Import-AlfredInstallerModules([string]$Root) {
         'installer\Install-Progress.ps1',
         'installer\Install-Wizard.ps1',
         'installer\Update-Alert.ps1',
-        'installer\Close-AgentApps.ps1',
-        'installer\Repair-CooperativeLeanCtx.ps1'
+        'installer\Close-AgentApps.ps1'
     )) {
         $path = Join-Path $Root $rel
         if (Test-Path $path) { . $path }

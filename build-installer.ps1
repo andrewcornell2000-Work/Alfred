@@ -70,14 +70,19 @@ if (-not (Test-Path $InputFile)) {
 
 function Get-InstallerModuleBody([string]$Path) {
     $content = Get-Content $Path -Raw
-    return ($content -replace '(?m)^#Requires[^\r\n]*\r?\n', '').Trim()
+    $content = ($content -replace '(?m)^#Requires[^\r\n]*\r?\n', '').Trim()
+    # Script-level param() blocks cannot be inlined into the merged exe body.
+    if ($content -match '(?ms)^\s*param\s*\(') {
+        $content = ($content -replace '(?ms)^\s*param\s*\(.*?\)\s*\r?\n', '').Trim()
+    }
+    return $content
 }
 
 $commonPath = Join-Path $PSScriptRoot "Alfred-Common.ps1"
 $commonBody = if (Test-Path $commonPath) { Get-InstallerModuleBody $commonPath } else { "" }
 
 $moduleParts = @()
-foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Progress.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1", "installer\Close-AgentApps.ps1", "installer\Repair-CooperativeLeanCtx.ps1", "installer\Install-RepoTools.ps1")) {
+foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Progress.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1", "installer\Close-AgentApps.ps1", "installer\Install-RepoTools.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
     if (-not (Test-Path $path)) {
         if ($rel -eq 'installer\Install-RepoTools.ps1') { continue }
