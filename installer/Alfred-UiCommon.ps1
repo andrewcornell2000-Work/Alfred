@@ -73,9 +73,9 @@ function Get-AlfredLogoSource {
         try {
             $bytes = [Convert]::FromBase64String($script:AlfredEmbeddedLogoBase64)
             $ms = New-Object System.IO.MemoryStream(,$bytes)
-            $img = [System.Drawing.Image]::FromStream($ms)
+            $bmp = [System.Drawing.Bitmap]::FromStream($ms)
             $ms.Dispose()
-            return New-Object System.Drawing.Bitmap($img)
+            return $bmp
         } catch { }
     }
 
@@ -122,24 +122,33 @@ function Get-AlfredLogoBitmap {
     $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
     $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
 
-    # Flatten near-white JPEG/PNG backgrounds so the logo blends with the white sidebar.
-    $scratch = New-Object System.Drawing.Bitmap $source.Width, $source.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-    for ($y = 0; $y -lt $source.Height; $y++) {
-        for ($x = 0; $x -lt $source.Width; $x++) {
-            $c = $source.GetPixel($x, $y)
-            if ($c.A -lt 16 -or ($c.R -gt 245 -and $c.G -gt 245 -and $c.B -gt 245)) {
-                $scratch.SetPixel($x, $y, [System.Drawing.Color]::Transparent)
-            } else {
-                $scratch.SetPixel($x, $y, $c)
+    $flattened = $false
+    try {
+        if ($source.Width -gt 0 -and $source.Height -gt 0) {
+            $scratch = New-Object System.Drawing.Bitmap $source.Width, $source.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+            for ($y = 0; $y -lt $source.Height; $y++) {
+                for ($x = 0; $x -lt $source.Width; $x++) {
+                    $c = $source.GetPixel($x, $y)
+                    if ($c.A -lt 16 -or ($c.R -gt 245 -and $c.G -gt 245 -and $c.B -gt 245)) {
+                        $scratch.SetPixel($x, $y, [System.Drawing.Color]::Transparent)
+                    } else {
+                        $scratch.SetPixel($x, $y, $c)
+                    }
+                }
             }
+            $source.Dispose()
+            $source = $scratch
+            $flattened = $true
         }
-    }
-    $source.Dispose()
-    $source = $scratch
+    } catch { }
 
-    $graphics.DrawImage($source, 0, 0, $Size, $Size)
+    if (-not $flattened) {
+        try { $graphics.DrawImage($source, 0, 0, $Size, $Size) } catch { }
+    } else {
+        $graphics.DrawImage($source, 0, 0, $Size, $Size)
+    }
     $graphics.Dispose()
-    $source.Dispose()
+    if ($source) { $source.Dispose() }
     return $canvas
 }
 
@@ -222,7 +231,7 @@ function Get-AlfredBrandImage([string]$Root) {
 
 function Set-AlfredFormIcon([System.Windows.Forms.Form]$Form, [string]$Root) {
     $iconPath = Get-AlfredBrandIcon $Root
-    if ($iconPath) {
+    if ($iconPath -and $iconPath -like '*.ico') {
         try { $Form.Icon = New-Object System.Drawing.Icon($iconPath); return } catch { }
     }
     $exePath = Get-AlfredExePath
@@ -246,17 +255,13 @@ function Get-AlfredUiFont {
     )
     if ($Size -lt 1) { $Size = 10 }
     $emSize = [single]$Size
+    $style = [System.Drawing.FontStyle]::Regular
+    if ($Weight -eq 'Semibold' -or $Weight -eq 'Bold') { $style = [System.Drawing.FontStyle]::Bold }
 
     try {
-        if ($Weight -eq 'Semibold') {
-            return New-Object System.Drawing.Font('Segoe UI Semibold', $emSize, [System.Drawing.FontStyle]::Regular)
-        }
-        if ($Weight -eq 'Bold') {
-            return New-Object System.Drawing.Font('Segoe UI', $emSize, [System.Drawing.FontStyle]::Bold)
-        }
-        return New-Object System.Drawing.Font('Segoe UI', $emSize, [System.Drawing.FontStyle]::Regular)
+        return New-Object System.Drawing.Font('Segoe UI', $emSize, $style)
     } catch {
-        return New-Object System.Drawing.Font('Segoe UI', [Math]::Max($emSize, 10), [System.Drawing.FontStyle]::Regular)
+        return New-Object System.Drawing.Font([System.Drawing.SystemFonts]::DefaultFont.FontFamily, [Math]::Max($emSize, 10), $style)
     }
 }
 

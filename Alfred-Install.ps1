@@ -421,7 +421,7 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
         if ($script:AlfredInstallLogPath) {
             Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Level 'WARN' -Message "Install wizard failed: $wizardMsg"
         }
-        if ($script:AlfredRunningAsExe) {
+        if ($script:AlfredRunningAsExe -or (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue)) {
             $script:WizardUsedDefaults = $true
             $wizard = @{ Confirmed = $true; InstallPath = $InstallPath }
         } else {
