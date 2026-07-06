@@ -56,6 +56,9 @@ $Root = $PSScriptRoot
 $closeAppsScript = Join-Path $Root 'installer\Close-AgentApps.ps1'
 if (Test-Path $closeAppsScript) { . $closeAppsScript }
 
+$repairModule = Join-Path $Root 'installer\Repair-CooperativeLeanCtx.ps1'
+if (Test-Path $repairModule) { . $repairModule -RepoRoot $Root }
+
 # ── output helpers ────────────────────────────────────────────────────────────
 function Write-Step([string]$m) { Write-Host ""; Write-Host "> $m" -ForegroundColor Cyan }
 function Write-OK([string]$m)   { Write-Host "  [OK]    $m" -ForegroundColor Green }
@@ -252,72 +255,6 @@ Full stack rules: `cursor/rules/00-agent-tooling.mdc` in the Alfred repo.
     Write-OK "Repaired repo ctx rules (.cursorrules, LEAN-CTX.md) -> cooperative native-first"
 }
 
-function Repair-CooperativeLeanCtxHooks {
-    if ($SkipCursor) { return }
-
-    $hooksPath = Join-Path $HOME ".cursor\hooks.json"
-    if (-not (Test-Path $hooksPath)) { return }
-
-    try {
-        $hooks = Get-Content $hooksPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (-not $hooks.hooks) { return }
-
-        $removed = 0
-        foreach ($prop in @($hooks.hooks.PSObject.Properties)) {
-            $entries = @($prop.Value)
-            if ($entries.Count -eq 0) { continue }
-
-            $kept = @()
-            foreach ($entry in $entries) {
-                $cmd = [string]$entry.command
-                if ($cmd -match 'lean-ctx') {
-                    $removed++
-                    continue
-                }
-                $kept += $entry
-            }
-
-            if ($kept.Count -eq 0) {
-                $hooks.hooks.PSObject.Properties.Remove($prop.Name)
-            } else {
-                $hooks.hooks.$($prop.Name) = $kept
-            }
-        }
-
-        if ($removed -gt 0) {
-            Write-TextNoBom $hooksPath ($hooks | ConvertTo-Json -Depth 30)
-            Write-OK "Removed $removed lean-ctx Cursor hook(s) (cooperative native-first mode)"
-        }
-    } catch {
-        Write-Warn2 "Could not strip lean-ctx hooks from hooks.json: $_"
-    }
-}
-
-function Repair-CooperativeLeanCtxRule {
-    param([Parameter(Mandatory = $true)][string]$DestDir)
-
-    $src = Join-Path $Root "cursor\rules\lean-ctx.mdc"
-    if (-not (Test-Path $src)) { return $false }
-    if (-not (Test-Path $DestDir)) {
-        New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-    }
-
-    $dest = Join-Path $DestDir "lean-ctx.mdc"
-    $cooperative = Get-Content $src -Raw -Encoding UTF8
-    Write-TextNoBom $dest $cooperative
-
-    $written = Get-Content $dest -Raw -Encoding UTF8
-    $ok = ($written -match 'alfred-provision:\s*cooperative') -and
-          ($written -match 'alwaysApply:\s*false') -and
-          ($written -notmatch 'MANDATORY')
-    if (-not $ok) {
-        Write-Warn2 "lean-ctx rule at $dest still looks aggressive after repair — forcing Alfred cooperative copy again."
-        Write-TextNoBom $dest $cooperative
-        $ok = $true
-    }
-    return $ok
-}
-
 function Sync-GlobalCursorRules {
     if ($SkipCursor) { return }
     $rulesSrc = Join-Path $Root "cursor\rules"
@@ -327,7 +264,7 @@ function Sync-GlobalCursorRules {
     foreach ($f in Get-ChildItem $rulesSrc -Filter '*.mdc' -File) {
         Copy-Item $f.FullName (Join-Path $rulesDest $f.Name) -Force
     }
-    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest)
+    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest -SourceRoot $Root)
     Write-OK "Synced global Cursor rules -> $rulesDest"
 }
 
@@ -340,7 +277,7 @@ function Sync-ProjectCursorRules {
     $rulesDest = Join-Path $RepoPath ".cursor\rules"
     if (-not (Test-Path $rulesDest)) { return }
     Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
-    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest)
+    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest -SourceRoot $Root)
     Write-OK "Re-synced project Cursor rules -> $rulesDest (cooperative lean-ctx enforced)"
 }
 
@@ -1000,8 +937,8 @@ function Sync-Impeccable([hashtable]$harnessRoots) {
 
 # Wire impeccable's deterministic pre-edit detector hook into Cursor's GLOBAL hooks.json
 # (preToolUse), with an absolute node path so it runs without relying on the user's PATH.
-# Merges into the existing file (preserves lean-ctx and any other hooks). Idempotent.
-# Runs LAST (after lean-ctx onboard) so onboard's merge can't drop it.
+# Merges into the existing file (preserves non-lean-ctx hooks). Idempotent.
+# Runs after lean-ctx hooks are stripped so onboard redirect hooks are not re-kept.
 function Wire-ImpeccableCursorHook {
     if ($SkipCursor) { return }
     $cursorDir   = Join-Path $HOME ".cursor"
@@ -1142,53 +1079,22 @@ if (-not $SkipLeanCtx) {
 Sync-AlfredRepoCtxRules -RepoRoot $Root
 if ($ProjectPath) { Sync-AlfredRepoCtxRules -RepoRoot $ProjectPath }
 
-# ── Impeccable Cursor hook (runs after lean-ctx MCP wiring) ──
-Wire-ImpeccableCursorHook
-
-# ── Final Cursor rules (MUST run last — overwrites lean-ctx onboard's aggressive rule) ──
+# ── Final Cursor rules + hooks (strip lean-ctx hooks BEFORE impeccable merge) ──
 Write-Step "Cursor rules: enforcing Alfred cooperative lean-ctx (final overwrite)"
 Sync-GlobalCursorRules
 if ($ProjectPath -and (Test-Path $ProjectPath)) {
     Sync-ProjectCursorRules -RepoPath $ProjectPath
 }
-Repair-CooperativeLeanCtxHooks
-
-function Assert-CooperativeLeanCtxMode {
-    if ($SkipCursor) { return $true }
-
-    $rulesDest = Join-Path $HOME ".cursor\rules"
-    [void](Repair-CooperativeLeanCtxRule -DestDir $rulesDest)
-    Repair-CooperativeLeanCtxHooks
-
-    $rulePath = Join-Path $rulesDest "lean-ctx.mdc"
-    $ruleOk = $false
-    if (Test-Path $rulePath) {
-        $ruleText = Get-Content $rulePath -Raw -Encoding UTF8
-        $ruleOk = ($ruleText -match 'alfred-provision:\s*cooperative') -and
-                  ($ruleText -match 'alwaysApply:\s*false') -and
-                  ($ruleText -notmatch 'MANDATORY')
-    }
-
-    $hooksOk = $true
-    $hooksPath = Join-Path $HOME ".cursor\hooks.json"
-    if (Test-Path $hooksPath) {
-        $hooksText = Get-Content $hooksPath -Raw -Encoding UTF8
-        if ($hooksText -match 'lean-ctx hook (redirect|rewrite|observe)') { $hooksOk = $false }
-    }
-
-    if ($ruleOk -and $hooksOk) {
-        Write-OK "Verified cooperative lean-ctx mode (optional MCP, native tools default)"
-        return $true
-    }
-
-    Write-Warn2 "lean-ctx is still in aggressive/hook mode after provision."
-    Write-Info "Re-run run-alfred.bat (closes agent apps automatically), then restart Cursor."
-    if (-not $ruleOk) { Write-Info "- Rule: ~/.cursor/rules/lean-ctx.mdc should have alwaysApply: false" }
-    if (-not $hooksOk) { Write-Info "- Hooks: ~/.cursor/hooks.json should not contain lean-ctx entries" }
-    return $false
+if (Get-Command Repair-CooperativeLeanCtxHooks -ErrorAction SilentlyContinue) {
+    [void](Repair-CooperativeLeanCtxHooks)
 }
 
-[void](Assert-CooperativeLeanCtxMode)
+# ── Impeccable Cursor hook (after lean-ctx hooks stripped) ──
+Wire-ImpeccableCursorHook
+
+if (Get-Command Invoke-CooperativeLeanCtxRepair -ErrorAction SilentlyContinue) {
+    [void](Invoke-CooperativeLeanCtxRepair -SourceRoot $Root)
+}
 
 # ── summary ───────────────────────────────────────────────────────────────────
 if ($skippedServers.Count -gt 0) {

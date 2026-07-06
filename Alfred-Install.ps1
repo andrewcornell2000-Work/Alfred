@@ -96,7 +96,8 @@ function Import-AlfredInstallerModules([string]$Root) {
         'installer\Install-Progress.ps1',
         'installer\Install-Wizard.ps1',
         'installer\Update-Alert.ps1',
-        'installer\Close-AgentApps.ps1'
+        'installer\Close-AgentApps.ps1',
+        'installer\Repair-CooperativeLeanCtx.ps1'
     )) {
         $path = Join-Path $Root $rel
         if (Test-Path $path) { . $path }
@@ -184,6 +185,40 @@ function Start-AlfredCliAuth {
     } else {
         Start-Process 'cmd.exe' -ArgumentList @('/k', "`"$Exe`" $argText")
     }
+}
+
+function Invoke-AlfredPowerShellScript {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptPath,
+        [hashtable]$Parameters = @{},
+        [string]$StatusMessage,
+        [int]$TimeoutSec = 900
+    )
+
+    if (-not (Test-Path $ScriptPath)) { return 1 }
+
+    $psExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+    if (-not $psExe) {
+        $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    }
+
+    $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath)
+    foreach ($key in ($Parameters.Keys | Sort-Object)) {
+        $value = $Parameters[$key]
+        if ($null -eq $value) { continue }
+        if ($value -is [switch]) {
+            if ($value.IsPresent) { $argList += "-$key" }
+            continue
+        }
+        if ($value -is [bool]) {
+            if ($value) { $argList += "-$key" }
+            continue
+        }
+        $argList += @("-$key", [string]$value)
+    }
+
+    return (Invoke-InstallExternal -FilePath $psExe -ArgumentList $argList -StatusMessage $StatusMessage -TimeoutSec $TimeoutSec)
 }
 
 function Invoke-InstallExternal {
@@ -1111,16 +1146,26 @@ Write-Step "Step 10: Provisioning MCPs + skills + LeanCTX for Cursor, Claude Cod
 
 $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {
-    try {
-        $provisionParams = @{ ProjectPath = $InstallPath }
-        if (Test-AlfredGuiInstall) { $provisionParams.InstallerMode = $true }
-        & $provisionScript @provisionParams
-    } catch {
-        Write-Warn "Cursor/Claude provisioning failed: $_"
-        Write-Host "  Re-run later: powershell -ExecutionPolicy Bypass -File `"$provisionScript`"" -ForegroundColor DarkGray
+    $provisionParams = @{ ProjectPath = $InstallPath }
+    if (Test-AlfredGuiInstall) { $provisionParams.InstallerMode = $true }
+    $provExit = Invoke-AlfredPowerShellScript -ScriptPath $provisionScript -Parameters $provisionParams `
+        -StatusMessage 'Provisioning MCPs, skills, and rules for Cursor and Claude Code...'
+    if ($provExit -ne 0) {
+        Write-Warn "Cursor/Claude provisioning failed (exit $provExit)"
+        Write-Host "  Re-run later: powershell -ExecutionPolicy Bypass -File `"$provisionScript`" -ProjectPath `"$InstallPath`"" -ForegroundColor DarkGray
     }
 } else {
     Write-Warn "Provision-Cursor.ps1 not found — update Alfred (git pull) and re-run the installer."
+}
+
+$repairScript = Join-Path $InstallPath 'installer\Repair-CooperativeLeanCtx.ps1'
+if (Test-Path $repairScript) {
+    Write-Step 'Final pass: enforcing cooperative lean-ctx rules and stripping hooks...'
+    $repairExit = Invoke-AlfredPowerShellScript -ScriptPath $repairScript -Parameters @{ RepoRoot = $InstallPath } `
+        -StatusMessage 'Enforcing cooperative lean-ctx rules and hooks...'
+    if ($repairExit -ne 0) {
+        Write-Warn 'Cooperative lean-ctx repair did not fully apply — quit Cursor and re-run the installer.'
+    }
 }
 
 Complete-InstallStage 'verify'
