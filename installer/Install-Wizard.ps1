@@ -80,7 +80,7 @@ function Show-AlfredInstallWizard {
     foreach ($feature in @(
         'Power BI, Excel, and GitHub MCPs',
         'Skills, MCPs, and rules wired globally',
-        'Restart Cursor after install for MCP changes',
+        'Closes Cursor, Claude, and ChatGPT during install',
         'User-scope installs - no admin'
     )) {
         $mark = New-AlfredWrappedLabel -Text ([char]0x2713 + '  ' + $feature) `

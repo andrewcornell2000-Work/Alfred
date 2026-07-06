@@ -31,6 +31,8 @@
     Skip Codex (codex mcp add) provisioning.
 .PARAMETER SkipLeanCtx
     Skip lean-ctx onboard and Cursor lean-ctx repair.
+.PARAMETER SkipCloseAgentApps
+    Do not close Cursor, Claude Desktop, or ChatGPT before provisioning.
 .PARAMETER SkipThirdPartySkills
     Skip npx install of third-party agent skills (e.g. Leonxlnx/taste-skill).
 #>
@@ -42,6 +44,7 @@ param(
     [switch]$SkipClaudeDesktop,
     [switch]$SkipCodex,
     [switch]$SkipLeanCtx,
+    [switch]$SkipCloseAgentApps,
     [switch]$SkipThirdPartySkills,
     [switch]$SkipOptionalPlugins,
     [switch]$InstallerMode
@@ -49,6 +52,9 @@ param(
 
 $ErrorActionPreference = "Continue"
 $Root = $PSScriptRoot
+
+$closeAppsScript = Join-Path $Root 'installer\Close-AgentApps.ps1'
+if (Test-Path $closeAppsScript) { . $closeAppsScript }
 
 # ── output helpers ────────────────────────────────────────────────────────────
 function Write-Step([string]$m) { Write-Host ""; Write-Host "> $m" -ForegroundColor Cyan }
@@ -515,6 +521,11 @@ Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  Alfred Pack -> global provision (Cursor + Claude + Codex)" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
+
+if (-not $SkipCloseAgentApps -and (Get-Command Stop-AlfredAgentProcesses -ErrorAction SilentlyContinue)) {
+    Write-Step 'Closing Cursor, Claude, and ChatGPT before provisioning...'
+    Stop-AlfredAgentProcesses | Out-Null
+}
 
 # If Cursor isn't installed, skip all Cursor steps (Claude Code is still configured).
 # Prevents creating stray ~/.cursor folders on machines without Cursor.
@@ -1125,7 +1136,6 @@ if (-not $SkipLeanCtx) {
         Repair-LeanCtxForCursor
         Sync-LeanCtxToClaudeDesktop
         Write-OK "LeanCTX MCP registered (optional ctx_* tools). Native Read/Grep/Shell remain default."
-        Write-Info "Close Cursor before provisioning if hooks/rules keep reverting after restart."
     }
 }
 
@@ -1172,7 +1182,7 @@ function Assert-CooperativeLeanCtxMode {
     }
 
     Write-Warn2 "lean-ctx is still in aggressive/hook mode after provision."
-    Write-Info "Close Cursor completely, re-run run-alfred.bat, then restart Cursor."
+    Write-Info "Re-run run-alfred.bat (closes agent apps automatically), then restart Cursor."
     if (-not $ruleOk) { Write-Info "- Rule: ~/.cursor/rules/lean-ctx.mdc should have alwaysApply: false" }
     if (-not $hooksOk) { Write-Info "- Hooks: ~/.cursor/hooks.json should not contain lean-ctx entries" }
     return $false

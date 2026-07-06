@@ -77,7 +77,7 @@ $commonPath = Join-Path $PSScriptRoot "Alfred-Common.ps1"
 $commonBody = if (Test-Path $commonPath) { Get-InstallerModuleBody $commonPath } else { "" }
 
 $moduleParts = @()
-foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Progress.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1", "installer\Install-RepoTools.ps1")) {
+foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCommon.ps1", "installer\Install-Progress.ps1", "installer\Install-Wizard.ps1", "installer\Update-Alert.ps1", "installer\Close-AgentApps.ps1", "installer\Install-RepoTools.ps1")) {
     $path = Join-Path $PSScriptRoot $rel
     if (-not (Test-Path $path)) {
         if ($rel -eq 'installer\Install-RepoTools.ps1') { continue }

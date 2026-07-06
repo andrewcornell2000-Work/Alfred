@@ -95,7 +95,8 @@ function Import-AlfredInstallerModules([string]$Root) {
         'installer\Alfred-UiCommon.ps1',
         'installer\Install-Progress.ps1',
         'installer\Install-Wizard.ps1',
-        'installer\Update-Alert.ps1'
+        'installer\Update-Alert.ps1',
+        'installer\Close-AgentApps.ps1'
     )) {
         $path = Join-Path $Root $rel
         if (Test-Path $path) { . $path }
@@ -408,6 +409,11 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
     Write-Host ""
     $confirm = Read-Host "  Install / update Alfred here? (Y/n)"
     if ($confirm -match "^[Nn]") { Write-Host "Cancelled."; exit 0 }
+}
+
+if ($script:AlfredRunningAsExe -and (Get-Command Stop-AlfredAgentProcesses -ErrorAction SilentlyContinue)) {
+    Write-Step 'Closing Cursor, Claude, and ChatGPT for a clean install...'
+    Stop-AlfredAgentProcesses | Out-Null
 }
 
 # ── Step 1: Git ───────────────────────────────────────────────────────────────
@@ -1094,6 +1100,11 @@ if ($pbiCliExe) {
 Complete-InstallStage 'mcps'
 
 # ── Step 10: Cursor + Claude Code provisioning (shared MCPs + skills) ──────────
+
+if (Get-Command Stop-AlfredAgentProcesses -ErrorAction SilentlyContinue) {
+    Set-InstallStage 'verify' 'Closing Cursor, Claude, and ChatGPT before provisioning...'
+    Stop-AlfredAgentProcesses | Out-Null
+}
 
 Set-InstallStage 'verify' 'Provisioning MCPs, skills, and rules for Cursor and Claude Code...'
 Write-Step "Step 10: Provisioning MCPs + skills + LeanCTX for Cursor, Claude Code, and Codex"
