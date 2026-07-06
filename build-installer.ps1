@@ -129,8 +129,9 @@ $ps2exeArgs = @{
     Description = 'Alfred AI Assistant - one-click installer'
     Version     = $Version
     STA         = $true
-    noConsole   = $true
-    noOutput    = $true
+    # Keep a console attached so headless/fatal paths can show progress (hidden while GUI runs).
+    noConsole   = $false
+    noOutput    = $false
 }
 if (Test-Path $IconFile) {
     $ps2exeArgs['iconFile'] = $IconFile
