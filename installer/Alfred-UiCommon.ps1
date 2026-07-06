@@ -244,14 +244,20 @@ function Get-AlfredUiFont {
         [ValidateSet('Regular', 'Semibold', 'Bold')]
         [string]$Weight = 'Regular'
     )
-    $Size = [Math]::Round($Size, 0, [MidpointRounding]::AwayFromZero)
-    if ($Weight -eq 'Semibold') {
-        return New-Object System.Drawing.Font('Segoe UI Semibold', $Size, [System.Drawing.FontStyle]::Regular)
+    if ($Size -lt 1) { $Size = 10 }
+    $emSize = [single]$Size
+
+    try {
+        if ($Weight -eq 'Semibold') {
+            return New-Object System.Drawing.Font('Segoe UI Semibold', $emSize, [System.Drawing.FontStyle]::Regular)
+        }
+        if ($Weight -eq 'Bold') {
+            return New-Object System.Drawing.Font('Segoe UI', $emSize, [System.Drawing.FontStyle]::Bold)
+        }
+        return New-Object System.Drawing.Font('Segoe UI', $emSize, [System.Drawing.FontStyle]::Regular)
+    } catch {
+        return New-Object System.Drawing.Font('Segoe UI', [Math]::Max($emSize, 10), [System.Drawing.FontStyle]::Regular)
     }
-    if ($Weight -eq 'Bold') {
-        return New-Object System.Drawing.Font('Segoe UI', $Size, [System.Drawing.FontStyle]::Bold)
-    }
-    return New-Object System.Drawing.Font('Segoe UI', $Size, [System.Drawing.FontStyle]::Regular)
 }
 
 function New-AlfredBrandPanel {

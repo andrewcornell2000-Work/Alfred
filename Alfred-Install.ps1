@@ -413,15 +413,28 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 # ── Install wizard ────────────────────────────────────────────────────────────
 
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
+    $script:WizardUsedDefaults = $false
     try {
         $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $ScriptRoot
     } catch {
-        Show-InstallerFatalError "Could not open the install wizard:`n`n$($_.Exception.Message)"
-        exit 1
+        $wizardMsg = $_.Exception.Message
+        if ($script:AlfredInstallLogPath) {
+            Write-AlfredInstallLog -LogPath $script:AlfredInstallLogPath -Level 'WARN' -Message "Install wizard failed: $wizardMsg"
+        }
+        if ($script:AlfredRunningAsExe) {
+            $script:WizardUsedDefaults = $true
+            $wizard = @{ Confirmed = $true; InstallPath = $InstallPath }
+        } else {
+            Show-InstallerFatalError "Could not open the install wizard:`n`n$wizardMsg"
+            exit 1
+        }
     }
     if (-not $wizard.Confirmed) { exit 0 }
     $InstallPath = $wizard.InstallPath
     Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
+    if ($script:WizardUsedDefaults) {
+        $script:InstallProgress.SetDetail('Install wizard unavailable — continuing with default folder...')
+    }
     Complete-InstallStage 'prepare'
 } elseif ($NoWizard -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue) -and $script:AlfredRunningAsExe) {
     Enable-AlfredGuiInstallOutput -Progress (Start-AlfredInstallProgress -InstallPath $InstallPath -AssetsRoot $ScriptRoot)
