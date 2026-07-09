@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 12] TECHNIQUE — Builder-Validator Pattern (Agent Output Evaluation)
+**Date:** 2026-07-09
+**Type:** TECHNIQUE
+**What I found:** The "verification gap" is identified in arXiv 2025 research as the root cause of 75.3% of multi-agent task failures — the builder implements its own interpretation and then verifies against that same interpretation, not against what was originally asked. The fix is the builder-validator pattern: a second, fresh agent receives only the original requirement and the output (never the builder's chain-of-thought), then evaluates it independently. This is structurally equivalent to unit testing but applied to AI-generated outputs. ASDLC.io documents this as the "Critic Agent" pattern; Anthropic's 2026 agentic SDLC guide identifies it as a mandatory gate before any output reaches a stakeholder.
+**Why it matters:** Andrew regularly uses Cursor for building then asks "does this look right?" — this is precisely the pattern that fails. The builder finished, rationalised its own output, and now confirms it's correct. The critic pattern gives a concrete, independent check. For finance outputs (numbers, formulas), the adversarial numeric audit pattern (Pattern 3) adds trace-back verification — the critic traces each key number back to its source rather than just reading the output.
+**What it unlocks:** Any agent-produced output that goes to a stakeholder or depends on correctness can now have a structured, paste-ready verification pass. The pattern also catches goal-alignment drift in long runs (40+ tool calls), which is otherwise invisible — the agent looks busy and productive but drifts off the original goal over time. Four patterns cover all scenarios: fresh-window (general), spec-anchored (when SPEC.md exists), adversarial (finance/data), goal-alignment (long runs).
+**Artifact:** `skills/agent-output-evaluation.md`
+
+---
+
 ### [ITERATION 11] TECHNIQUE — MCP Security and Prompt Injection Defense
 **Date:** 2026-07-09
 **Type:** TECHNIQUE
@@ -43,17 +53,7 @@
 ### [ITERATION 12] TECHNIQUE — Spec-Driven Development with AI Agents
 **Date:** 2026-06-18
 **Type:** TECHNIQUE
-**What I found:** Spec-driven development (SDD) — writing a SPEC.md file before any prompt — is now the dominant professional pattern for multi-file agent work in 2026. GitHub Spec Kit (open-source), AWS Kiro IDE, and Claude Code all ship native spec tooling. The core discipline: the spec is always updated to reflect decisions (not the chat), and the agent implements against SPEC.md, not against conversation history. The four-phase loop is: SPECIFY → PLAN → IMPLEMENT → VERIFY. Key anti-pattern caught: "updating rules in conversation" fails because the next session doesn't know about the conversation; all rules go in the spec file.
-**Why it matters:** Andrew's agent sessions fail not because the model is bad but because business rules, edge cases, and success criteria live only in his head or in chat history that doesn't survive a context reset. A SPEC.md forces him to write those rules once, in a file, so every future session (and any collaborator) reads the same truth.
-**What it unlocks:** Reliable multi-session tasks. Paste-ready VERIFY prompt that makes the agent check its own output against explicit success criteria. Finance-specific SPEC.md template for Excel/Power BI report work. "Out of scope" section pattern that prevents agents from helpfully adding unrequested features.
+**What I found:** Spec-driven development (SDD) — writing a SPEC.md file before any prompt — is now the dominant professional pattern for multi-file agent work in 2026. GitHub Spec Kit (open-source), AWS Kiro IDE, and Claude Code all ship native spec tooling. The core discipline: spec captures business rules and success criteria before any build; the agent implements against the spec; when something changes, you update the spec (not the conversation). The four-phase workflow (SPECIFY → PLAN → IMPLEMENT → VERIFY) maps directly onto how Kiro, Cursor, and Claude Code split their UI.
+**Why it matters:** Andrew's common failure mode: one-line prompt that the agent fills with its own assumptions. Two days later the output is wrong but nobody can articulate why. SPEC.md makes every assumption visible and checkable.
+**What it unlocks:** SPEC.md as single source of truth survives context resets, tool switches, and team handoffs. The agent PLAN phase (no code, just plan) catches misunderstandings before they're built. The VERIFY phase closes the loop against the original success criteria — no more "it looked done but wasn't."
 **Artifact:** `skills/agent-spec-driven.md`
-
----
-
-### [ITERATION 11] TECHNIQUE — Agent Workflow Orchestration Patterns
-**Date:** 2026-06-17
-**Type:** TECHNIQUE
-**What I found:** Three concrete orchestration patterns for multi-step agent workflows: (A) linear chain with checkpoint artifacts, (B) orchestrator + parallel workers via worktrees, (C) human-in-the-loop gate for destructive steps. Claude Code now natively supports up to 1,000 sub-agents with 16 concurrent execution paths and native checkpointing. The critical design insight is the HANDOFF.md + checkpoint file pattern — each step writes a self-contained artifact the next step reads. The orchestrator's only job is routing + error recovery, not content.
-**Why it matters:** Andrew runs multi-step report pipelines: extract → transform → format → email. Without an explicit orchestration pattern, each handoff point either loses context or requires manual re-instruction. The three patterns give him a vocabulary for designing these pipelines and a recovery prompt when one step fails.
-**What it unlocks:** Reliable multi-step automations. The "gate" pattern for destructive operations (confirm before overwriting a workbook) is immediately applicable to the finance workflow.
-**Artifact:** `skills/agent-workflow-orchestration.md`
