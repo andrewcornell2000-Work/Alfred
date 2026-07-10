@@ -73,3 +73,4 @@ memory/instincts/observations.jsonl
 
 # Don't ignore skills/, memory/, requirements/ — those sync to GitHub
 
+graphify-out/

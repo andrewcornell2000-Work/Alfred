@@ -1,3 +1,3 @@
 # Alfred agent tooling
 
-See `cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).
+See `.cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).

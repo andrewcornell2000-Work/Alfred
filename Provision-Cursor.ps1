@@ -21,6 +21,12 @@
     Idempotent and safe to re-run. Never commits secrets.
 .PARAMETER ProjectPath
     Optional project to seed Cursor rules + AGENTS.md into.
+.PARAMETER SeedProjects
+    Additional repos to seed rules + AGENTS.md + graphify into. Also read from
+    ALFRED_PROJECT_PATHS in Alfred .env (semicolon-separated), so day-to-day
+    repos are seeded on every provision without remembering a flag.
+.PARAMETER SkipDoctor
+    Skip the post-provision Alfred-Doctor.ps1 verification report.
 .PARAMETER SkipCursor
     Skip Cursor (~/.cursor) provisioning.
 .PARAMETER SkipClaude
@@ -35,6 +41,8 @@
 [CmdletBinding()]
 param(
     [string]$ProjectPath,
+    [string[]]$SeedProjects = @(),
+    [switch]$SkipDoctor,
     [switch]$SkipCursor,
     [switch]$SkipClaude,
     [switch]$SkipClaudeDesktop,
@@ -117,35 +125,16 @@ function Sync-AlfredRepoCtxRules {
     $cursorrules = @'
 # Alfred agent tooling
 
-See `cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).
+See `.cursor/rules/00-agent-tooling.mdc` (native Read/Grep/Shell/Edit default).
 '@
     Write-TextNoBom (Join-Path $RepoRoot '.cursorrules') $cursorrules
     Write-OK "Synced repo .cursorrules -> native-first agent tooling"
 }
 
-function Sync-GlobalCursorRules {
-    if ($SkipCursor) { return }
-    $rulesSrc = Join-Path $Root "cursor\rules"
-    if (-not (Test-Path $rulesSrc)) { return }
-    $rulesDest = Join-Path $HOME ".cursor\rules"
-    if (-not (Test-Path $rulesDest)) { New-Item -ItemType Directory -Path $rulesDest -Force | Out-Null }
-    foreach ($f in Get-ChildItem $rulesSrc -Filter '*.mdc' -File) {
-        Copy-Item $f.FullName (Join-Path $rulesDest $f.Name) -Force
-    }
-    Write-OK "Synced global Cursor rules -> $rulesDest"
-}
-
-function Sync-ProjectCursorRules {
-    param([Parameter(Mandatory = $true)][string]$RepoPath)
-
-    if ($SkipCursor) { return }
-    $rulesSrc = Join-Path $Root "cursor\rules"
-    if (-not (Test-Path $rulesSrc)) { return }
-    $rulesDest = Join-Path $RepoPath ".cursor\rules"
-    if (-not (Test-Path $rulesDest)) { return }
-    Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
-    Write-OK "Re-synced project Cursor rules -> $rulesDest"
-}
+# NOTE: global ~/.cursor/rules syncing was removed deliberately (2026-07-10 audit):
+# Cursor has no documented global rules directory — User Rules live in the Settings
+# GUI and project rules in <repo>/.cursor/rules. Seeding is per-project (see
+# Invoke-ProjectSeed below / ALFRED_PROJECT_PATHS in .env).
 
 function Remove-AlfredVendoredTasteSkills([string[]]$roots) {
     foreach ($root in $roots) {
@@ -824,57 +813,116 @@ function Wire-ImpeccableCursorHook {
     Write-OK "Wired impeccable pre-edit detector hook into Cursor hooks.json (absolute node path)"
 }
 
-Write-Step "Skills: syncing Alfred skills into Cursor + Claude Code + Codex"
-$skillDests = @()
-if (-not $SkipCursor) { $skillDests += (Join-Path $HOME ".cursor\skills") }
-if (-not $SkipClaude) { $skillDests += (Join-Path $HOME ".claude\skills") }
-if (-not $SkipCodex)  { $skillDests += (Join-Path $HOME ".codex\skills") }
-Remove-AlfredVendoredTasteSkills $skillDests
-if ($skillDests.Count -gt 0) {
-    Sync-Skills (Join-Path $Root "skills") $skillDests
-    Sync-SkillFolders (Join-Path $Root "skills\_packs") $skillDests
-    $impeccableRoots = @{}
-    if (-not $SkipCursor) { $impeccableRoots['cursor'] = (Join-Path $HOME ".cursor\skills") }
-    if (-not $SkipClaude) { $impeccableRoots['claude'] = (Join-Path $HOME ".claude\skills") }
-    if (-not $SkipCodex)  { $impeccableRoots['codex']  = (Join-Path $HOME ".codex\skills") }
-    if ($impeccableRoots.Count -gt 0) { Sync-Impeccable $impeccableRoots }
+# Skills land ONCE in ~/.agents/skills — the cross-tool Agent Skills standard.
+# Cursor, Claude Code, and Codex all scan it (Cursor additionally scans the legacy
+# ~/.cursor|.claude|.codex skill roots, so per-tool copies show up in triplicate —
+# that duplication is why the legacy copies are actively removed below).
+# Exception: impeccable stays per-harness because its docs hard-code harness paths.
+function Remove-LegacySkillCopies {
+    $packNames = @()
+    $packsDir = Join-Path $Root "skills\_packs"
+    if (Test-Path $packsDir) {
+        $packNames = @(Get-ChildItem $packsDir -Recurse -Directory -ErrorAction SilentlyContinue |
+                       Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') } |
+                       ForEach-Object { $_.Name })
+    }
+    foreach ($tool in @('.cursor', '.claude', '.codex')) {
+        $root = Join-Path $HOME "$tool\skills"
+        if (-not (Test-Path $root)) { continue }
+        $removed = 0
+        Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            if (($_.Name -like 'alfred-*') -or ($packNames -contains $_.Name)) {
+                Remove-Item $_.FullName -Recurse -Force
+                $removed++
+            }
+        }
+        if ($removed -gt 0) { Write-OK "Removed $removed legacy skill cop(ies) from $root (now served from ~/.agents/skills)" }
+    }
 }
+
+Write-Step "Skills: syncing Alfred skills once into ~/.agents/skills (read by Cursor + Claude Code + Codex)"
+$agentsSkillsRoot = Join-Path $HOME ".agents\skills"
+Remove-AlfredVendoredTasteSkills @($agentsSkillsRoot)
+Sync-Skills (Join-Path $Root "skills") @($agentsSkillsRoot)
+Sync-SkillFolders (Join-Path $Root "skills\_packs") @($agentsSkillsRoot)
+Remove-LegacySkillCopies
+$impeccableRoots = @{}
+if (-not $SkipCursor) { $impeccableRoots['cursor'] = (Join-Path $HOME ".cursor\skills") }
+if (-not $SkipClaude) { $impeccableRoots['claude'] = (Join-Path $HOME ".claude\skills") }
+if (-not $SkipCodex)  { $impeccableRoots['codex']  = (Join-Path $HOME ".codex\skills") }
+if ($impeccableRoots.Count -gt 0) { Sync-Impeccable $impeccableRoots }
 Install-ThirdPartyAgentSkills
 
-# ── Rules: per-project seeding (opt-in via -ProjectPath) ──────────────────────
-if ($ProjectPath) {
-    Write-Step "Rules: seeding into $ProjectPath"
-    if (-not (Test-Path $ProjectPath)) {
-        Write-Warn2 "ProjectPath '$ProjectPath' does not exist -- skipping rules."
-    } else {
+# ── Rules: per-project seeding ────────────────────────────────────────────────
+# Cursor only reads rules from <repo>/.cursor/rules (project scope) or the
+# Settings GUI (User Rules). There is NO documented global rules directory, so
+# Alfred seeds every repo listed via -ProjectPath / -SeedProjects /
+# ALFRED_PROJECT_PATHS (.env, semicolon-separated) instead of writing a global
+# ~/.cursor/rules that Cursor never loads.
+function Invoke-ProjectSeed([string]$repo) {
+    if (-not (Test-Path $repo)) {
+        Write-Warn2 "Seed project '$repo' does not exist -- skipping."
+        return
+    }
+    Write-Step "Rules: seeding into $repo"
+    if (-not $SkipCursor) {
         $rulesSrc = Join-Path $Root "cursor\rules"
         if (Test-Path $rulesSrc) {
-            $rulesDest = Join-Path $ProjectPath ".cursor\rules"
+            $rulesDest = Join-Path $repo ".cursor\rules"
             if (-not (Test-Path $rulesDest)) { New-Item -ItemType Directory -Path $rulesDest -Force | Out-Null }
             Copy-Item (Join-Path $rulesSrc '*.mdc') $rulesDest -Force
             Write-OK "Copied Cursor rules -> $rulesDest"
         }
-        $agentsSrc  = Join-Path $Root "cursor\AGENTS.shared.md"
-        $agentsDest = Join-Path $ProjectPath "AGENTS.md"
-        if (Test-Path $agentsDest) {
-            Write-Skip "AGENTS.md already exists in project -- left untouched."
-        } elseif (Test-Path $agentsSrc) {
-            Copy-Item $agentsSrc $agentsDest
-            Write-OK "Created AGENTS.md (shared rules for Cursor + Claude Code)."
+    }
+    $agentsSrc  = Join-Path $Root "cursor\AGENTS.shared.md"
+    $agentsDest = Join-Path $repo "AGENTS.md"
+    if (Test-Path $agentsDest) {
+        Write-Skip "AGENTS.md already exists in project -- left untouched."
+    } elseif (Test-Path $agentsSrc) {
+        Copy-Item $agentsSrc $agentsDest
+        Write-OK "Created AGENTS.md (shared rules for Cursor + Claude Code)."
+    }
+    Sync-AlfredRepoCtxRules -RepoRoot $repo
+    # Graphify: free/local codebase knowledge graph — project-scoped Cursor rule
+    # (graphify install writes <cwd>/.cursor/rules/graphify.mdc).
+    if (-not $SkipCursor -and (Get-Command graphify -ErrorAction SilentlyContinue)) {
+        Push-Location $repo
+        try {
+            & graphify install --platform cursor 2>&1 | Out-Null
+            if (Test-Path (Join-Path $repo ".cursor\rules\graphify.mdc")) {
+                Write-OK "Seeded graphify Cursor rule (build the graph with: graphify or /graphify)."
+            }
+        } catch {
+            Write-Warn2 "graphify seed failed: $_"
+        } finally {
+            Pop-Location
         }
     }
+}
+
+# Graphify CLI: install once (uv tool, local/deterministic, no API keys).
+if (-not (Get-Command graphify -ErrorAction SilentlyContinue)) {
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        Write-Step "Installing graphify (local knowledge-graph CLI, no API cost)"
+        & uv tool install graphifyy -q 2>&1 | Select-Object -Last 2 | ForEach-Object { Write-Info $_ }
+    } else {
+        Write-Skip "graphify not installed and uv unavailable -- install later: uv tool install graphifyy"
+    }
+}
+
+$seedList = @()
+if ($ProjectPath) { $seedList += $ProjectPath }
+$seedList += $SeedProjects
+$envSeeds = $EnvMap["ALFRED_PROJECT_PATHS"]
+if ($envSeeds) { $seedList += ($envSeeds -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
+$seedList = @($seedList | Select-Object -Unique)
+if ($seedList.Count -gt 0) {
+    foreach ($repo in $seedList) { Invoke-ProjectSeed $repo }
 } else {
-    Write-Info "Rules are per-project. Re-run with -ProjectPath <repo> to seed Cursor rules + AGENTS.md."
+    Write-Info "Rules are per-project. Pass -ProjectPath <repo> or set ALFRED_PROJECT_PATHS in Alfred .env."
 }
 
 Sync-AlfredRepoCtxRules -RepoRoot $Root
-if ($ProjectPath) { Sync-AlfredRepoCtxRules -RepoRoot $ProjectPath }
-
-Write-Step "Cursor rules: syncing Alfred rules"
-Sync-GlobalCursorRules
-if ($ProjectPath -and (Test-Path $ProjectPath)) {
-    Sync-ProjectCursorRules -RepoPath $ProjectPath
-}
 
 # ── Impeccable Cursor hook ──
 Wire-ImpeccableCursorHook
@@ -900,5 +948,13 @@ Write-Host ""
 Write-Host "Provisioning complete. Restart Cursor, Claude Desktop, Claude Code, and/or Codex." -ForegroundColor Green
 Write-Info "MCP tokens are machine-local only — rotate keys in Alfred .env if configs are ever shared."
 Write-Host ""
+
+# ── Doctor: verify what each assistant actually sees (exit 0 != installed) ────
+if (-not $SkipDoctor) {
+    $doctorScript = Join-Path $Root "Alfred-Doctor.ps1"
+    if (Test-Path $doctorScript) {
+        & $doctorScript -SeedProjects $seedList
+    }
+}
 
 if ($script:ProvisionErrors.Count -gt 0) { exit 1 }

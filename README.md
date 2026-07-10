@@ -74,13 +74,31 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
 | Claude Code | `claude mcp add --scope user` |
 | Codex | `codex mcp add` |
 
-Skills from `skills/` sync to `~/.cursor/skills`, `~/.claude/skills`, and `~/.codex/skills`.
+Skills from `skills/` sync **once** to `~/.agents/skills` — the cross-tool Agent
+Skills standard that Cursor, Claude Code, and Codex all read. (Per-tool copies in
+`~/.cursor|.claude|.codex/skills` were retired: Cursor scans every root, so three
+copies meant every skill listed in triplicate. The provisioner cleans them up.)
+
+Rules are **per-project** — Cursor has no global rules directory. List your repos
+in `.env` as `ALFRED_PROJECT_PATHS=C:\path\repo1;C:\path\repo2` and every provision
+seeds `<repo>/.cursor/rules/*.mdc`, `AGENTS.md`, and the graphify rule into each.
 
 Re-provision after pulling updates:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1
 ```
+
+Verify what each tool actually sees (runs automatically after provisioning):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Alfred-Doctor.ps1
+```
+
+Doctor checks MCP registration per target (Cursor / Claude Code / Claude Desktop /
+Codex), single-copy skills, per-project rules, CLIs, and the Excel / Power BI
+stack, then diffs against the previous report (`%LOCALAPPDATA%\alfred\doctor.json`)
+so config drift is called out — "the script exited 0" is never trusted as success.
 
 ---
 
