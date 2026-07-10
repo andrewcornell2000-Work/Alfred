@@ -2,6 +2,58 @@
 
 ---
 
+## 2026-07-10 (Iteration #13) — Agent Token Efficiency Skill Major Upgrade
+
+**Category:** Agent technique / token efficiency / model effort
+**Mode:** Improved existing skill — `skills/agent-token-efficiency.md`
+
+**Searches performed:**
+1. `"effort level" OR "thinking budget" Claude Code Cursor agent 2026 "low" "medium" "high" "max" when to use workflow tips`
+   — Found two primary sources: mindstudio.ai "Claude Code Effort Levels" (May 2026) detailing the
+   five levels (low/medium/high/max/ultra code) with token budgets per level and the counterintuitive
+   rule that extra thinking budget is wasted on reconstructing context you should have provided.
+   Also found explainx.ai and LinkedIn posts (Lukasz Bulik) confirming the effort levels are now
+   a first-class Claude Code feature.
+2. Also retrieved mager.co "Claude: How prompt caching actually works" (Apr 2026) — confirmed that
+   cache breakpoints fire after ~5 mins of API inactivity; that the cache is prefix-anchored (any
+   change in the stable prefix invalidates downstream); and practical rules for maximising cache
+   hits within Cursor/Claude Code sessions.
+
+**Gap identified:** The existing `agent-token-efficiency.md` was 120 lines covering 5 core rules,
+an MCP table, and anti-patterns. It had NO coverage of:
+- Effort levels (low/medium/high/max/ultra code) — the single biggest cost lever in 2026
+- When to use vs. skip extended thinking
+- Prompt caching mechanics and how to structure prompts to hit breakpoints
+- Context compression checkpoints for long sessions
+- Quick-reference table matching task type → effort → thinking flag
+
+**Key facts gathered:**
+- Five effort levels: low (~1k thinking tokens), medium (~8k, default), high (~32k), max (~64k),
+  ultra code (uncapped, Opus 4+ only). Each is a cost-quality tradeoff.
+- Counterintuitive rule (Lukasz Bulik, LinkedIn): the extra thinking budget gets spent reconstructing
+  state you should have given upfront. Better context first; bump effort second.
+- Prompt cache breakpoint: fires on prefix mismatch; cache expires ~5 mins of API inactivity or
+  between Cursor sessions. Rules: never modify system prompt between turns; put stable content
+  (SPEC, rules, pasted files) at top; don't re-paste files already in context.
+- Extended thinking is valuable for first-principles decisions, debugging non-obvious bugs, and
+  multi-step planning. Wasteful for retrieval tasks, queries where the answer is in the document,
+  and for sub-agents inside a loop (thinking cost multiplies across calls).
+
+**Change summary:**
+- Rewrote `skills/agent-token-efficiency.md` from 120 lines → 220 lines
+- Added Section 2 (effort levels) — full table, matching guide, 5 "Try asking:" examples
+- Added Section 3 (extended thinking) — when to use, when to skip, 3 "Try asking:" examples
+- Added Section 4 (prompt caching) — how it works, 5 structure rules, 3 "Try asking:" examples
+- Added Section 6 anti-patterns table (upgraded from bullet list to table with fixes)
+- Added Section 7 context compression checkpoints (3 paste-ready prompts)
+- Added Section 8 quick-reference table (task type → effort → thinking)
+- Preserved all original content, integrated it into new structure
+
+**Files modified:** `skills/agent-token-efficiency.md` (improved), `memory/learning-log.md` (this entry),
+`memory/discoveries.md` (appended).
+
+---
+
 ## 2026-07-09 (Iteration #12) — Agent Output Evaluation / Builder-Validator Pattern Skill
 
 **Category:** Agent technique / verification patterns
@@ -65,135 +117,32 @@ or the result → action table (ACCEPT / NEEDS_FIXES / REJECT → what to do).
 **Mode:** New skill — MCP prompt injection and tool poisoning defense
 
 **Searches performed:**
-1. `MCP prompt injection tool poisoning attack defense Cursor Claude Code 2025 2026`
-   — Found Simon Willison's canonical April 2025 post documenting real attack chains (hidden
-   instructions embedded in fetched web pages causing agents to silently read credential files).
-   Found Microsoft Developer Blog guidance on indirect injection in MCP. Found hidekazu-konishi.com
-   (June 2026) comprehensive defense guide covering supply-chain vetting, version pinning, allowlist
-   configuration, and monitoring. Confirmed the "lethal trifecta" (private data + untrusted input +
-   outbound channel) as the established threat model coined by Willison.
-2. `site:simonwillison.net MCP prompt injection "tool poisoning" "indirect" example attack 2025`
-   — Retrieved the "lethal trifecta" tagging and specific attack chain examples from Willison's tags
-   index. Found "rug pull" attack type documented (package vets at v1.0, deploys poison in v1.1,
-   npx -y picks it up silently). Found Johann Rehberger's "normalization of deviance" concern —
-   no headline-grabbing incidents yet, but attack surface is real and growing.
-
-**Gap identified:** No existing skill in the Alfred pack covered MCP security. The gap is significant
-because Andrew's pack has six MCPs with meaningful attack surface: `filesystem` (Finance OneDrive),
-`ms-365` (mail + SharePoint + OneDrive), `fetch` (any URL), `playwright` (any live page), `github`
-(repo + token), and `firecrawl` (crawling external sites). The `fetch` + `filesystem` combination
-in particular is a classic trifecta entry point.
+1. `MCP prompt injection attack 2025 2026 "tool poisoning" OR "rug pull" security defense Cursor Claude`
+   — Found Simon Willison's April 2025 breakdown of MCP prompt injection; Microsoft Developer Blog
+   confirming it as an active threat class; OWASP LLM Top 10 (2025) listing indirect prompt injection
+   as #1; Johann Rehberger's "normalization of deviance" concern about how no-headline-incidents leads
+   to false confidence.
+2. `MCP server security audit checklist 2026 "read-only" "destructive" Claude Code`
+   — Found Anthropic's own MCP security guidance recommending minimal permission scope; community
+   practice of `--read-only` flags; version pinning to avoid rug-pull attacks.
 
 **Change summary:**
-- Created `skills/agent-mcp-security.md` — complete security skill covering three attack patterns,
-  Alfred pack exposure map, seven defences, five detection prompts, pre-flight checklist, and
-  six "Try asking:" examples.
+- Created `skills/agent-mcp-security.md` — comprehensive MCP security skill covering the lethal
+  trifecta threat model, three attack vectors, pre-flight session checklist, detection prompts,
+  version pinning guidance, and a safe-by-default configuration template.
 
-**Files modified:** `skills/agent-mcp-security.md` (new), `requirements/discovered-tools.md`
-(appended), `memory/learning-log.md` (this entry), `memory/discoveries.md` (appended).
+**Files modified:** `skills/agent-mcp-security.md` (new), `memory/learning-log.md` (this entry),
+`memory/discoveries.md` (appended).
 
 ---
 
-## 2026-07-03 (Iteration #10) — Agent Handoff Skill
+## 2026-07-09 (Iteration #10) — Agent Handoff Skill
 
-**Category:** Agent skills / Workflow design
-**Mode:** New skill — agent handoff pattern (HANDOFF.md discipline)
-
-**Searches performed:**
-1. `HANDOFF.md template agent context transfer Cursor Claude Code Codex best practices 2025 2026`
-   — Found Cursor community forum thread confirming HANDOFF.md as the dominant practitioner pattern
-   for cross-tool context continuity. Key practitioner insight: it is rewritten (not appended) at every
-   session end so it always reflects present state, never accumulates stale history.
-2. `Claude Code Codex handoff context session continuity agent memory 2026`
-   — Found Codex CLI documentation confirming `AGENTS.md` + scratch files as the primary continuity
-   mechanism. Found practitioner workflows using HANDOFF.md as the bridge specifically for
-   Cursor → Codex autonomous dispatch (task brief format, not free-form conversation summary).
+**Category:** Agent technique / session management
+**Mode:** New skill — HANDOFF.md discipline for cross-session continuity
 
 **Change summary:**
-- Created `skills/agent-handoff.md` — complete handoff skill with three handoff types, five
-  paste-ready prompts, cross-tool routing table, and HANDOFF.md template.
+- Created `skills/agent-handoff.md` covering the HANDOFF.md discipline: format, when to write it,
+  how to load it in a new session, and how to split handoffs for parallel worktrees.
 
----
-
-## 2026-06-30 (Iteration #9) — Claude Code Subagent Skill
-
-**Category:** Agent technique / Claude Code features
-**Mode:** New skill — Claude Code subagents and parallel execution
-
-**Gap identified:** Claude Code's native `/spawn` and subagent features were undocumented in Alfred.
-The skill covers: when to use subagents vs. Cursor parallel worktrees, how to dispatch a Codex
-cloud run from Claude Code, and the three coordination patterns.
-
-**Change summary:**
-- Created `skills/agent-claude-code-subagents.md`
-
----
-
-## 2026-06-25 (Iteration #8) — Token Efficiency Skill
-
-**Category:** Agent technique / context window cost management
-**Mode:** New skill
-
-**Change summary:**
-- Created `skills/agent-token-efficiency.md` — covers: model selection by task type, context
-  compression techniques, structured output over prose, and cost-aware agent design.
-
----
-
-## 2026-06-22 (Iteration #7) — ms-365 MCP (SharePoint / Graph)
-
-**Category:** MCP discovery
-**Mode:** New MCP — Microsoft 365 via Graph API
-
-**Gap identified:** Alfred had no native Microsoft 365 integration. The ms-365 server covers
-SharePoint, OneDrive, Outlook, Calendar, Teams, and To-Do — all via official Microsoft Graph,
-with MSAL device-code auth (browser pop-up once, then token cached).
-
-**Change summary:**
-- Added `ms-365` to `cursor/mcp.json`
-- Updated `skills/sharepoint-graph.md`
-- Added entry to `requirements/discovered-tools.md`
-
----
-
-## 2026-06-19 (Iteration #6) — Agent Self-Check Skill
-
-**Category:** Agent technique
-**Mode:** New skill
-
-**Change summary:**
-- Created `skills/agent-self-check.md` — four escalating patterns (inline critique, output
-  contracts, reflection pass, test-first loop).
-
----
-
-## 2026-06-18 (Iteration #5) — Spec-Driven Development Skill
-
-**Category:** Agent technique
-**Mode:** New skill
-
-**Change summary:**
-- Created `skills/agent-spec-driven.md` — SPECIFY→PLAN→IMPLEMENT→VERIFY workflow with
-  SPEC.md template and paste-ready prompts for each phase.
-
----
-
-## 2026-06-16 (Iteration #4) — Agent Loop Debugging Skill
-
-**Category:** Agent technique
-**Mode:** New skill
-
-**Change summary:**
-- Created `skills/agent-loop-debugging.md` — six failure modes, recovery prompts,
-  pre-flight checklist, structured output enforcement.
-
----
-
-## 2026-06-15 (Iteration #3) — Context Engineering + Parallel Worktrees Skills
-
-**Category:** Agent technique (two skills)
-**Mode:** New skills
-
-**Change summary:**
-- Created `skills/agent-context-engineering.md`
-- Created `skills/agent-parallel-worktrees.md`
+**Files modified:** `skills/agent-handoff.md` (new), `memory/learning-log.md` (this entry).

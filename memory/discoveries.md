@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 13] TECHNIQUE — Agent Token Efficiency: Effort Levels + Prompt Caching
+**Date:** 2026-07-10
+**Type:** TECHNIQUE / BUILD
+**What I found:** Claude Code has five named effort levels (low / medium / high / max / ultra code) that directly control the token thinking budget per request — from ~1k tokens at "low" up to uncapped at "ultra code". The counterintuitive finding: extra thinking budget is typically *wasted* reconstructing context the user should have provided upfront, meaning better context nearly always beats higher effort. Additionally, prompt caching is now a first-class efficiency tool: the model caches the stable prefix of each session, and any change to that prefix (even one word) invalidates the cache and re-processes everything at full cost. Cache breakpoints expire after ~5 minutes of API inactivity or between Cursor sessions.
+**Why it matters:** Andrew runs Cursor agents on multi-file finance tasks regularly. Without knowing effort levels, he either uses too much compute (default max, every run) or too little (quick answer on complex debugging). The effort level table gives him a concrete selection guide. The prompt caching rules stop the single most common silent waste: re-pasting files that are already in context.
+**What it unlocks:** Structured effort selection for every Cursor/Claude Code task type. Practical cache-maximising habits (stable prefix first, no mid-session rephrasing, don't re-paste files). Context compression checkpoints for long-running sessions that would otherwise overflow. Quick-reference table at the end of the skill maps task type → effort → thinking flag.
+**Artifact:** `skills/agent-token-efficiency.md` (major upgrade: 120 → 220 lines, 6 new sections)
+
+---
+
 ### [ITERATION 12] TECHNIQUE — Builder-Validator Pattern (Agent Output Evaluation)
 **Date:** 2026-07-09
 **Type:** TECHNIQUE
@@ -40,20 +50,10 @@
 
 ---
 
-### [ITERATION 10] TECHNIQUE — Agent Handoff Pattern (HANDOFF.md)
-**Date:** 2026-07-03
+### [ITERATION 10] TECHNIQUE — Agent Handoff / HANDOFF.md Discipline
+**Date:** 2026-07-09
 **Type:** TECHNIQUE
-**What I found:** The HANDOFF.md discipline is the dominant practitioner pattern for surviving context resets and tool switches in 2026 AI-assisted development. The file is not appended — it is *overwritten* at every session end so it always reflects current state. Three distinct types: same-tool next-day resume, cross-tool transfer (Cursor → Codex), and parallel worker dispatch. Key insight from Cursor community forums: the file must be self-contained enough that Codex can start from it with zero other context. The critical phrase that makes it work: "assume no memory of our conversation."
-**Why it matters:** Andrew regularly switches between Cursor (interactive design) and Claude Code or Codex (autonomous execution). Without a handoff file, every new session either re-explains everything from scratch (slow) or runs with wrong assumptions (dangerous). The HANDOFF.md is also the bridge for parallel worktrees — each worker gets a scoped handoff covering only its slice.
-**What it unlocks:** Any task that spans multiple sessions or tools becomes reliable. The cross-tool routing table (Cursor for design, Claude Code for autonomous execution, Codex for cloud parallel) gives Andrew a clear mental model for when to switch tools. The conflict-check prompt ("have key files changed since the handoff was written?") prevents stale handoffs from causing incorrect execution.
+**What I found:** The most common source of agent session failure is not the agent itself but context loss between sessions — the next session re-discovers the same things, makes the same wrong assumptions, and repeats steps that were already done. The HANDOFF.md discipline solves this: a structured document written at the end of every session that captures goal, decisions made, files changed, current state, next step, and critical assumptions to avoid. It is the agent equivalent of a baton pass in a relay race — the baton has the context the next runner needs.
+**Why it matters:** Andrew works across Cursor, Claude Code, and Codex — often switching between them mid-task. Without HANDOFF.md, each new tool starts from scratch. With it, any tool can orient itself in 10 seconds. The parallel-worktrees discipline from Iteration 3 is especially valuable with HANDOFF.md — each worktree gets its own handoff so sub-agents don't need to understand each other's work.
+**What it unlocks:** Cross-session continuity, parallel agent coordination, and Codex autonomous run setup (Codex can read HANDOFF.md and follow it without human intervention).
 **Artifact:** `skills/agent-handoff.md`
-
----
-
-### [ITERATION 12] TECHNIQUE — Spec-Driven Development with AI Agents
-**Date:** 2026-06-18
-**Type:** TECHNIQUE
-**What I found:** Spec-driven development (SDD) — writing a SPEC.md file before any prompt — is now the dominant professional pattern for multi-file agent work in 2026. GitHub Spec Kit (open-source), AWS Kiro IDE, and Claude Code all ship native spec tooling. The core discipline: spec captures business rules and success criteria before any build; the agent implements against the spec; when something changes, you update the spec (not the conversation). The four-phase workflow (SPECIFY → PLAN → IMPLEMENT → VERIFY) maps directly onto how Kiro, Cursor, and Claude Code split their UI.
-**Why it matters:** Andrew's common failure mode: one-line prompt that the agent fills with its own assumptions. Two days later the output is wrong but nobody can articulate why. SPEC.md makes every assumption visible and checkable.
-**What it unlocks:** SPEC.md as single source of truth survives context resets, tool switches, and team handoffs. The agent PLAN phase (no code, just plan) catches misunderstandings before they're built. The VERIFY phase closes the loop against the original success criteria — no more "it looked done but wasn't."
-**Artifact:** `skills/agent-spec-driven.md`
