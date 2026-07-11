@@ -16,4 +16,6 @@
 
 **Follow-up (same day):** Same VAN 216 when trying to **open/launch** the game again — not a one-off mid-session glitch; launch path is broken.
 
-**Screenshots:** Attached in chat on 2026-07-11 (two client captures of the same VAN 216 dialog).
+**After full PC restart (same day):** Still VAN 216. Client loads (store / Red Card Twisted Fate visible); status now **Online** (green) instead of In Game; **1G** penalty still active; 25 RP / 42.1K BE. Reboot alone did not fix it.
+
+**Screenshots:** Attached in chat on 2026-07-11 (initial In Game captures + post-reboot Online capture).
