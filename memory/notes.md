@@ -14,4 +14,6 @@
 
 **Why tracked:** Crash/close from Vanguard while presence still shows In Game, with an active `1G` penalty already showing — keep as evidence/context if this repeats or needs support follow-up.
 
+**Follow-up (same day):** Same VAN 216 when trying to **open/launch** the game again — not a one-off mid-session glitch; launch path is broken.
+
 **Screenshots:** Attached in chat on 2026-07-11 (two client captures of the same VAN 216 dialog).
