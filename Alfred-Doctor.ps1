@@ -227,7 +227,17 @@ foreach ($h in @('.cursor', '.claude', '.codex')) {
     $imp = Join-Path $HOME "$h\skills\impeccable\SKILL.md"
     if (-not (Test-Path $imp)) { Add-Warning "impeccable missing from ~$h/skills (per-harness by design)" }
 }
-$report.skills = [ordered]@{ expected = ($expectedSkills.Count + $packNames.Count); missing = $missingSkills; legacyDupes = $legacyDupes }
+$thirdPartyDesign = @('ui-design-brain', 'frontend-design', 'accessibility', 'design-taste-frontend')
+$missingDesign = @()
+foreach ($d in $thirdPartyDesign) {
+    if (-not (Test-Path (Join-Path $agentsSkills "$d\SKILL.md"))) { $missingDesign += $d }
+}
+if ($missingDesign.Count -eq 0) {
+    Write-Pass "design stack skills present in ~/.agents/skills ($($thirdPartyDesign -join ', '))"
+} else {
+    Add-Warning "~/.agents/skills missing design skills: $($missingDesign -join ', ') -- re-run Provision-Cursor.ps1"
+}
+$report.skills = [ordered]@{ expected = ($expectedSkills.Count + $packNames.Count); missing = $missingSkills; legacyDupes = $legacyDupes; missingDesign = $missingDesign }
 
 # ── Rules: per seeded project ──────────────────────────────────────────────────
 Write-Head "Rules (per-project; Cursor reads <repo>/.cursor/rules only)"
@@ -241,13 +251,27 @@ foreach ($repo in $seeds) {
     $mdc = @(Get-ChildItem (Join-Path $repo ".cursor\rules") -Filter *.mdc -File -ErrorAction SilentlyContinue)
     $agents = Test-Path (Join-Path $repo "AGENTS.md")
     $graph = Test-Path (Join-Path $repo ".cursor\rules\graphify.mdc")
+    $cursorSub = @(Get-ChildItem (Join-Path $repo ".cursor\agents") -Filter "*.md" -File -ErrorAction SilentlyContinue)
+    $claudeSub = @(Get-ChildItem (Join-Path $repo ".claude\agents") -Filter "*.md" -File -ErrorAction SilentlyContinue)
     $bits = @()
     $bits += "$($mdc.Count) rule(s)"
     if ($agents) { $bits += "AGENTS.md" }
     if ($graph)  { $bits += "graphify" }
+    if ($cursorSub.Count -gt 0) { $bits += "$($cursorSub.Count) cursor subagent(s)" }
+    if ($claudeSub.Count -gt 0) { $bits += "$($claudeSub.Count) claude subagent(s)" }
     if ($mdc.Count -gt 0) { Write-Pass "$repo : $($bits -join ' + ')" }
     else { Add-Warning "$repo : no .cursor/rules -- run Provision-Cursor.ps1 (seeds via ALFRED_PROJECT_PATHS)" }
-    $report.rules[$repo] = [ordered]@{ mdcCount = $mdc.Count; agentsMd = $agents; graphify = $graph }
+    if ($cursorSub.Count -gt 0 -and $claudeSub.Count -lt $cursorSub.Count) {
+        Add-Warning "$repo : .claude/agents out of sync ($($claudeSub.Count)/$($cursorSub.Count)) -- run tools/sync-claude-agents.ps1 or re-provision"
+    }
+    $betweenSteps = Test-Path (Join-Path $repo ".cursor\skills\between-steps-ux\SKILL.md")
+    if ($repo -like '*boostly*' -and -not $betweenSteps) {
+        Add-Warning "$repo : missing .cursor/skills/between-steps-ux (Jean Paul async UX)"
+    }
+    $report.rules[$repo] = [ordered]@{
+        mdcCount = $mdc.Count; agentsMd = $agents; graphify = $graph
+        cursorSubagents = $cursorSub.Count; claudeSubagents = $claudeSub.Count; betweenStepsUx = $betweenSteps
+    }
 }
 
 # ── CLIs + data-analysis toolchain ────────────────────────────────────────────

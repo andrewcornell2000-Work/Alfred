@@ -81,12 +81,19 @@ copies meant every skill listed in triplicate. The provisioner cleans them up.)
 
 Rules are **per-project** — Cursor has no global rules directory. List your repos
 in `.env` as `ALFRED_PROJECT_PATHS=C:\path\repo1;C:\path\repo2` and every provision
-seeds `<repo>/.cursor/rules/*.mdc`, `AGENTS.md`, and the graphify rule into each.
+seeds `<repo>/.cursor/rules/*.mdc`, `AGENTS.md`, the graphify rule, and **mirrors
+`<repo>/.cursor/agents/*.md` → `<repo>/.claude/agents/`** (Cursor + Claude Code
+subagent parity) into each.
+
+Third-party design skills (when missing): `ui-design-brain`, `frontend-design`,
+`accessibility`, `Leonxlnx/taste-skill`. Boostl projects also ship
+`.cursor/skills/between-steps-ux/` in-repo — see `skills/boostly-jean-paul-design.md`.
 
 Re-provision after pulling updates:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1
+# Omit -SkipCloseAgentApps to close Cursor/Claude/ChatGPT first (cleanest hook write)
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCloseAgentApps
 ```
 
 Verify what each tool actually sees (runs automatically after provisioning):

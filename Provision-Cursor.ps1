@@ -263,6 +263,29 @@ function Install-ThirdPartyAgentSkills {
             }
         }
     }
+
+    # Jean Paul / Boostl design stack (global ~/.agents/skills)
+    $designSkills = @(
+        @{ Name = 'ui-design-brain';    Repo = 'https://github.com/carmahhawwari/ui-design-brain';    Skill = 'ui-design-brain' },
+        @{ Name = 'frontend-design';    Repo = 'https://github.com/anthropics/skills';                 Skill = 'frontend-design' },
+        @{ Name = 'accessibility';      Repo = 'https://github.com/addyosmani/web-quality-skills';     Skill = 'accessibility' }
+    )
+    foreach ($ds in $designSkills) {
+        $skillPath = Join-Path $HOME ".agents\skills\$($ds.Name)\SKILL.md"
+        if (Test-Path $skillPath) {
+            Write-Skip "$($ds.Name) already in ~/.agents/skills -- skipping npx install."
+            continue
+        }
+        Write-Step "Third-party skills: $($ds.Name) -> ~/.agents/skills"
+        $args = @('--yes', 'skills', 'add', $ds.Repo, '--skill', $ds.Skill, '--yes')
+        if (Invoke-NpxBackgroundJob $ds.Name $args 120) {
+            if (Test-Path $skillPath) {
+                Write-OK "$($ds.Name) installed globally (~/.agents/skills)"
+            } else {
+                Write-Warn2 "$($ds.Name) install finished but SKILL.md not found -- run manually: npx skills add $($ds.Repo) --skill $($ds.Skill)"
+            }
+        }
+    }
 }
 
 # ── .env loader (KEY=VALUE; comments/blank ignored) ───────────────────────────
@@ -883,6 +906,25 @@ function Invoke-ProjectSeed([string]$repo) {
         Write-OK "Created AGENTS.md (shared rules for Cursor + Claude Code)."
     }
     Sync-AlfredRepoCtxRules -RepoRoot $repo
+    # Subagents: Cursor (.cursor/agents) + Claude Code (.claude/agents) parity
+    $cursorAgents = Join-Path $repo ".cursor\agents"
+    if (Test-Path $cursorAgents) {
+        $claudeAgents = Join-Path $repo ".claude\agents"
+        if (-not (Test-Path $claudeAgents)) { New-Item -ItemType Directory -Path $claudeAgents -Force | Out-Null }
+        $agentFiles = @(Get-ChildItem $cursorAgents -Filter "*.md" -File -ErrorAction SilentlyContinue)
+        foreach ($af in $agentFiles) {
+            Copy-Item $af.FullName (Join-Path $claudeAgents $af.Name) -Force
+        }
+        if ($agentFiles.Count -gt 0) {
+            Write-OK "Synced $($agentFiles.Count) subagent(s) .cursor/agents -> .claude/agents"
+        }
+        $syncScript = Join-Path $repo "tools\sync-claude-agents.ps1"
+        if (Test-Path $syncScript) {
+            try {
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $syncScript -RepoRoot $repo 2>&1 | Out-Null
+            } catch { Write-Warn2 "sync-claude-agents.ps1 failed: $_" }
+        }
+    }
     # Graphify: free/local codebase knowledge graph — project-scoped Cursor rule
     # (graphify install writes <cwd>/.cursor/rules/graphify.mdc).
     if (-not $SkipCursor -and (Get-Command graphify -ErrorAction SilentlyContinue)) {
