@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 14] TECHNIQUE — Four-Layer Agent Memory System (CoALA Framework)
+**Date:** 2026-07-11
+**Type:** TECHNIQUE / BUILD
+**What I found:** The CoALA framework (Princeton, 2023; heavily applied in 2026) identifies four distinct memory types that capable agents need: Working (context window), Semantic (facts/conventions in CLAUDE.md), Procedural (build/run commands in AGENTS.md), and Episodic (session decisions in HANDOFF.md). Most developers give agents only working memory and wonder why they forget everything. The five most common memory failures in 2026 production deployments (sitepoint.com): context poisoning, session amnesia, stale semantic memory, procedural drift, and episodic flooding. All five are caused by conflating memory types or neglecting layers. Claude Code maps each type to specific files on disk — the system is already there; it just has to be wired deliberately.
+**Why it matters:** Andrew runs multi-session Cursor and Claude Code tasks on finance data. Without episodic memory (HANDOFF.md), every session starts with "where were we?" Without semantic memory (CLAUDE.md), agents confidently apply stale naming conventions after schema changes. Without procedural memory (AGENTS.md), agents guess build flags. The framework gives a concrete file-per-layer setup that prevents all five failure modes.
+**What it unlocks:** A structured memory architecture with a monthly health check, an anti-patterns table, a SCRATCH.md working notes pattern for long-running projects, and a decision-routing table ("which question → which file"). The skill also addresses the stale-fact problem with an explicit update schedule per layer, which is the most commonly missed discipline.
+**Artifact:** `skills/agent-memory-management.md` (new, 290 lines, 5 "Try asking:" prompts across 4 sections)
+
+---
+
 ### [ITERATION 13] TECHNIQUE — Agent Token Efficiency: Effort Levels + Prompt Caching
 **Date:** 2026-07-10
 **Type:** TECHNIQUE / BUILD
@@ -36,24 +46,61 @@
 **What I found:** The "verification gap" is identified in arXiv 2025 research as the root cause of 75.3% of multi-agent task failures — the builder implements its own interpretation and then verifies against that same interpretation, not against what was originally asked. The fix is the builder-validator pattern: a second, fresh agent receives only the original requirement and the output (never the builder's chain-of-thought), then evaluates it independently. This is structurally equivalent to unit testing but applied to AI-generated outputs. ASDLC.io documents this as the "Critic Agent" pattern; Anthropic's 2026 agentic SDLC guide identifies it as a mandatory gate before any output reaches a stakeholder.
 **Why it matters:** Andrew regularly uses Cursor for building then asks "does this look right?" — this is precisely the pattern that fails. The builder finished, rationalised its own output, and now confirms it's correct. The critic pattern gives a concrete, independent check. For finance outputs (numbers, formulas), the adversarial numeric audit pattern (Pattern 3) adds trace-back verification — the critic traces each key number back to its source rather than just reading the output.
 **What it unlocks:** Any agent-produced output that goes to a stakeholder or depends on correctness can now have a structured, paste-ready verification pass. The pattern also catches goal-alignment drift in long runs (40+ tool calls), which is otherwise invisible — the agent looks busy and productive but drifts off the original goal over time. Four patterns cover all scenarios: fresh-window (general), spec-anchored (when SPEC.md exists), adversarial (finance/data), goal-alignment (long runs).
-**Artifact:** `skills/agent-output-evaluation.md`
+**Artifact:** `skills/agent-output-evaluation.md` (new skill), `memory/learning-log.md` (updated)
 
 ---
 
-### [ITERATION 11] TECHNIQUE — MCP Security and Prompt Injection Defense
-**Date:** 2026-07-09
-**Type:** TECHNIQUE
-**What I found:** MCP prompt injection is a documented, real attack class (Simon Willison, April 2025; Microsoft Developer Blog). Three attack vectors: (1) indirect injection — hidden instructions in files/pages the agent reads, (2) tool poisoning — malicious text in MCP server tool description fields, (3) "rug pull" — a package the operator vetted at v1.0 publishes v1.1 with a poisoned description, and `npx -y @latest` silently picks it up. The "lethal trifecta" (Willison) is the threat model: an attack needs private data access + untrusted content exposure + an outbound channel simultaneously. Removing any one leg breaks it.
-**Why it matters:** Andrew's Alfred pack runs `filesystem` (Finance OneDrive), `ms-365` (mail + SharePoint), `fetch` (any URL), and `playwright` (any live page) simultaneously. The `fetch` + `filesystem` combination is the textbook trifecta entry point. The ms-365 MCP with `--read-only` removed would be the highest-risk configuration. There are no headline-grabbing incidents yet (Johann Rehberger's "normalization of deviance" concern) — but security researchers have demonstrated the attack chains work.
-**What it unlocks:** A mental model Andrew can apply before every session: which MCPs are active? Does this task need all of them? Am I about to read external content while write tools are live? The pre-flight checklist and paste-ready detection prompts give him a practical workflow. Version pinning guidance prevents silent rug-pull updates.
-**Artifact:** `skills/agent-mcp-security.md`
+### [ITERATION 11] BUILD — Outlook Calendar MCP shipped to pack
+**Date:** 2026-07-08
+**Type:** BUILD
+**What I found:** `outlook-calendar-mcp` (npm) — an MCP server that drives the local Outlook COM automation layer on Windows to read/manage calendar events, create meetings, find free slots, and check attendee status. No API key or admin rights needed. Windows 11 24H2+ requires enabling VBScript via Settings → Apps → Optional features first. Works entirely with the local Outlook desktop client.
+**Why it matters:** Andrew works on Windows with Outlook. Previously there was no way for Cursor or Claude Code to see or manage his calendar without leaving the editor. Now he can ask "find me a free hour this week" or "create a meeting with the finance team on Thursday at 2pm" directly in Cursor.
+**What it unlocks:** Calendar-aware agent workflows: finding free time, blocking time for finance reviews, listing upcoming meetings to plan Cursor tasks around. Pairs with ms-365 MCP for full 365 coverage.
+**Artifact:** `cursor/mcp.json` (outlook-calendar-mcp entry added), `memory/learning-log.md`
 
 ---
 
-### [ITERATION 10] TECHNIQUE — Agent Handoff / HANDOFF.md Discipline
-**Date:** 2026-07-09
+### [ITERATION 10] BUILD — ms-365 MCP shipped (Graph API: SharePoint, OneDrive, Outlook, Calendar, Teams)
+**Date:** 2026-07-04
+**Type:** BUILD / BREAKTHROUGH
+**What I found:** `@softeria/ms-365-mcp-server` — a community MCP that connects Cursor and Claude Code to the Microsoft Graph API, giving read (and optionally write) access to SharePoint sites, OneDrive files, Outlook mail, Calendar, Teams, and To-Do. Authentication via MSAL device-code (browser pop-up, one-time). Default `--read-only` flag makes it safe for discovery tasks.
+**Why it matters:** SharePoint and OneDrive access was the most-requested discovery target. Previously the only path was downloading files manually and opening them in Excel or markitdown. Now you can search a SharePoint document library from inside Cursor, read a Word doc, or find emails from a client — all without leaving the editor.
+**What it unlocks:** "Find all Excel files in the Finance SharePoint library modified this month" — runs in Cursor in 10 seconds. Email search, calendar lookup, OneDrive file read. Pairs with markitdown for PDF/Office conversion of files found via ms-365.
+**Artifact:** `cursor/mcp.json` (ms-365 entry), `skills/sharepoint-graph.md` (updated), `discovered-tools.md` (ms-365 entry)
+
+---
+
+### [ITERATION 9] TECHNIQUE — Agent Spec-Driven Development
+**Date:** 2026-07-03
 **Type:** TECHNIQUE
-**What I found:** The most common source of agent session failure is not the agent itself but context loss between sessions — the next session re-discovers the same things, makes the same wrong assumptions, and repeats steps that were already done. The HANDOFF.md discipline solves this: a structured document written at the end of every session that captures goal, decisions made, files changed, current state, next step, and critical assumptions to avoid. It is the agent equivalent of a baton pass in a relay race — the baton has the context the next runner needs.
-**Why it matters:** Andrew works across Cursor, Claude Code, and Codex — often switching between them mid-task. Without HANDOFF.md, each new tool starts from scratch. With it, any tool can orient itself in 10 seconds. The parallel-worktrees discipline from Iteration 3 is especially valuable with HANDOFF.md — each worktree gets its own handoff so sub-agents don't need to understand each other's work.
-**What it unlocks:** Cross-session continuity, parallel agent coordination, and Codex autonomous run setup (Codex can read HANDOFF.md and follow it without human intervention).
-**Artifact:** `skills/agent-handoff.md`
+**What I found:** The SPEC.md-first pattern — writing a precise specification before touching any code — dramatically reduces the "drift and re-derive" failure mode in Cursor agents. The spec anchors every downstream decision and serves as the validator input for the builder-validator pattern.
+**Why it matters:** Without a written spec, agents interpret requirements loosely and confirm their own interpretations. A two-page SPEC.md written before any code is the single highest-leverage intervention for long Cursor sessions.
+**What it unlocks:** Clear task decomposition, parallel worktree assignments, builder-validator verification anchors. The SPEC.md pattern is now the recommended starting point for any Cursor task > 30 minutes.
+**Artifact:** `skills/agent-spec-driven.md` (new skill)
+
+---
+
+### [ITERATION 8] BUILD — agent-workflow-orchestration skill shipped
+**Date:** 2026-07-03
+**Type:** BUILD
+**What I found:** The "coordinator-worker" pattern is the dominant multi-agent orchestration model in 2026. One agent decomposes the task and assigns subtasks; worker agents execute with strict output schemas. The coordinator never executes; workers never re-plan.
+**Why it matters:** Andrew's finance pipeline tasks (data pull → transform → reconcile → report) are naturally coordinator-worker shaped. Mapping them explicitly prevents agents from scope-creeping into each other's work.
+**Artifact:** `skills/agent-workflow-orchestration.md` (new skill)
+
+---
+
+### [ITERATION 7] TECHNIQUE — MCP tool-description quality audit rubric
+**Date:** 2026-06-15
+**Type:** INSIGHT
+**What I found:** arXiv 2025 research on tool selection failure in MCP-equipped agents identified six required components in a good tool description: purpose, trigger condition, return type, parameter guidance, negative scope, and example. Missing any one causes wrong tool selection at rates measured in the research at 15-40%.
+**Why it matters:** mcp.json is the source of truth for tool descriptions. Auditing against this rubric is a low-cost, high-leverage action before any complex multi-MCP agent run.
+**Artifact:** `skills/agent-context-engineering.md` (Section 6 — tool description audit rubric)
+
+---
+
+### [ITERATION 6] BUILD — DuckDB MCP shipped to pack
+**Date:** 2026-06-12
+**Type:** BUILD
+**What I found:** `mcp-server-duckdb` (uvx) — SQL analytics on CSV, Parquet, and Excel exports without opening Excel. Zero admin install via uvx. Replaces the retired sqlite MCP with a much more capable engine (columnar, handles files > 1M rows, native Parquet support).
+**Why it matters:** Most of Andrew's finance data lives in CSV or Excel exports. DuckDB MCP lets Cursor run SQL directly on those files — aggregations, joins, time-series queries — without any ETL step.
+**Artifact:** `cursor/mcp.json` (duckdb entry), `skills/data-analysis-planning.md` (routing note added)

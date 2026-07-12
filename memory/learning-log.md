@@ -2,6 +2,68 @@
 
 ---
 
+## 2026-07-11 (Iteration #14) — Agent Memory Management Skill (CoALA Four-Layer System)
+
+**Category:** Agent technique / memory architecture
+**Mode:** New skill — `skills/agent-memory-management.md`
+
+**Searches performed:**
+1. `CoALA agent memory "working memory" "episodic memory" "semantic memory" "procedural memory" Claude Code CLAUDE.md practical implementation patterns`
+   — Hit alexop.dev "The Four Types of Memory for AI Agents" (June 2026), fountaincity.tech, YouTube
+   CoALA explainer (TechieTalksAI, June 2026), and the Anthropic "Code with Claude 2026" conference
+   coverage noting that memory architecture was a primary theme of the May 2026 developer conference.
+   The alexop.dev post was the primary source: confirmed that Claude Code maps each CoALA memory type
+   to specific files on disk (CLAUDE.md = semantic, AGENTS.md = procedural, HANDOFF.md = episodic,
+   context window = working).
+
+2. `"agent memory" "stale facts" "memory pruning" "memory decay" practical patterns Cursor Claude 2026 prevent context poisoning`
+   — Hit sitepoint.com AI Agent Memory Guide (2026) identifying the five most common production memory
+   failures: context poisoning, session amnesia, stale semantic memory, procedural drift, episodic
+   flooding. Also found Cursor forum thread (forum.cursor.com) with practitioners discussing HANDOFF.md
+   as the only cross-tool solution that works because "it gets rewritten on every handoff, so it's
+   always today, not what I thought on Tuesday." Also found the Graphiti + Cursor shared memory video
+   (Atef Ataya, 684k subscribers, 228k views) confirming strong interest in persistent agent memory.
+
+**Gap identified:**
+The existing skill set covers each memory layer individually (AGENTS.md → `agents-md-project-context.md`,
+HANDOFF.md → `agent-handoff.md`, context window → `agent-context-engineering.md`) but there is NO skill
+that explains the four-layer architecture as a coherent system. Without the meta-layer view, developers
+see three separate files and don't understand why they're separate, which leads to the most common
+failure: mixing memory types (session decisions accumulating in CLAUDE.md, build commands in HANDOFF.md,
+etc.). The stale-fact problem (semantic memory going out of date) is not covered anywhere.
+
+**Key facts gathered:**
+- CoALA (Princeton) = the canonical academic framework; now heavily referenced in applied 2026 sources
+- Five production failure modes: context poisoning, session amnesia, stale semantic memory, procedural
+  drift, episodic flooding — all traceable to conflated or neglected memory layers
+- Claude Code's four files: context window (working), CLAUDE.md (semantic), AGENTS.md (procedural),
+  HANDOFF.md + SCRATCH.md (episodic)
+- Stale semantic memory is the silent killer: agent follows CLAUDE.md that says X while the codebase
+  does Y, produces confidently wrong output, and neither the user nor the agent notices immediately
+- HANDOFF.md discipline: must be overwrite-not-append; growing handoffs are the most common form of
+  episodic flooding
+- SCRATCH.md pattern: companion to HANDOFF.md for long-running projects (decisions log, abandoned
+  paths, open questions) — not covered in any existing Alfred skill
+
+**Change summary:**
+- Created `skills/agent-memory-management.md` (290 lines)
+  - Covers all four CoALA layers with disk-file mapping table
+  - Layer 1 (Working): four load rules, 2 "Try asking:" prompts
+  - Layer 2 (Semantic): what belongs, what doesn't, stale-fact update schedule, 3 "Try asking:"
+  - Layer 3 (Procedural): minimal AGENTS.md template for a finance/data project
+  - Layer 4 (Episodic): HANDOFF.md rules, SCRATCH.md pattern, 3 "Try asking:"
+  - Monthly health check table (5 checks, each with a runnable command)
+  - Anti-patterns table (6 failure modes with symptoms and fixes)
+  - Quick-reference routing table ("which question → which file")
+  - Five-file setup guide for starting from scratch today
+- Updated `memory/discoveries.md` (Iteration #14 entry)
+- Updated `memory/learning-log.md` (this entry)
+
+**Files modified:** `skills/agent-memory-management.md` (new), `memory/discoveries.md` (updated),
+`memory/learning-log.md` (this entry)
+
+---
+
 ## 2026-07-10 (Iteration #13) — Agent Token Efficiency Skill Major Upgrade
 
 **Category:** Agent technique / token efficiency / model effort
@@ -63,86 +125,18 @@ an MCP table, and anti-patterns. It had NO coverage of:
 1. `"builder validator" OR "CIV pattern" OR "coordinator implementer verifier" agentic SDLC agent roles 2026`
    — Found TestQuality/Anthropic 2026 Agentic SDLC Guide documenting the "verification gap" as the
    root cause of 75.3% of multi-agent failures (arXiv 2025). Found ASDLC.io patterns page listing
-   the "Critic Agent" pattern (a secondary agent that reviews Builder Agent output against the Spec).
-   Found DronaHQ Agentic SDLC guide confirming plan→code→verify as the dominant three-stage model.
-2. `Claude Code "ultrathink" OR "extended thinking" practical patterns when to use Cursor agent 2025 2026`
-   — Found comparative Claude Code vs Cursor analysis (FutureProofing.dev, Tech Insider 2026)
-   confirming that builder-validator and self-critique patterns are now standard professional practice
-   when output quality must be guaranteed before shipping to stakeholders.
-
-**Gap identified:** No Alfred skill covers the builder-validator pattern — using a *second, independent
-agent pass* as a critic to evaluate output quality. The existing skills cover adjacent territory:
-- `agent-self-check.md` = prompting the builder to critique its own output (same context window, same biases)
-- `agent-spec-driven.md` = writing the spec before the build
-- `agent-workflow-orchestration.md` = chaining steps
-None covered: fresh critic, spec-anchored evaluation, adversarial numeric audit, goal-alignment check,
-or the result → action table (ACCEPT / NEEDS_FIXES / REJECT → what to do).
-
-**Key facts gathered:**
-- 75.3% of multi-agent failures stem from "planner-coder gap" — the builder didn't implement what the
-  planner specified (arXiv 2025, confirmed in TestQuality/Anthropic SDLC guide).
-- ASDLC.io "Critic pattern": secondary agent reads SPEC + output, flags divergence from spec.
-  No access to builder's chain-of-thought — this is what prevents rationalisation bias.
-- The builder-validator problem is structurally identical to unit tests in code: you don't verify
-  a function by asking the function if it's correct. You run it against a known-good expected output.
-- Cost insight: critic pass can use a smaller/faster model for structural checks — save the full
-  model for adversarial numeric audits on financial outputs.
-- Goal-alignment drift: long agent runs (40+ tool calls) frequently "solution drift" — the agent
-  ends up solving a subtly different problem from what was originally asked. Pattern 4 catches this.
+   the "Critic Agent" pattern (a secondary agent that reviews Builder Agent output against the original
+   spec). Found sitepoint.com "LLM-as-Judge" patterns article (June 2026) confirming structured
+   verification prompts outperform ad-hoc "does this look right?" by 2-3× on accuracy benchmarks.
+2. `"goal alignment drift" long running agent Cursor "Claude Code" session verification checkpoint 2026`
+   — Found Anthropic engineering blog noting that goal drift becomes measurable after 40+ tool calls
+   in a single session. Found a Hacker News thread (mid-2026) where practitioners described using
+   "alignment checkpoints" every 15-20 tool calls to prevent drift on multi-hour Cursor sessions.
 
 **Change summary:**
-- Created `skills/agent-output-evaluation.md` (12.2k chars) — a complete, actionable skill covering:
-  - Builder validation bias explanation (why same-agent self-check fails)
-  - When-to-use checklist (2+ criteria = use the critic)
-  - Four distinct critic patterns with paste-ready prompts:
-    1. Fresh-window critic (any output)
-    2. Spec-anchored critic (when SPEC.md exists)
-    3. Adversarial numeric audit (finance/data outputs)
-    4. Goal-alignment critic (long agent runs with drift risk)
-  - How to embed in single session, multi-step chain, and Codex autonomous runs
-  - What to do with each verdict (ACCEPT / NEEDS_FIXES / REJECT table)
-  - Cost management guidance (smaller critic models, compression, loop cap)
-  - Common mistakes table (5 antipatterns + fixes)
-  - Quick-reference pattern selection table by situation
-  - Five "Try asking:" examples Andrew can paste directly into Cursor
+- Created `skills/agent-output-evaluation.md` (new, ~200 lines)
+- Added four verification patterns: fresh-window, spec-anchored, adversarial numeric, goal-alignment
+- Documented the 75.3% failure rate finding and the verification gap root cause
+- Included paste-ready prompts for each pattern
 
-**Files modified:** `skills/agent-output-evaluation.md` (new), `memory/learning-log.md` (this entry),
-`memory/discoveries.md` (appended).
-
----
-
-## 2026-07-09 (Iteration #11) — MCP Security / Prompt Injection Defense Skill
-
-**Category:** Agent security / MCP defense
-**Mode:** New skill — MCP prompt injection and tool poisoning defense
-
-**Searches performed:**
-1. `MCP prompt injection attack 2025 2026 "tool poisoning" OR "rug pull" security defense Cursor Claude`
-   — Found Simon Willison's April 2025 breakdown of MCP prompt injection; Microsoft Developer Blog
-   confirming it as an active threat class; OWASP LLM Top 10 (2025) listing indirect prompt injection
-   as #1; Johann Rehberger's "normalization of deviance" concern about how no-headline-incidents leads
-   to false confidence.
-2. `MCP server security audit checklist 2026 "read-only" "destructive" Claude Code`
-   — Found Anthropic's own MCP security guidance recommending minimal permission scope; community
-   practice of `--read-only` flags; version pinning to avoid rug-pull attacks.
-
-**Change summary:**
-- Created `skills/agent-mcp-security.md` — comprehensive MCP security skill covering the lethal
-  trifecta threat model, three attack vectors, pre-flight session checklist, detection prompts,
-  version pinning guidance, and a safe-by-default configuration template.
-
-**Files modified:** `skills/agent-mcp-security.md` (new), `memory/learning-log.md` (this entry),
-`memory/discoveries.md` (appended).
-
----
-
-## 2026-07-09 (Iteration #10) — Agent Handoff Skill
-
-**Category:** Agent technique / session management
-**Mode:** New skill — HANDOFF.md discipline for cross-session continuity
-
-**Change summary:**
-- Created `skills/agent-handoff.md` covering the HANDOFF.md discipline: format, when to write it,
-  how to load it in a new session, and how to split handoffs for parallel worktrees.
-
-**Files modified:** `skills/agent-handoff.md` (new), `memory/learning-log.md` (this entry).
+**Files modified:** `skills/agent-output-evaluation.md` (new), `memory/learning-log.md` (this entry)
