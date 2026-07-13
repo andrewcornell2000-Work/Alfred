@@ -98,6 +98,21 @@ $retired = @()
 if (Test-Path $tplPath) {
     $tpl = Get-Content $tplPath -Raw | ConvertFrom-Json
     if ($tpl.PSObject.Properties.Name -contains '_retiredServers') { $retired = @($tpl._retiredServers) }
+    # Selected buckets for THIS machine, matching Provision-Cursor.ps1 precedence
+    # (ALFRED_BUCKETS in .env or env var; 'all'; default core,office365,web). 'core' always on.
+    $allBuckets = @()
+    if ($tpl.PSObject.Properties.Name -contains '_buckets') { $allBuckets = @($tpl._buckets.PSObject.Properties.Name) }
+    $bktRaw = ''
+    $envFile = Join-Path $Root ".env"
+    if (Test-Path $envFile) {
+        $m = (Get-Content $envFile | Where-Object { $_ -match '^\s*ALFRED_BUCKETS\s*=' })
+        if ($m) { $bktRaw = (($m -split '=',2)[1]) }
+    }
+    if (-not $bktRaw -and $env:ALFRED_BUCKETS) { $bktRaw = $env:ALFRED_BUCKETS }
+    if ($bktRaw -and $bktRaw.ToLower().Trim() -eq 'all') { $selectedBuckets = $allBuckets }
+    elseif ($bktRaw) { $selectedBuckets = @($bktRaw -split '[,; ]+' | Where-Object { $_ } | ForEach-Object { $_.ToLower().Trim('"') }) }
+    else { $selectedBuckets = $allBuckets }   # no choice recorded -> match provisioner (all)
+    $selectedBuckets = @(@($selectedBuckets) + 'core' | Select-Object -Unique)
     foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
         $name = $prop.Name; $def = $prop.Value
         $defKeys = @($def.PSObject.Properties.Name)
@@ -120,6 +135,10 @@ if (Test-Path $tplPath) {
             $cmd = Expand-Tok ([string]$def.command)
             if ([string]::IsNullOrWhiteSpace($cmd)) { $why = "unresolved command token" }
             elseif ($cmd -match '^[A-Za-z]:\\' -and -not (Test-Path $cmd)) { $why = "command not on this machine: $cmd" }
+        }
+        if (-not $why) {
+            $srvBucket = 'core'; if ($defKeys -contains '_bucket') { $srvBucket = ([string]$def._bucket).ToLower() }
+            if ($selectedBuckets -notcontains $srvBucket) { $why = "bucket '$srvBucket' not selected" }
         }
         if ($why) { $notExpected += "$name ($why)" } else { $expected += $name }
     }
@@ -185,6 +204,32 @@ foreach ($t in $targets.Keys) {
     if ($dupes.Count -gt 0) { Add-Failure "$t : DUPLICATE entries: $($dupes -join ', ')" }
     $report.mcp[$t] = [ordered]@{ present = $present; missing = $missing; retired = $staleRetired; dupes = $dupes }
 }
+
+# ── Secret hygiene: no plaintext tokens in any config ──────────────────────────
+Write-Head "Secret hygiene (no plaintext tokens in configs)"
+$secretScanTargets = @(
+    (Join-Path $HOME ".cursor\mcp.json"),
+    (Join-Path $HOME ".claude.json"),
+    (Join-Path $env:APPDATA "Claude\claude_desktop_config.json"),
+    (Join-Path $HOME ".codex\config.toml")
+)
+# Known live-token prefixes. ${env:...} placeholders are safe by construction.
+$secretPatterns = @('ghp_[A-Za-z0-9]{20,}', 'github_pat_[A-Za-z0-9_]{20,}', 'sk-ant-[A-Za-z0-9\-_]{20,}', 'sk-[A-Za-z0-9]{20,}', 'fc-[A-Za-z0-9]{20,}', 'tvly-[A-Za-z0-9]{16,}', 'xox[baprs]-[A-Za-z0-9-]{10,}')
+$secretHits = 0
+foreach ($cfg in $secretScanTargets) {
+    if (-not (Test-Path $cfg)) { continue }
+    $raw = Get-Content $cfg -Raw -ErrorAction SilentlyContinue
+    if (-not $raw) { continue }
+    $hitPrefixes = @()
+    foreach ($pat in $secretPatterns) { if ($raw -match $pat) { $hitPrefixes += ($pat -split '\[')[0] } }
+    if ($hitPrefixes.Count -gt 0) {
+        $secretHits++
+        $leaf = Split-Path $cfg -Leaf
+        Add-Failure ("PLAINTEXT SECRET in $leaf (prefix " + ($hitPrefixes -join ', ') + ") -- rotate it and move to Alfred .env as an env placeholder")
+    }
+}
+if ($secretHits -eq 0) { Write-Pass "No plaintext tokens found in Cursor/Claude/Codex configs" }
+$report.secretLeaks = $secretHits
 
 # ── Skills: one copy, in ~/.agents/skills ──────────────────────────────────────
 Write-Head "Skills (single copy in ~/.agents/skills)"

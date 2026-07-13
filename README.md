@@ -106,6 +106,60 @@ Doctor checks MCP registration per target (Cursor / Claude Code / Claude Desktop
 Codex), single-copy skills, per-project rules, CLIs, and the Excel / Power BI
 stack, then diffs against the previous report (`%LOCALAPPDATA%\alfred\doctor.json`)
 so config drift is called out — "the script exited 0" is never trusted as success.
+Doctor also fails on **plaintext tokens** in any client config (rotate + move to
+`.env`) and on **duplicate** server entries.
+
+### Pick what you install: MCP buckets (why your RAM stays sane)
+
+Every registered MCP server is a live process in **each** client you run (Cursor,
+Claude Desktop chat, Cowork/Claude Code, Codex), and on Windows each `npx`/`uvx`
+server drags a `cmd → node → cmd → conhost → node` wrapper chain. Registering the
+full set on every machine is what makes Task Manager fill with Node/cmd/conhost —
+and you rarely need all of it (a laptop that never touches Power BI shouldn't run
+the Power BI server).
+
+So every server in `cursor/mcp.json` carries a `_bucket` category, and you choose
+which buckets install **per machine**:
+
+| Bucket | Servers | For |
+|---|---|---|
+| `core` *(always on)* | filesystem, github, context7 | general dev |
+| `office365` | ms-365, outlook-calendar, excel, excel-mcp | Microsoft 365 + Excel |
+| `powerbi` | powerbi-modeling-mcp | Power BI model editing |
+| `web` | playwright, parallel-search, firecrawl, fetch | browsing, research, scraping |
+| `data` | duckdb, markitdown, longhand | local data + history |
+| `mediagen` | fal-ai, magic | image/video/audio + UI generation |
+| `cloud` | supabase, vercel | web-app backends |
+
+Choose them when you install — the provisioner shows an interactive picker — or
+non-interactively:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,office365,powerbi"
+# or "all"; the choice is saved to ALFRED_BUCKETS in .env so re-provisions are consistent
+```
+
+Notes:
+- `excel` (ExceLLM, live workbooks) and `excel-mcp` (ExcelMcp, closed-file COM) look
+  redundant but are complementary — both live in `office365`.
+- Real duplication (e.g. `powerbi-modeling-mcp` also arriving via a Claude Code
+  plugin) is flagged by Doctor; pick one source.
+- Running Cursor **and** Claude Desktop at once still doubles whatever you selected —
+  that's inherent to running two clients; close the one you're not using when RAM matters.
+
+### Reset / clean slate
+
+`Alfred-Reset.ps1` removes every Alfred-managed MCP registration from all four
+clients (prompts first; backs up each config to `<file>.reset.bak`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Alfred-Reset.ps1                       # reset only
+powershell -ExecutionPolicy Bypass -File Alfred-Reset.ps1 -KillProcesses        # + free RAM now
+powershell -ExecutionPolicy Bypass -File Alfred-Reset.ps1 -AndReinstall -Yes    # reset-and-reinstall
+```
+
+Use `-AndReinstall` when a machine is in a broken/duplicated state: it tears
+everything down, then re-provisions cleanly from the canonical template.
 
 ---
 

@@ -50,6 +50,7 @@ param(
     [switch]$SkipCloseAgentApps,
     [switch]$SkipThirdPartySkills,
     [switch]$SkipOptionalPlugins,
+    [string]$Buckets = '',
     [switch]$InstallerMode
 )
 
@@ -342,6 +343,80 @@ if (-not $SkipCursor -and -not (Test-CursorInstalled)) {
 
 $EnvMap = Read-DotEnv (Join-Path $Root ".env")
 
+# ── MCP bucket selection (which categories install on THIS machine) ────────────
+# Each server in cursor/mcp.json has a "_bucket" category. Only servers whose
+# bucket is selected get installed, so e.g. a laptop that never touches Power BI
+# doesn't run that server. Precedence: -Buckets param > ALFRED_BUCKETS in .env >
+# interactive picker > default (core,office365,web). 'core' is always included.
+$bucketCatalog = [ordered]@{}   # bucket -> description
+$serverBucket  = @{}            # server -> bucket
+$McpTemplateForBuckets = Join-Path $Root "cursor\mcp.json"
+if (Test-Path $McpTemplateForBuckets) {
+    try {
+        $tplB = Get-Content $McpTemplateForBuckets -Raw | ConvertFrom-Json
+        if ($tplB.PSObject.Properties.Name -contains '_buckets') {
+            foreach ($bp in $tplB._buckets.PSObject.Properties) { $bucketCatalog[$bp.Name] = [string]$bp.Value }
+        }
+        foreach ($sp in $tplB.mcpServers.PSObject.Properties) {
+            $bk = 'core'
+            if (@($sp.Value.PSObject.Properties.Name) -contains '_bucket') { $bk = [string]$sp.Value._bucket }
+            $serverBucket[$sp.Name] = $bk.ToLower()
+            if (-not $bucketCatalog.Contains($bk)) { $bucketCatalog[$bk] = '' }
+        }
+    } catch {}
+}
+
+function Resolve-SelectedBuckets {
+    $sel = @(); $raw = ''
+    if ($Buckets) { $raw = $Buckets }
+    elseif ($EnvMap.ContainsKey('ALFRED_BUCKETS') -and $EnvMap['ALFRED_BUCKETS']) { $raw = [string]$EnvMap['ALFRED_BUCKETS'] }
+
+    if ($raw) {
+        if ($raw.ToLower().Trim() -eq 'all') { return @($bucketCatalog.Keys) }
+        $sel = @($raw -split '[,; ]+' | Where-Object { $_ })
+    }
+    elseif ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+        Write-Step "Choose MCP buckets to install on this machine"
+        $names = @($bucketCatalog.Keys)
+        for ($i = 0; $i -lt $names.Count; $i++) {
+            $bn = $names[$i]
+            $servers = @($serverBucket.GetEnumerator() | Where-Object { $_.Value -eq $bn.ToLower() } | ForEach-Object { $_.Key })
+            $tag = if ($bn -eq 'core') { ' (always on)' } else { '' }
+            Write-Host ("   [{0}] {1,-10}{2} - {3}" -f ($i + 1), $bn, $tag, $bucketCatalog[$bn]) -ForegroundColor Gray
+            Write-Host ("        {0}" -f ($servers -join ', ')) -ForegroundColor DarkGray
+        }
+        $pick = Read-Host "Enter numbers/names (comma-separated), 'all', or Enter for [core,office365,web]"
+        if (-not $pick) { $sel = @('core', 'office365', 'web') }
+        elseif ($pick.ToLower().Trim() -eq 'all') { $sel = @($bucketCatalog.Keys) }
+        else {
+            foreach ($tok in ($pick -split '[,; ]+' | Where-Object { $_ })) {
+                if ($tok -match '^\d+$') { $idx = [int]$tok - 1; if ($idx -ge 0 -and $idx -lt $names.Count) { $sel += $names[$idx] } }
+                else { $sel += $tok }
+            }
+        }
+    }
+    else {
+        # non-interactive with no explicit choice: install everything (never silently drop).
+        $sel = @($bucketCatalog.Keys)
+        Write-Info "Non-interactive, no bucket selection -> installing all buckets. Set -Buckets or ALFRED_BUCKETS to trim."
+    }
+    $sel = @(@($sel) + 'core' | ForEach-Object { $_.ToLower().Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    return @($sel | Where-Object { $bucketCatalog.Contains($_) })
+}
+$SelectedBuckets = @(Resolve-SelectedBuckets)
+Write-Info ("Selected MCP buckets: " + ($SelectedBuckets -join ', '))
+# persist choice so re-provisions are consistent + non-interactive
+try {
+    $envPath = Join-Path $Root ".env"
+    $joined = ($SelectedBuckets -join ',')
+    $lines = if (Test-Path $envPath) { @(Get-Content $envPath) } else { @() }
+    if ($lines | Where-Object { $_ -match '^\s*ALFRED_BUCKETS\s*=' }) {
+        $lines = $lines | ForEach-Object { if ($_ -match '^\s*ALFRED_BUCKETS\s*=') { "ALFRED_BUCKETS=$joined" } else { $_ } }
+    } else { $lines += "ALFRED_BUCKETS=$joined" }
+    Set-Content -Path $envPath -Value $lines -Encoding UTF8
+} catch {}
+$bucketDeferred = @()
+
 # Ensure Alfred venv + bin are on PATH so excellm, uvx, az, vd, etc. resolve during provision.
 $venvScripts = Join-Path $Root ".venv\Scripts"
 $binDir = Join-Path $Root "bin"
@@ -452,6 +527,13 @@ if (-not (Test-Path $McpTemplatePath)) {
                 foreach ($ap in $def._aliases.PSObject.Properties) { $aliases[$ap.Name] = @($ap.Value) }
             }
 
+            # Bucket selection: skip servers whose category isn't selected here.
+            $srvBucket = 'core'; if ($defKeys -contains '_bucket') { $srvBucket = ([string]$def._bucket).ToLower() }
+            if ($SelectedBuckets -notcontains $srvBucket) {
+                $bucketDeferred += $name
+                continue
+            }
+
             if ($requiresCmd -and -not (Get-Command $requiresCmd -ErrorAction SilentlyContinue)) {
                 if ($defKeys -contains '_fallback' -and $def._fallback) {
                     Write-Info "$name : '$requiresCmd' not on PATH — using _fallback config."
@@ -537,10 +619,17 @@ if (-not (Test-Path $McpTemplatePath)) {
             $managedEnvLists[$name] = $envList
         }
     }
+    # Servers in non-selected buckets are removed from every target too, so a prior
+    # provision that wrote them is cleaned up on re-provision (selection takes effect).
+    if ($bucketDeferred.Count -gt 0) { $retiredServers = @($retiredServers) + @($bucketDeferred) }
 }
 
 if ($managed.Count -gt 0) {
     Write-Step "Resolved $($managed.Count) MCP server(s): $($managed.Keys -join ', ')"
+}
+if ($bucketDeferred.Count -gt 0) {
+    Write-Skip "MCPs in non-selected buckets (not installed here): $($bucketDeferred -join ', ')"
+    Write-Info "Add a bucket later: Provision-Cursor.ps1 -Buckets `"$($SelectedBuckets -join ',')`,powerbi`"  (or 'all'), or edit ALFRED_BUCKETS in .env"
 }
 
 # ── Cursor: ~/.cursor/mcp.json (deep merge, preserve existing servers) ────────
