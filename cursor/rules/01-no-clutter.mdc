@@ -9,7 +9,7 @@ The user's rule: a project folder must look like tidy, deliberate human work —
 
 ## Do
 - **Edit in place.** Git (or the user's existing backup habit) is the safety net — you don't need to drop a `.bak` beside every file you touch.
-- If you genuinely must keep a pre-change copy, put it in the **scratchpad / temp dir**, or a single **hidden** `.ai-archive/` subfolder (set Hidden so Explorer doesn't show it) — **never** loose in the working folder, and never more than one.
+- If you genuinely must keep a pre-change copy, put it in the **scratchpad / temp dir** (never the working folder) and delete it when the task is done. Rely on git / OneDrive version history as the real safety net rather than leaving `.bak` files around.
 - Write throwaway scripts, notes, logs, and exports to the **scratch/temp directory**, not the project folder.
 - **Clean up after yourself**: before finishing a task, remove any temp/scratch/`.tmp`/`-BROKEN`/`.orig`/`test-*` files you created. Leave the folder as clean as (or cleaner than) you found it.
 
@@ -19,4 +19,4 @@ The user's rule: a project folder must look like tidy, deliberate human work —
 - Don't create a new file when editing the existing one is what was asked.
 
 ## If a folder is already messy
-Offer to run the **janitor** subagent — it graphify-maps the folder, archives clutter to a dated `Archive/` (reversible), and leaves only the real work.
+Offer to run the **janitor** subagent — it graphify-maps the folder and **deletes** clutter to the Recycle Bin (recoverable via Recycle Bin / OneDrive), leaving only the real work. "Sweep" means delete, not archive.
