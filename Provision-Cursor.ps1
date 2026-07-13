@@ -51,8 +51,16 @@ param(
     [switch]$SkipThirdPartySkills,
     [switch]$SkipOptionalPlugins,
     [string]$Buckets = '',
+    [switch]$SyncOnly,
     [switch]$InstallerMode
 )
+
+# -SyncOnly: fast path for Alfred-Sync.ps1 — sync skills + subagents only, no MCP
+# registration, no app-closing, no doctor. Reuses the existing per-target skips.
+if ($SyncOnly) {
+    $SkipCursor = $true; $SkipClaude = $true; $SkipClaudeDesktop = $true; $SkipCodex = $true
+    $SkipThirdPartySkills = $true; $SkipOptionalPlugins = $true; $SkipDoctor = $true; $SkipCloseAgentApps = $true
+}
 
 $ErrorActionPreference = "Continue"
 $Root = $PSScriptRoot
@@ -406,6 +414,8 @@ function Resolve-SelectedBuckets {
 $SelectedBuckets = @(Resolve-SelectedBuckets)
 Write-Info ("Selected MCP buckets: " + ($SelectedBuckets -join ', '))
 # persist choice so re-provisions are consistent + non-interactive
+# (never during -SyncOnly: a background sync must not change the user's selection)
+if (-not $SyncOnly) {
 try {
     $envPath = Join-Path $Root ".env"
     $joined = ($SelectedBuckets -join ',')
@@ -415,6 +425,7 @@ try {
     } else { $lines += "ALFRED_BUCKETS=$joined" }
     Set-Content -Path $envPath -Value $lines -Encoding UTF8
 } catch {}
+}
 $bucketDeferred = @()
 
 # ── skill bucketing (same buckets as MCPs) ─────────────────────────────────────
@@ -1002,6 +1013,41 @@ if (-not $SkipClaude) { $impeccableRoots['claude'] = (Join-Path $HOME ".claude\s
 if (-not $SkipCodex)  { $impeccableRoots['codex']  = (Join-Path $HOME ".codex\skills") }
 if ($impeccableRoots.Count -gt 0) { Sync-Impeccable $impeccableRoots }
 Install-ThirdPartyAgentSkills
+
+# ── Subagents: sync Alfred/agents/*.md into Claude Code + Cursor (bucket-aware) ─
+# Canonical subagents live in the repo (agents/). Each agent may declare a
+# 'bucket:' in frontmatter (default core); only selected buckets install, matching
+# MCP/skill selection. Alfred-Sync.ps1 imports machine-authored agents back here.
+function Sync-Agents {
+    $src = Join-Path $Root "agents"
+    if (-not (Test-Path $src)) { Write-Skip "No agents/ directory -- no subagents to sync."; return }
+    $files = @(Get-ChildItem $src -Filter *.md -File -ErrorAction SilentlyContinue)
+    if ($files.Count -eq 0) { Write-Skip "agents/ is empty."; return }
+    # Subagents are cheap files; always mirror to both Claude Code and Cursor.
+    $dests = @((Join-Path $HOME ".claude\agents"), (Join-Path $HOME ".cursor\agents"))
+    foreach ($d in $dests) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+    $expected = [System.Collections.Generic.HashSet[string]]::new()
+    $synced = 0; $skippedB = 0
+    foreach ($f in $files) {
+        $head = Get-Content $f.FullName -TotalCount 15 -ErrorAction SilentlyContinue
+        $bkt = 'core'
+        $bl = $head | Where-Object { $_ -match '^\s*bucket:\s*\S' } | Select-Object -First 1
+        if ($bl) { $bkt = (($bl -replace '^\s*bucket:\s*', '').Trim().Trim('"').ToLower()) }
+        if ($SelectedBuckets -notcontains $bkt) { $skippedB++; continue }
+        [void]$expected.Add($f.Name)
+        foreach ($d in $dests) { Copy-Item $f.FullName (Join-Path $d $f.Name) -Force }
+        $synced++
+    }
+    # prune agents whose bucket was de-selected but a prior sync left them
+    foreach ($d in $dests) {
+        Get-ChildItem $d -Filter *.md -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $repoHas = Test-Path (Join-Path $src $_.Name)
+            if ($repoHas -and -not $expected.Contains($_.Name)) { Remove-Item $_.FullName -Force }
+        }
+    }
+    Write-OK "Synced $synced subagent(s) -> $($dests -join ', ')$(if($skippedB){" (skipped $skippedB in non-selected buckets)"})"
+}
+Sync-Agents
 
 # ── Rules: per-project seeding ────────────────────────────────────────────────
 # Cursor only reads rules from <repo>/.cursor/rules (project scope) or the
