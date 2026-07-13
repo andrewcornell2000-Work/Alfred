@@ -58,7 +58,7 @@ param(
 # -SyncOnly: fast path for Alfred-Sync.ps1 — sync skills + subagents only, no MCP
 # registration, no app-closing, no doctor. Reuses the existing per-target skips.
 if ($SyncOnly) {
-    $SkipCursor = $true; $SkipClaude = $true; $SkipClaudeDesktop = $true; $SkipCodex = $true
+    $SkipCursor = $true; $SkipClaude = $true; $SkipClaudeDesktop = $true
     $SkipThirdPartySkills = $true; $SkipOptionalPlugins = $true; $SkipDoctor = $true; $SkipCloseAgentApps = $true
 }
 
@@ -776,7 +776,7 @@ if (-not $SkipClaudeDesktop -and $managed.Count -gt 0) {
 
 # ── Codex: codex mcp add (global, idempotent) ─────────────────────────────────
 # Makes the SAME global MCP servers usable from Codex, not just Claude/Cursor.
-if (-not $SkipCodex -and $managed.Count -gt 0) {
+if (-not $SkipCodex -and -not $SyncOnly -and $managed.Count -gt 0) {
     Write-Step "Codex: registering servers (global)"
     if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
         Write-Skip "codex CLI not found -- skipping Codex MCP registration."
@@ -1018,24 +1018,65 @@ Install-ThirdPartyAgentSkills
 # Canonical subagents live in the repo (agents/). Each agent may declare a
 # 'bucket:' in frontmatter (default core); only selected buckets install, matching
 # MCP/skill selection. Alfred-Sync.ps1 imports machine-authored agents back here.
+function Convert-AgentMdToCodexToml([string]$MdContent) {
+    if ($MdContent -notmatch '(?ms)^---\s*\r?\n(.*?)\r?\n---\s*\r?\n(.*)$') { return $null }
+    $fm = $Matches[1]; $body = $Matches[2].Trim()
+    $name = 'agent'
+    $desc = 'Alfred subagent'
+    $model = $null
+    foreach ($line in ($fm -split "`n")) {
+        if ($line -match '^\s*name:\s*(.+)$') { $name = $Matches[1].Trim().Trim('"').Trim("'") }
+        elseif ($line -match '^\s*description:\s*(.+)$') { $desc = $Matches[1].Trim().Trim('"').Trim("'") }
+        elseif ($line -match '^\s*model:\s*(.+)$') { $model = $Matches[1].Trim().Trim('"').Trim("'") }
+    }
+    if ($desc.Length -gt 500) { $desc = $desc.Substring(0, 497) + '...' }
+    $descEsc = $desc -replace '\\', '\\\\' -replace '"', '\"'
+    $bodyEsc = $body -replace '\\', '\\\\' -replace '"""', '\"""'
+    $lines = @(
+        "name = `"$name`"",
+        "description = `"$descEsc`""
+    )
+    if ($model -and $model -ne 'inherit') { $lines += "model = `"$model`"" }
+    $lines += ''
+    $lines += 'developer_instructions = """'
+    $lines += $bodyEsc
+    $lines += '"""'
+    return ($lines -join "`n") + "`n"
+}
+
 function Sync-Agents {
     $src = Join-Path $Root "agents"
     if (-not (Test-Path $src)) { Write-Skip "No agents/ directory -- no subagents to sync."; return }
     $files = @(Get-ChildItem $src -Filter *.md -File -ErrorAction SilentlyContinue)
     if ($files.Count -eq 0) { Write-Skip "agents/ is empty."; return }
-    # Subagents are cheap files; always mirror to both Claude Code and Cursor.
+    # Subagents mirror to Claude Code, Cursor, and Codex (TOML).
     $dests = @((Join-Path $HOME ".claude\agents"), (Join-Path $HOME ".cursor\agents"))
+    $codexAgents = Join-Path $HOME ".codex\agents"
     foreach ($d in $dests) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+    if (-not $SkipCodex) {
+        if (-not (Test-Path $codexAgents)) { New-Item -ItemType Directory -Path $codexAgents -Force | Out-Null }
+    }
     $expected = [System.Collections.Generic.HashSet[string]]::new()
+    $expectedCodex = [System.Collections.Generic.HashSet[string]]::new()
     $synced = 0; $skippedB = 0
     foreach ($f in $files) {
+        if ($f.Name -ieq 'README.md') { continue }
         $head = Get-Content $f.FullName -TotalCount 15 -ErrorAction SilentlyContinue
         $bkt = 'core'
         $bl = $head | Where-Object { $_ -match '^\s*bucket:\s*\S' } | Select-Object -First 1
         if ($bl) { $bkt = (($bl -replace '^\s*bucket:\s*', '').Trim().Trim('"').ToLower()) }
         if ($SelectedBuckets -notcontains $bkt) { $skippedB++; continue }
         [void]$expected.Add($f.Name)
+        $mdRaw = Get-Content $f.FullName -Raw
         foreach ($d in $dests) { Copy-Item $f.FullName (Join-Path $d $f.Name) -Force }
+        if (-not $SkipCodex) {
+            $base = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
+            $toml = Convert-AgentMdToCodexToml $mdRaw
+            if ($toml) {
+                Write-TextNoBom (Join-Path $codexAgents "$base.toml") $toml
+                [void]$expectedCodex.Add("$base.toml")
+            }
+        }
         $synced++
     }
     # prune agents whose bucket was de-selected but a prior sync left them
@@ -1045,7 +1086,15 @@ function Sync-Agents {
             if ($repoHas -and -not $expected.Contains($_.Name)) { Remove-Item $_.FullName -Force }
         }
     }
-    Write-OK "Synced $synced subagent(s) -> $($dests -join ', ')$(if($skippedB){" (skipped $skippedB in non-selected buckets)"})"
+    if (-not $SkipCodex -and (Test-Path $codexAgents)) {
+        Get-ChildItem $codexAgents -Filter *.toml -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $mdName = ($_.BaseName + '.md')
+            $repoHas = Test-Path (Join-Path $src $mdName)
+            if ($repoHas -and -not $expectedCodex.Contains($_.Name)) { Remove-Item $_.FullName -Force }
+        }
+    }
+    $codexNote = if (-not $SkipCodex) { ", $codexAgents (TOML)" } else { '' }
+    Write-OK "Synced $synced subagent(s) -> $($dests -join ', ')$codexNote$(if($skippedB){" (skipped $skippedB in non-selected buckets)"})"
 }
 Sync-Agents
 
