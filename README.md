@@ -139,6 +139,12 @@ powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,off
 # or "all"; the choice is saved to ALFRED_BUCKETS in .env so re-provisions are consistent
 ```
 
+**Skills follow the same buckets.** `skills/_buckets.json` maps each Alfred skill
+(and the vendored `_packs/fabric` set) to a bucket, so selecting `powerbi` also
+installs the Power BI / Power Query skills and the Fabric pack, and de-selecting a
+bucket prunes its skills from `~/.agents/skills` on the next provision. Unlisted
+skills fall back to `core` (always installed).
+
 Notes:
 - `excel` (ExceLLM, live workbooks) and `excel-mcp` (ExcelMcp, closed-file COM) look
   redundant but are complementary — both live in `office365`.

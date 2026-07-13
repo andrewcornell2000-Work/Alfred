@@ -234,20 +234,37 @@ $report.secretLeaks = $secretHits
 # ── Skills: one copy, in ~/.agents/skills ──────────────────────────────────────
 Write-Head "Skills (single copy in ~/.agents/skills)"
 $agentsSkills = Join-Path $HOME ".agents\skills"
+# Skill bucket map (same file the provisioner uses) so expected skills track selection.
+$skBucketMap = @{}; $skPackMap = @{}; $skDefault = 'core'
+$skFile = Join-Path $Root "skills\_buckets.json"
+if (Test-Path $skFile) {
+    try {
+        $sbj = Get-Content $skFile -Raw | ConvertFrom-Json
+        if ($sbj.PSObject.Properties.Name -contains '_default') { $skDefault = ([string]$sbj._default).ToLower() }
+        if ($sbj.PSObject.Properties.Name -contains 'skills') { foreach ($p in $sbj.skills.PSObject.Properties) { $skBucketMap[$p.Name.ToLower()] = ([string]$p.Value).ToLower() } }
+        if ($sbj.PSObject.Properties.Name -contains 'packs')  { foreach ($p in $sbj.packs.PSObject.Properties)  { $skPackMap[$p.Name.ToLower()]  = ([string]$p.Value).ToLower() } }
+    } catch {}
+}
 $expectedSkills = @()
 $skillsSrc = Join-Path $Root "skills"
 if (Test-Path $skillsSrc) {
     foreach ($f in Get-ChildItem $skillsSrc -Filter *.md -File) {
         $base = ($f.BaseName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
         if ($base -like 'taste-*' -or $base -eq 'mcp-routing') { continue }
+        $key = ($base -replace '^alfred-',''); $b = $skDefault
+        if ($skBucketMap.ContainsKey($key)) { $b = $skBucketMap[$key] }
+        if ($selectedBuckets -notcontains $b) { continue }   # not selected on this machine
         if ($base -like 'alfred-*') { $expectedSkills += $base } else { $expectedSkills += "alfred-$base" }
     }
 }
 $packNames = @()
 $packsDir = Join-Path $Root "skills\_packs"
 if (Test-Path $packsDir) {
-    $packNames = @(Get-ChildItem $packsDir -Recurse -Directory -ErrorAction SilentlyContinue |
-                   Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') } | ForEach-Object { $_.Name })
+    foreach ($pd in @(Get-ChildItem $packsDir -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') })) {
+        $rel = $pd.FullName.Substring($packsDir.Length).TrimStart('\','/'); $pack = ($rel -split '[\\/]')[0]
+        $pb = $skDefault; if ($skPackMap.ContainsKey($pack.ToLower())) { $pb = $skPackMap[$pack.ToLower()] }
+        if ($selectedBuckets -contains $pb) { $packNames += $pd.Name }
+    }
 }
 $missingSkills = @()
 foreach ($s in ($expectedSkills + $packNames)) {

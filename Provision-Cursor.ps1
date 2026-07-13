@@ -417,6 +417,31 @@ try {
 } catch {}
 $bucketDeferred = @()
 
+# ── skill bucketing (same buckets as MCPs) ─────────────────────────────────────
+# skills/_buckets.json maps each skill (and vendored _packs/<name>) to a bucket.
+# Only skills whose bucket is selected sync to ~/.agents/skills; the rest are
+# pruned by the existing orphan cleanup. Unlisted skills fall back to _default.
+$skillBucketMap = @{}; $packBucketMap = @{}; $skillDefaultBucket = 'core'
+$skillBucketsFile = Join-Path $Root "skills\_buckets.json"
+if (Test-Path $skillBucketsFile) {
+    try {
+        $sb = Get-Content $skillBucketsFile -Raw | ConvertFrom-Json
+        if ($sb.PSObject.Properties.Name -contains '_default') { $skillDefaultBucket = ([string]$sb._default).ToLower() }
+        if ($sb.PSObject.Properties.Name -contains 'skills') {
+            foreach ($p in $sb.skills.PSObject.Properties) { $skillBucketMap[$p.Name.ToLower()] = ([string]$p.Value).ToLower() }
+        }
+        if ($sb.PSObject.Properties.Name -contains 'packs') {
+            foreach ($p in $sb.packs.PSObject.Properties) { $packBucketMap[$p.Name.ToLower()] = ([string]$p.Value).ToLower() }
+        }
+    } catch { Write-Warn2 "skills/_buckets.json unreadable -- syncing all skills." }
+}
+function Test-SkillBucketSelected([string]$skillBase) {
+    $b = $skillDefaultBucket
+    $key = ($skillBase.ToLower() -replace '^alfred-','')
+    if ($skillBucketMap.ContainsKey($key)) { $b = $skillBucketMap[$key] }
+    return ($SelectedBuckets -contains $b)
+}
+
 # Ensure Alfred venv + bin are on PATH so excellm, uvx, az, vd, etc. resolve during provision.
 $venvScripts = Join-Path $Root ".venv\Scripts"
 $binDir = Join-Path $Root "bin"
@@ -796,6 +821,11 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
             $skipped++
             continue
         }
+        # Bucket filter: skip skills whose category isn't selected (auto-pruned below).
+        if ((Get-Command Test-SkillBucketSelected -ErrorAction SilentlyContinue) -and -not (Test-SkillBucketSelected $base)) {
+            $skipped++
+            continue
+        }
         if ($base -like 'alfred-*') { $slug = $base } else { $slug = "alfred-$base" }
         [void]$expectedSlugs.Add($slug)
         $content = Get-Content $f.FullName -Raw
@@ -843,14 +873,22 @@ function Sync-SkillFolders([string]$packsDir, [string[]]$destRoots) {
     foreach ($root in $destRoots) {
         if (-not (Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
     }
+    $copied = 0; $pruned = 0
     foreach ($sd in $skillDirs) {
+        # pack = first directory segment under packsDir; bucket via packBucketMap
+        $rel  = $sd.FullName.Substring($packsDir.Length).TrimStart('\', '/')
+        $pack = ($rel -split '[\\/]')[0]
+        $pb = $skillDefaultBucket
+        if ($packBucketMap -and $packBucketMap.ContainsKey($pack.ToLower())) { $pb = $packBucketMap[$pack.ToLower()] }
+        $selected = ($SelectedBuckets -contains $pb)
         foreach ($root in $destRoots) {
             $dest = Join-Path $root $sd.Name
             if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
-            Copy-Item $sd.FullName $dest -Recurse -Force
+            if ($selected) { Copy-Item $sd.FullName $dest -Recurse -Force }
         }
+        if ($selected) { $copied++ } else { $pruned++ }
     }
-    Write-OK "Synced $($skillDirs.Count) folder skill(s) -> $($destRoots -join ', ')"
+    Write-OK "Synced $copied folder skill(s); pruned $pruned in non-selected buckets -> $($destRoots -join ', ')"
 }
 
 # Impeccable (pbakaus/impeccable) — a multi-file design skill vendored under
