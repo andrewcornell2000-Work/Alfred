@@ -46,19 +46,33 @@ $Root = $PSScriptRoot
 $TaskName = "AlfredSync"
 function Say([string]$m, [string]$c = 'Gray') { if (-not $Quiet) { Write-Host $m -ForegroundColor $c } }
 
-# ── schedule management ────────────────────────────────────────────────────────
+# ── schedule management (all no-admin) ─────────────────────────────────────────
+$startupLnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'AlfredSync.lnk'
 if ($RemoveSchedule) {
     schtasks /Delete /TN $TaskName /F 2>&1 | Out-Null
-    Say "Removed scheduled task '$TaskName'." 'Yellow'; return
+    if (Test-Path $startupLnk) { Remove-Item $startupLnk -Force }
+    Say "Removed scheduled task '$TaskName' and the logon shortcut." 'Yellow'; return
 }
 if ($InstallSchedule) {
-    $ps = (Get-Command powershell.exe).Source
+    $ps   = (Get-Command powershell.exe).Source
     $self = Join-Path $Root "Alfred-Sync.ps1"
-    $tr = "`"$ps`" -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$self`" -Quiet"
-    # every 3 hours, plus at logon; runs in the user context so git creds resolve
-    schtasks /Create /TN $TaskName /TR $tr /SC HOURLY /MO 3 /F 2>&1 | Out-Null
-    schtasks /Create /TN "$TaskName-Logon" /TR $tr /SC ONLOGON /F 2>&1 | Out-Null
-    Say "Installed scheduled tasks '$TaskName' (every 3h) and '$TaskName-Logon' (at logon)." 'Green'
+    $args = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$self`" -Quiet"
+    # (1) every-3-hours Scheduled Task — runs in the user context (git creds resolve), no admin.
+    schtasks /Create /TN $TaskName /TR "`"$ps`" $args" /SC HOURLY /MO 3 /F 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) { Say "Installed scheduled task '$TaskName' (every 3 hours)." 'Green' }
+    else { Say "Could not create the 3-hour task (non-fatal); the logon shortcut still covers sync." 'Yellow' }
+    # (2) at-logon Startup shortcut — ONLOGON tasks need admin, a Startup .lnk does not.
+    try {
+        $ws = New-Object -ComObject WScript.Shell
+        $lnk = $ws.CreateShortcut($startupLnk)
+        $lnk.TargetPath = $ps
+        $lnk.Arguments  = $args
+        $lnk.WorkingDirectory = $Root
+        $lnk.WindowStyle = 7   # minimized
+        $lnk.Description = "Alfred cross-machine subagent/skill sync"
+        $lnk.Save()
+        Say "Installed logon shortcut: $startupLnk" 'Green'
+    } catch { Say "Could not create logon shortcut: $_" 'Yellow' }
     Say "Test now:  schtasks /Run /TN $TaskName" 'DarkGray'
     return
 }
