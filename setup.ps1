@@ -527,6 +527,13 @@ if (Test-Path $provisionScript) {
     Write-Skip "Provision-Cursor.ps1 not found -- skipping cross-tool provisioning."
 }
 
+# Cross-machine subagent/skill auto-sync (Phase 7): register the no-admin
+# scheduled task + logon shortcut so this machine converges with the others.
+$syncScript = Join-Path $Root "Alfred-Sync.ps1"
+if (Test-Path $syncScript) {
+    try { & $syncScript -InstallSchedule -Quiet } catch { Write-Warn "Alfred-Sync schedule install failed: $_" }
+}
+
 # ── Desktop shortcut (custom icon) ────────────────────────────────────────────
 
 Write-Step "Desktop shortcut..."
