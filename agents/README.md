@@ -24,6 +24,27 @@ Canonical subagent definitions for Cursor, Claude Code, and Codex.
 | janitor | core | Folder clutter cleanup |
 | dlp-doctor | powerbi | DLP / Labour Planning Power BI diagnostics |
 
+### Repo A-Team (GitHub triage — Mr Smith prompt in `skills/repo-scout.md`)
+
+Paste one URL to **repo-scout** → parallel specialists → **ADOPT / TRIAL / SKIP** Verdict Card.
+
+| Agent | Bucket | Role |
+|-------|--------|------|
+| repo-scout | core | Lead — intake, delegate, 8-section verdict |
+| repo-safety-guard | core | OSS install / MCP safety (BLOCK vetoes ADOPT) |
+| repo-stack-overlap | core | DUPLICATE / PARTIAL / COMPLEMENT / NEW vs Alfred |
+| repo-eval-logistics | data | Warehouse / commercial analyst fit (0–5) |
+| repo-eval-web | cloud | Web app shipping fit (0–5) |
+| repo-eval-games | cloud | Mobile / game dev fit (0–5) |
+
+`research-analyst` joins when lane is mixed. **Builders** (`nextjs-developer`, `game-developer`) are post-ADOPT only.
+
+```text
+Repo Scout — evaluate https://github.com/owner/repo
+```
+
+Canonical prompt: `skills/repo-scout.md`
+
 ## VoltAgent imports
 
 Sourced from [VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) (MIT). Re-import:

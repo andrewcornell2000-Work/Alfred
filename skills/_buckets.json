@@ -19,6 +19,7 @@
     "continuous-learning": "core",
     "karpathy-coding-guidelines": "core",
     "tool-discovery": "core",
+    "repo-scout": "core",
     "github": "core",
 
     "excel-financial-models": "office365",
