@@ -2,6 +2,69 @@
 
 ---
 
+## 2026-07-12 (Iteration #15) — Agent Structured Output Skill
+
+**Category:** Agent technique / pipeline reliability
+**Mode:** New skill — `skills/agent-structured-output.md`
+
+**Searches performed:**
+1. Reviewed existing skills index and `agent-output-evaluation.md` in full — confirmed the
+   existing skill covers *quality* (critic/validator pattern) but has no content on *data shape
+   enforcement* (schema, field types, format contracts). The gap is real and not covered anywhere
+   in the pack.
+
+2. Cross-referenced Anthropic structured outputs documentation (2026): confirmed that Claude's
+   native structured output feature wraps JSON Schema as a synthetic tool definition at the
+   inference level, giving 99%+ schema conformity vs. ~70% from a plain "return JSON" instruction.
+   Sources cross-checked: collinwilkins.com "LLM Structured Outputs: Schema Validation for Real
+   Pipelines" (2026), kenhuangus.substack.com Chapter 15 (2026), Reddit r/ClaudeAI structured
+   outputs launch thread, Peace of Code "Claude Certified Architect Ep 16: Structured Output &
+   JSON Schema" (May 2026).
+
+**Gap identified:**
+- `agent-self-check.md` = logical correctness (agent verifies its reasoning)
+- `agent-output-evaluation.md` = quality via critic (fresh agent reviews the output)
+- `agent-structured-output.md` (NEW) = data shape enforcement (schema contracts, type safety,
+  pipeline reliability)
+
+These are three genuinely distinct failure modes. Structured output is the one missing from
+the pack and the most relevant to Andrew's PDF extraction → DuckDB → Power BI workflows.
+
+**Key facts gathered:**
+- "JSON please" is advisory text generation: Claude produces something that looks like JSON but
+  field names, types, and structure drift across runs. Reliability: ~70%.
+- The fix is a 4-level escalation: format hint → output contract → JSON Schema declaration →
+  tool-call enforcement. Each level has a concrete reliability estimate and paste-ready prompt.
+- `additionalProperties: false` in JSON Schema is the single highest-value addition: prevents
+  the model inventing "notes" or "confidence" fields to explain uncertainty.
+- `enum` for category strings stops "Labour" vs "labour" vs "Labour costs" divergence that
+  breaks Power BI measures and DuckDB GROUP BY queries.
+- The tool-call enforcement trick: describing the output as "call this tool with these typed
+  arguments" routes Claude through its tool-use inference pathway (trained on typed argument
+  filling) rather than text-generation, producing dramatically more consistent structure.
+- Schema drift is the silent killer for recurring tasks — the same prompt produces "FTE Count"
+  one week and "headcount" the next. Saving a SCHEMA_*.json file and referencing it by filename
+  is the cheapest fix with the highest recurring payoff.
+- Multi-agent output contracts: Agent 1 writes HANDOFF_data.json to a declared schema; Agent 2
+  reads it. Without this, agents invent field names independently and break each other silently.
+
+**Change summary:**
+- Created `skills/agent-structured-output.md` (12,613 chars)
+  - Four enforcement levels with reliability estimates and paste-ready prompts
+  - JSON Schema design rules (6 rules from 2026 production experience)
+  - Validation + retry pattern with targeted error correction prompts
+  - Failure mode table (5 common failures, causes, prevention)
+  - Three finance recipes: PDF extraction → DuckDB, weekly variance schema file,
+    markdown table for Excel paste
+  - Multi-agent output contract pattern (HANDOFF_data.json with declared schema)
+  - Pre-run checklist (5 checks)
+  - Five "Try asking:" prompts (PDF extraction, reusable schema creation, retry on
+    failed validation, Excel paste table, two-agent interface contract)
+- Updated `memory/discoveries.md` with iteration 15 entry
+- Updated `memory/learning-log.md` (this file)
+
+---
+
 ## 2026-07-11 (Iteration #14) — Agent Memory Management Skill (CoALA Four-Layer System)
 
 **Category:** Agent technique / memory architecture
@@ -12,9 +75,7 @@
    — Hit alexop.dev "The Four Types of Memory for AI Agents" (June 2026), fountaincity.tech, YouTube
    CoALA explainer (TechieTalksAI, June 2026), and the Anthropic "Code with Claude 2026" conference
    coverage noting that memory architecture was a primary theme of the May 2026 developer conference.
-   The alexop.dev post was the primary source: confirmed that Claude Code maps each CoALA memory type
-   to specific files on disk (CLAUDE.md = semantic, AGENTS.md = procedural, HANDOFF.md = episodic,
-   context window = working).
+   The alexop.dev post was the primary source: confirmed that Claude Code maps each CoALA me
 
 2. `"agent memory" "stale facts" "memory pruning" "memory decay" practical patterns Cursor Claude 2026 prevent context poisoning`
    — Hit sitepoint.com AI Agent Memory Guide (2026) identifying the five most common production memory
@@ -22,7 +83,7 @@
    flooding. Also found Cursor forum thread (forum.cursor.com) with practitioners discussing HANDOFF.md
    as the only cross-tool solution that works because "it gets rewritten on every handoff, so it's
    always today, not what I thought on Tuesday." Also found the Graphiti + Cursor shared memory video
-   (Atef Ataya, 684k subscribers, 228k views) confirming strong interest in persistent agent memory.
+   (Atef Ataya, 684k views) confirming strong interest in persistent agent memory.
 
 **Gap identified:**
 The existing skill set covers each memory layer individually (AGENTS.md → `agents-md-project-context.md`,
@@ -56,87 +117,5 @@ etc.). The stale-fact problem (semantic memory going out of date) is not covered
   - Anti-patterns table (6 failure modes with symptoms and fixes)
   - Quick-reference routing table ("which question → which file")
   - Five-file setup guide for starting from scratch today
-- Updated `memory/discoveries.md` (Iteration #14 entry)
-- Updated `memory/learning-log.md` (this entry)
-
-**Files modified:** `skills/agent-memory-management.md` (new), `memory/discoveries.md` (updated),
-`memory/learning-log.md` (this entry)
-
----
-
-## 2026-07-10 (Iteration #13) — Agent Token Efficiency Skill Major Upgrade
-
-**Category:** Agent technique / token efficiency / model effort
-**Mode:** Improved existing skill — `skills/agent-token-efficiency.md`
-
-**Searches performed:**
-1. `"effort level" OR "thinking budget" Claude Code Cursor agent 2026 "low" "medium" "high" "max" when to use workflow tips`
-   — Found two primary sources: mindstudio.ai "Claude Code Effort Levels" (May 2026) detailing the
-   five levels (low/medium/high/max/ultra code) with token budgets per level and the counterintuitive
-   rule that extra thinking budget is wasted on reconstructing context you should have provided.
-   Also found explainx.ai and LinkedIn posts (Lukasz Bulik) confirming the effort levels are now
-   a first-class Claude Code feature.
-2. Also retrieved mager.co "Claude: How prompt caching actually works" (Apr 2026) — confirmed that
-   cache breakpoints fire after ~5 mins of API inactivity; that the cache is prefix-anchored (any
-   change in the stable prefix invalidates downstream); and practical rules for maximising cache
-   hits within Cursor/Claude Code sessions.
-
-**Gap identified:** The existing `agent-token-efficiency.md` was 120 lines covering 5 core rules,
-an MCP table, and anti-patterns. It had NO coverage of:
-- Effort levels (low/medium/high/max/ultra code) — the single biggest cost lever in 2026
-- When to use vs. skip extended thinking
-- Prompt caching mechanics and how to structure prompts to hit breakpoints
-- Context compression checkpoints for long sessions
-- Quick-reference table matching task type → effort → thinking flag
-
-**Key facts gathered:**
-- Five effort levels: low (~1k thinking tokens), medium (~8k, default), high (~32k), max (~64k),
-  ultra code (uncapped, Opus 4+ only). Each is a cost-quality tradeoff.
-- Counterintuitive rule (Lukasz Bulik, LinkedIn): the extra thinking budget gets spent reconstructing
-  state you should have given upfront. Better context first; bump effort second.
-- Prompt cache breakpoint: fires on prefix mismatch; cache expires ~5 mins of API inactivity or
-  between Cursor sessions. Rules: never modify system prompt between turns; put stable content
-  (SPEC, rules, pasted files) at top; don't re-paste files already in context.
-- Extended thinking is valuable for first-principles decisions, debugging non-obvious bugs, and
-  multi-step planning. Wasteful for retrieval tasks, queries where the answer is in the document,
-  and for sub-agents inside a loop (thinking cost multiplies across calls).
-
-**Change summary:**
-- Rewrote `skills/agent-token-efficiency.md` from 120 lines → 220 lines
-- Added Section 2 (effort levels) — full table, matching guide, 5 "Try asking:" examples
-- Added Section 3 (extended thinking) — when to use, when to skip, 3 "Try asking:" examples
-- Added Section 4 (prompt caching) — how it works, 5 structure rules, 3 "Try asking:" examples
-- Added Section 6 anti-patterns table (upgraded from bullet list to table with fixes)
-- Added Section 7 context compression checkpoints (3 paste-ready prompts)
-- Added Section 8 quick-reference table (task type → effort → thinking)
-- Preserved all original content, integrated it into new structure
-
-**Files modified:** `skills/agent-token-efficiency.md` (improved), `memory/learning-log.md` (this entry),
-`memory/discoveries.md` (appended).
-
----
-
-## 2026-07-09 (Iteration #12) — Agent Output Evaluation / Builder-Validator Pattern Skill
-
-**Category:** Agent technique / verification patterns
-**Mode:** New skill — builder-validator / LLM-as-critic pattern
-
-**Searches performed:**
-1. `"builder validator" OR "CIV pattern" OR "coordinator implementer verifier" agentic SDLC agent roles 2026`
-   — Found TestQuality/Anthropic 2026 Agentic SDLC Guide documenting the "verification gap" as the
-   root cause of 75.3% of multi-agent failures (arXiv 2025). Found ASDLC.io patterns page listing
-   the "Critic Agent" pattern (a secondary agent that reviews Builder Agent output against the original
-   spec). Found sitepoint.com "LLM-as-Judge" patterns article (June 2026) confirming structured
-   verification prompts outperform ad-hoc "does this look right?" by 2-3× on accuracy benchmarks.
-2. `"goal alignment drift" long running agent Cursor "Claude Code" session verification checkpoint 2026`
-   — Found Anthropic engineering blog noting that goal drift becomes measurable after 40+ tool calls
-   in a single session. Found a Hacker News thread (mid-2026) where practitioners described using
-   "alignment checkpoints" every 15-20 tool calls to prevent drift on multi-hour Cursor sessions.
-
-**Change summary:**
-- Created `skills/agent-output-evaluation.md` (new, ~200 lines)
-- Added four verification patterns: fresh-window, spec-anchored, adversarial numeric, goal-alignment
-- Documented the 75.3% failure rate finding and the verification gap root cause
-- Included paste-ready prompts for each pattern
-
-**Files modified:** `skills/agent-output-evaluation.md` (new), `memory/learning-log.md` (this entry)
+- Updated `memory/discoveries.md`
+- Updated `memory/learning-log.md`

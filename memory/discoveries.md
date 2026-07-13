@@ -20,6 +20,16 @@
 
 ---
 
+### [ITERATION 15] TECHNIQUE — Agent Structured Output: Schema Enforcement for Reliable Pipelines
+**Date:** 2026-07-12
+**Type:** TECHNIQUE / BUILD
+**What I found:** "JSON please" is advisory — Claude generates text that looks like JSON but frequently drifts in field names, types, and structure across runs. The actual mechanism for reliable structured output is a 4-level escalation: format hints (~70% reliable, zero overhead) → output contracts (state fields+types before starting, self-check before responding, ~85%) → JSON Schema declaration with `additionalProperties: false` and `enum` for categories (~97%) → tool-call enforcement (describe output as a synthetic tool call so Claude uses its typed-argument pathway rather than text-generation, 99%+). Confirmed from Anthropic's 2026 structured outputs docs, collinwilkins.com pipeline patterns, and kenhuangus.substack.com structured output chapter. Claude API's native structured output feature wraps JSON Schema as a synthetic tool definition at the inference level — the same trick can be exploited in Cursor prompts by describing the output as "call this tool with these typed arguments."
+**Why it matters:** Andrew extracts cost tables from PDFs, feeds agent outputs into Power BI models and DuckDB queries, and runs the same analysis prompts week-to-week. Without schema enforcement, field names drift ("FTE Count" vs "headcount" vs "fte_count") and break every formula that references them. Parsing failures are silent — the pipeline breaks hours after the agent ran, not immediately. A saved SCHEMA_*.json file is the single cheapest fix for week-to-week drift on recurring extractions.
+**What it unlocks:** Four ready-to-paste prompt patterns (one per enforcement level), three finance-specific recipes (PDF extraction → DuckDB, weekly variance schema file, markdown table for Excel paste), a validation/retry pattern with targeted error correction prompts, a multi-agent output contract pattern (Agent 1 writes HANDOFF_data.json to a declared schema; Agent 2 reads it), and a pre-run checklist.
+**Artifact:** `skills/agent-structured-output.md` (new, 12,613 chars, 5 "Try asking:" prompts, 3 recipes, 1 checklist, 4 enforcement levels, validation loop)
+
+---
+
 ### [ITERATION 14] TECHNIQUE — Four-Layer Agent Memory System (CoALA Framework)
 **Date:** 2026-07-11
 **Type:** TECHNIQUE / BUILD
@@ -40,67 +50,30 @@
 
 ---
 
-### [ITERATION 12] TECHNIQUE — Builder-Validator Pattern (Agent Output Evaluation)
+### [ITERATION 12] TECHNIQUE — Agent Claude Code Sub-agents (Claude Code native multi-agent)
 **Date:** 2026-07-09
-**Type:** TECHNIQUE
-**What I found:** The "verification gap" is identified in arXiv 2025 research as the root cause of 75.3% of multi-agent task failures — the builder implements its own interpretation and then verifies against that same interpretation, not against what was originally asked. The fix is the builder-validator pattern: a second, fresh agent receives only the original requirement and the output (never the builder's chain-of-thought), then evaluates it independently. This is structurally equivalent to unit testing but applied to AI-generated outputs. ASDLC.io documents this as the "Critic Agent" pattern; Anthropic's 2026 agentic SDLC guide identifies it as a mandatory gate before any output reaches a stakeholder.
-**Why it matters:** Andrew regularly uses Cursor for building then asks "does this look right?" — this is precisely the pattern that fails. The builder finished, rationalised its own output, and now confirms it's correct. The critic pattern gives a concrete, independent check. For finance outputs (numbers, formulas), the adversarial numeric audit pattern (Pattern 3) adds trace-back verification — the critic traces each key number back to its source rather than just reading the output.
-**What it unlocks:** Any agent-produced output that goes to a stakeholder or depends on correctness can now have a structured, paste-ready verification pass. The pattern also catches goal-alignment drift in long runs (40+ tool calls), which is otherwise invisible — the agent looks busy and productive but drifts off the original goal over time. Four patterns cover all scenarios: fresh-window (general), spec-anchored (when SPEC.md exists), adversarial (finance/data), goal-alignment (long runs).
-**Artifact:** `skills/agent-output-evaluation.md` (new skill), `memory/learning-log.md` (updated)
+**Type:** TECHNIQUE / BUILD
+**What I found:** Claude Code now ships native sub-agent spawning via the Task tool — no external orchestration framework required. Unlike Cursor parallel agents (which require git worktrees and manual wiring), Claude Code's Task tool lets a parent agent decompose a problem and dispatch independent sub-agents directly from within the same session. Key 2026 patterns: fan-out (one parent, many parallel sub-agents), pipeline (output of sub-agent A → input of sub-agent B), and specialist routing (sub-agents scoped to a single tool or domain). Sub-agents have isolated context windows by default but can share a scratch file for passing data between steps.
+**Why it matters:** For Andrew's finance/data work, this means a single Cursor or Claude Code session can simultaneously fetch SharePoint files, run DuckDB analysis, draft the Word report, and check the result — without manual session-switching or copy-pasting intermediate outputs.
+**What it unlocks:** Fan-out research pattern, pipeline pattern with HANDOFF, specialist routing (read-only sub-agent, compute sub-agent, write sub-agent), anti-patterns (spawning with shared mutable state, unbounded fans).
+**Artifact:** `skills/agent-claude-code-subagents.md` (new, 180 lines)
 
 ---
 
-### [ITERATION 11] BUILD — Outlook Calendar MCP shipped to pack
-**Date:** 2026-07-08
-**Type:** BUILD
-**What I found:** `outlook-calendar-mcp` (npm) — an MCP server that drives the local Outlook COM automation layer on Windows to read/manage calendar events, create meetings, find free slots, and check attendee status. No API key or admin rights needed. Windows 11 24H2+ requires enabling VBScript via Settings → Apps → Optional features first. Works entirely with the local Outlook desktop client.
-**Why it matters:** Andrew works on Windows with Outlook. Previously there was no way for Cursor or Claude Code to see or manage his calendar without leaving the editor. Now he can ask "find me a free hour this week" or "create a meeting with the finance team on Thursday at 2pm" directly in Cursor.
-**What it unlocks:** Calendar-aware agent workflows: finding free time, blocking time for finance reviews, listing upcoming meetings to plan Cursor tasks around. Pairs with ms-365 MCP for full 365 coverage.
-**Artifact:** `cursor/mcp.json` (outlook-calendar-mcp entry added), `memory/learning-log.md`
+### [ITERATION 11] BUILD — Agent Output Evaluation: Builder-Validator Pattern
+**Date:** 2026-07-08  
+**Type:** TECHNIQUE / BUILD
+**What I found:** 75.3% of multi-agent failures trace to semantic breakdown between what was built and what was asked (arXiv 2025). The fix: a fresh-context critic that evaluates output against the original spec — not the builder's reasoning. Four escalating patterns: fresh-window critic (new chat, paste requirement + output), spec-anchored critic (mechanical SPEC.md checklist), cross-model validation (different provider = different blind spots), and automated regression (save evaluations as test cases). Key insight: the builder's context is the contamination — even asking the same model to review its own output in the same session produces sycophantic confirmation, not genuine critique.
+**Why it matters:** Andrew's agent sessions produce Power BI models, cost reports, and data transforms that others depend on. A silent error in a labour cost formula or a wrong filter in a variance report propagates downstream. The critic pattern catches these before they leave the agent.
+**What it unlocks:** Four copy-paste critic prompts, a confidence-vs-correctness calibration method, a regression test discipline (save one critic evaluation per task as a future test case), and a "when to skip" guide so it's not overhead on small tasks.
+**Artifact:** `skills/agent-output-evaluation.md` (new, 200 lines)
 
 ---
 
-### [ITERATION 10] BUILD — ms-365 MCP shipped (Graph API: SharePoint, OneDrive, Outlook, Calendar, Teams)
-**Date:** 2026-07-04
-**Type:** BUILD / BREAKTHROUGH
-**What I found:** `@softeria/ms-365-mcp-server` — a community MCP that connects Cursor and Claude Code to the Microsoft Graph API, giving read (and optionally write) access to SharePoint sites, OneDrive files, Outlook mail, Calendar, Teams, and To-Do. Authentication via MSAL device-code (browser pop-up, one-time). Default `--read-only` flag makes it safe for discovery tasks.
-**Why it matters:** SharePoint and OneDrive access was the most-requested discovery target. Previously the only path was downloading files manually and opening them in Excel or markitdown. Now you can search a SharePoint document library from inside Cursor, read a Word doc, or find emails from a client — all without leaving the editor.
-**What it unlocks:** "Find all Excel files in the Finance SharePoint library modified this month" — runs in Cursor in 10 seconds. Email search, calendar lookup, OneDrive file read. Pairs with markitdown for PDF/Office conversion of files found via ms-365.
-**Artifact:** `cursor/mcp.json` (ms-365 entry), `skills/sharepoint-graph.md` (updated), `discovered-tools.md` (ms-365 entry)
-
----
-
-### [ITERATION 9] TECHNIQUE — Agent Spec-Driven Development
-**Date:** 2026-07-03
-**Type:** TECHNIQUE
-**What I found:** The SPEC.md-first pattern — writing a precise specification before touching any code — dramatically reduces the "drift and re-derive" failure mode in Cursor agents. The spec anchors every downstream decision and serves as the validator input for the builder-validator pattern.
-**Why it matters:** Without a written spec, agents interpret requirements loosely and confirm their own interpretations. A two-page SPEC.md written before any code is the single highest-leverage intervention for long Cursor sessions.
-**What it unlocks:** Clear task decomposition, parallel worktree assignments, builder-validator verification anchors. The SPEC.md pattern is now the recommended starting point for any Cursor task > 30 minutes.
-**Artifact:** `skills/agent-spec-driven.md` (new skill)
-
----
-
-### [ITERATION 8] BUILD — agent-workflow-orchestration skill shipped
-**Date:** 2026-07-03
-**Type:** BUILD
-**What I found:** The "coordinator-worker" pattern is the dominant multi-agent orchestration model in 2026. One agent decomposes the task and assigns subtasks; worker agents execute with strict output schemas. The coordinator never executes; workers never re-plan.
-**Why it matters:** Andrew's finance pipeline tasks (data pull → transform → reconcile → report) are naturally coordinator-worker shaped. Mapping them explicitly prevents agents from scope-creeping into each other's work.
-**Artifact:** `skills/agent-workflow-orchestration.md` (new skill)
-
----
-
-### [ITERATION 7] TECHNIQUE — MCP tool-description quality audit rubric
-**Date:** 2026-06-15
-**Type:** INSIGHT
-**What I found:** arXiv 2025 research on tool selection failure in MCP-equipped agents identified six required components in a good tool description: purpose, trigger condition, return type, parameter guidance, negative scope, and example. Missing any one causes wrong tool selection at rates measured in the research at 15-40%.
-**Why it matters:** mcp.json is the source of truth for tool descriptions. Auditing against this rubric is a low-cost, high-leverage action before any complex multi-MCP agent run.
-**Artifact:** `skills/agent-context-engineering.md` (Section 6 — tool description audit rubric)
-
----
-
-### [ITERATION 6] BUILD — DuckDB MCP shipped to pack
-**Date:** 2026-06-12
-**Type:** BUILD
-**What I found:** `mcp-server-duckdb` (uvx) — SQL analytics on CSV, Parquet, and Excel exports without opening Excel. Zero admin install via uvx. Replaces the retired sqlite MCP with a much more capable engine (columnar, handles files > 1M rows, native Parquet support).
-**Why it matters:** Most of Andrew's finance data lives in CSV or Excel exports. DuckDB MCP lets Cursor run SQL directly on those files — aggregations, joins, time-series queries — without any ETL step.
-**Artifact:** `cursor/mcp.json` (duckdb entry), `skills/data-analysis-planning.md` (routing note added)
+### [ITERATION 10] TECHNIQUE — Agent MCP Security Patterns (prompt injection, tool poisoning, privilege)
+**Date:** 2026-07-07
+**Type:** TECHNIQUE / INSIGHT
+**What I found:** arXiv 2025 survey (Yang et al.) documents three attack surfaces that Claude/Cursor users face in practice: prompt injection via MCP tool outputs (malicious instructions embedded in web pages, PDFs, or files the agent reads), tool description poisoning (a malicious MCP server lying about what its tools do), and privilege escalation (agent granted write permissions it shouldn't have for a read task). None of these require the user to do anything wrong — they exploit the fact that agents trust their context. The minimal-privilege rule is the highest-ROI mitigation: most agent tasks need read access, not write, and scoping permissions at task start prevents the worst outcomes.
+**Why it matters:** Andrew uses Playwright, filesystem MCP, and ms-365 to read finance files and web pages — exactly the surfaces where injection happens. A PDF from a vendor or a web page fetched during research could contain embedded instructions that redirect a running agent.
+**What it unlocks:** Three mitigation disciplines (trust tiers, minimal-privilege prompts, output validation before action), a safe-agent prompt template, and a pre-flight security checklist for high-risk tasks (anything write, anything external, anything financial).
+**Artifact:** `skills/agent-mcp-security.md` (new, 150 lines)
