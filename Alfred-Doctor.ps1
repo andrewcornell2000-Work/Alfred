@@ -348,6 +348,39 @@ foreach ($cli in @('claude', 'codex', 'node', 'npx', 'uvx', 'git', 'gh', 'jq', '
     }
 }
 
+Write-Head "Node TLS trust (corporate proxy / Zscaler)"
+# Node uses its own CA bundle, not the Windows store. Behind a re-signing proxy
+# that means npx/mcp-remote MCP servers die with UNABLE_TO_GET_ISSUER_CERT_LOCALLY.
+# The fix is NODE_EXTRA_CA_CERTS -> a PEM of the Windows roots (Set-AlfredNodeCaCert).
+$vendorPattern = "Zscaler|Netskope|Palo Alto|Cisco Umbrella|Forcepoint|Blue Coat|Broadcom|Fortinet|McAfee|Skyhigh|Menlo|Cloudflare Gateway"
+$mitmRoots = @()
+foreach ($store in @("Cert:\CurrentUser\Root", "Cert:\LocalMachine\Root")) {
+    $mitmRoots += Get-ChildItem $store -ErrorAction SilentlyContinue |
+        Where-Object { $_.Subject -match $vendorPattern }
+}
+$caPath = [System.Environment]::GetEnvironmentVariable("NODE_EXTRA_CA_CERTS", "User")
+$caOk = $caPath -and (Test-Path $caPath)
+$report.data.nodeExtraCaCerts = $caOk
+if ($caOk) {
+    Write-Pass "NODE_EXTRA_CA_CERTS -> $caPath"
+} elseif (@($mitmRoots).Count -gt 0) {
+    $vendor = ([regex]::Match(@($mitmRoots)[0].Subject, $vendorPattern)).Value
+    Add-Warning "Corporate TLS proxy ($vendor) present but NODE_EXTRA_CA_CERTS not set — Node MCP servers (mcp-remote) will fail."
+    $common = Join-Path $Root "Alfred-Common.ps1"
+    if ((Test-Path $common) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+        . $common
+        if (Get-Command Set-AlfredNodeCaCert -ErrorAction SilentlyContinue) {
+            Write-Note "Repairing: exporting Windows roots and setting NODE_EXTRA_CA_CERTS..."
+            if (Set-AlfredNodeCaCert -OnStep { param($m) Write-Note $m }) {
+                Write-Pass "NODE_EXTRA_CA_CERTS repaired (restart Cursor/Claude to apply)"
+                $report.data.nodeExtraCaCerts = $true
+            }
+        }
+    }
+} else {
+    Write-Note "No re-signing proxy detected — Node CA override not needed."
+}
+
 Write-Head "Excel / Power BI stack"
 $venvPy = Join-Path $Root ".venv\Scripts\python.exe"
 if (Test-Path $venvPy) {

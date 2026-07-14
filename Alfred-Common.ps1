@@ -84,6 +84,74 @@ function Refresh-Path {
                 [System.Environment]::GetEnvironmentVariable("PATH", "User")
 }
 
+function Set-AlfredNodeCaCert {
+    <#
+    .SYNOPSIS
+        Make Node.js trust the Windows certificate store so npx/npm/MCP servers
+        work behind a corporate TLS-intercepting proxy (Zscaler, Netskope, etc.).
+    .DESCRIPTION
+        Node ships its own CA bundle and ignores the Windows cert store. On
+        machines where a corporate proxy re-signs HTTPS, the handshake fails with
+        UNABLE_TO_GET_ISSUER_CERT_LOCALLY and mcp-remote / startup-handshake MCP
+        servers die the moment they launch (seen with parallel-search on a
+        Zscaler'd Maersk laptop). This exports every currently-valid trusted root
+        from the Windows store into a combined PEM and points NODE_EXTRA_CA_CERTS
+        at it (User + Process scope). Vendor-agnostic: it trusts exactly what
+        Windows already trusts. Idempotent — refreshes the PEM in place each run.
+        Returns $true if the bundle was written.
+    #>
+    param(
+        [string]$CertDir = (Join-Path $env:USERPROFILE ".local\certs"),
+        [scriptblock]$OnStep = { param($Msg) Write-Host "  $Msg" -ForegroundColor Cyan }
+    )
+
+    try {
+        $pemPath = Join-Path $CertDir "windows-roots.pem"
+        New-Item -ItemType Directory -Force $CertDir -ErrorAction SilentlyContinue | Out-Null
+
+        $roots = @()
+        foreach ($store in @("Cert:\CurrentUser\Root", "Cert:\LocalMachine\Root")) {
+            $roots += Get-ChildItem $store -ErrorAction SilentlyContinue
+        }
+        $now = Get-Date
+        $roots = $roots |
+            Where-Object { $_.RawData -and $_.NotAfter -gt $now -and $_.NotBefore -le $now } |
+            Sort-Object Thumbprint -Unique
+
+        if (-not $roots -or @($roots).Count -eq 0) {
+            & $OnStep "No root certificates found to export — skipping Node CA setup."
+            return $false
+        }
+
+        $lines = New-Object System.Collections.Generic.List[string]
+        foreach ($c in $roots) {
+            $lines.Add("# " + $c.Subject)
+            $lines.Add("-----BEGIN CERTIFICATE-----")
+            $lines.Add([Convert]::ToBase64String($c.RawData, 'InsertLineBreaks'))
+            $lines.Add("-----END CERTIFICATE-----")
+        }
+        Set-Content -Path $pemPath -Value $lines -Encoding ascii
+
+        [System.Environment]::SetEnvironmentVariable("NODE_EXTRA_CA_CERTS", $pemPath, "User")
+        $env:NODE_EXTRA_CA_CERTS = $pemPath
+
+        # Name known TLS-interception vendors so the log line is informative.
+        $vendorPattern = "Zscaler|Netskope|Palo Alto|Cisco Umbrella|Forcepoint|Blue Coat|Broadcom|Fortinet|McAfee|Skyhigh|Menlo|Cloudflare Gateway"
+        $mitm = $roots |
+            Where-Object { $_.Subject -match $vendorPattern } |
+            ForEach-Object { ([regex]::Match($_.Subject, $vendorPattern)).Value } |
+            Select-Object -Unique
+        if ($mitm) {
+            & $OnStep ("Corporate TLS proxy detected (" + ($mitm -join ', ') + ") — Node will now trust it.")
+        }
+        & $OnStep ("Node CA bundle written ($(@($roots).Count) roots) -> NODE_EXTRA_CA_CERTS")
+        return $true
+    } catch {
+        & $OnStep ("Node CA setup skipped: " + $_.Exception.Message)
+        return $false
+    }
+}
+
 function Add-ProcessPathEntry([string]$PathEntry) {
     if ([string]::IsNullOrWhiteSpace($PathEntry) -or -not (Test-Path $PathEntry)) {
         return $false

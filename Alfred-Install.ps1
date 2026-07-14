@@ -704,6 +704,12 @@ if (Find-Command "node") {
         Write-Warn "Node.js $nodeMajor is below MCP minimum (18+). Upgrade at https://nodejs.org/"
     }
 
+    # Corporate proxies (Zscaler, Netskope, ...) re-sign HTTPS. Node ignores the
+    # Windows cert store and fails with UNABLE_TO_GET_ISSUER_CERT_LOCALLY, which
+    # kills mcp-remote / startup-handshake MCP servers on launch. Point Node at
+    # the Windows roots BEFORE the npm CLIs, Claude login, and MCP steps run.
+    Set-AlfredNodeCaCert -OnStep { param($m) Write-Host "  $m" -ForegroundColor Cyan } | Out-Null
+
     $npmToolStatus = Install-AlfredNpmTools -RepoRoot $InstallPath
     if ($npmToolStatus['claude'] -ne $true) {
         Write-Warn "Claude Code CLI missing — MCP features unavailable until installed."
