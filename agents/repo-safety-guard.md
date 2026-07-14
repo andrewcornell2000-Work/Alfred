@@ -4,7 +4,7 @@ bucket: core
 description: >
   Repo A-Team — OSS safety before install or Alfred MCP provision. Supply chain,
   install scripts, permissions, maintainer trust. Any BLOCK finding vetoes ADOPT.
-tools: Read, Grep, Glob, Shell, WebFetch
+tools: Read, Grep, Glob, Bash, WebFetch
 model: inherit
 ---
 

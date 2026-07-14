@@ -57,7 +57,7 @@ Subagents live in `.claude/agents/` (project-level) or `~/.claude/agents/` (glob
 name: code-reviewer
 description: Specialist for reviewing changed files for bugs, style issues, and security problems.
   Use when the user asks for a code review or when plan mode completes a set of edits.
-tools: read_file, grep_search
+tools: Read, Grep
 ---
 
 You are a careful, opinionated code reviewer. When activated:
@@ -80,7 +80,7 @@ Be terse. The orchestrator will relay your output to the user.
 |-------|----------|-------------|
 | `name` | Yes | Identifier. Claude uses this to select the right subagent. |
 | `description` | Yes | The routing hint — Claude reads this to decide when to delegate here. Write it like "Use when…" |
-| `tools` | Optional | Comma-separated list of tools this subagent is allowed to use. Omit = inherits session defaults. |
+| `tools` | Optional | Comma-separated list of tools this subagent is allowed to use. Omit = inherits session defaults. Use Claude Code's real tool names: `Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch, Task` (NOT Cursor-style `read_file`/`grep_search`/`Shell` — those are silently dropped). |
 | `model` | Optional | Override the model (e.g. `claude-haiku-4-5` for cheap exploratory tasks). |
 
 ### The description field is the selector — write it carefully
@@ -101,7 +101,7 @@ name: explore
 description: Use at the start of any plan or implementation task to map the relevant files
   and folders without loading them into the main context. Returns a concise file tree
   and summary of key entry points.
-tools: read_file, list_directory, grep_search
+tools: Read, Glob, Grep
 model: claude-haiku-4-5
 ---
 
@@ -119,7 +119,7 @@ name: code-reviewer
 description: Use after completing edits to review changed files for bugs, hardcoded secrets,
   missing error handling, and style issues. Invoke when the user asks for review or when
   a plan phase ends.
-tools: read_file, grep_search
+tools: Read, Grep
 ---
 [review instructions as shown above]
 ```
@@ -131,7 +131,7 @@ name: test-writer
 description: Use when asked to write tests for a function or module. Reads the source file
   and generates pytest or Jest tests with edge cases. Returns tests as a code block ready
   to save.
-tools: read_file
+tools: Read
 ---
 
 You are a test engineer. Given a source file:
@@ -147,7 +147,7 @@ You are a test engineer. Given a source file:
 name: summarise
 description: Use when asked to understand a large file, PDF, or document without loading
   the full content into the main context. Returns a structured summary.
-tools: read_file
+tools: Read
 model: claude-haiku-4-5
 ---
 
