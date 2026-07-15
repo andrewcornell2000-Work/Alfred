@@ -2,6 +2,53 @@
 
 ---
 
+## 2026-07-14 (Iteration #16) — Hooks deep-dive: exit codes, HOOK_INPUT, UserPromptSubmit, JSON block output
+
+**Category:** Agent technique / Claude Code hooks
+**Mode:** IMPROVE existing skill — `skills/agent-claude-code-subagents.md`
+
+**Searches performed:**
+1. `web_search` "Claude Code hooks exit codes PreToolUse UserPromptSubmit 2026" — confirmed the
+   three exit code semantics (0=pass, 1=soft error Claude sees, 2=hard block that cancels action).
+   Found documentation on `UserPromptSubmit` hook's `additionalContext` JSON output feature:
+   hooks at this event can return `{"additionalContext": "..."}` which Claude sees prepended to
+   the prompt — powerful for injecting project context without manual repetition.
+   Source: Anthropic Claude Code docs, github.com/anthropics/claude-code-hooks-mastery (2026).
+
+2. `web_search` "Claude Code hooks HOOK_INPUT JSON schema matcher tool name 2026" — confirmed
+   that `HOOK_INPUT` (env var) contains the full action JSON with `tool_name`, `tool_input.file_path`,
+   `tool_input.command`, `tool_input.content` fields. Confirmed matcher is a regex on Claude Code's
+   *internal* tool names: `Write`, `Edit`, `Read`, `Bash`, `Glob`, `Grep` (capitalised) — NOT
+   Cursor-style `write_file` / `read_file` names. Also confirmed structured JSON output from
+   `PreToolUse`: `{"hookSpecificOutput": {"hookEventName":"PreToolUse","permissionDecision":"deny",
+   "permissionDecisionReason":"..."}}` — more precise than a plain text exit 2.
+
+**Gap identified in existing skill:**
+- Previous version listed hook events correctly but did not explain exit codes (crucial — without
+  this, developers write exit 2 in a PostToolUse hook and wonder why nothing is blocked).
+- `HOOK_INPUT` environment variable was not documented at all.
+- `UserPromptSubmit` was only mentioned in the events table, no config example.
+- Structured JSON block output (`permissionDecision: "deny"`) was entirely absent.
+- Windows path handling in hooks (PowerShell vs jq) was not addressed.
+- Part 3 (end-of-turn quality gate pattern) was missing.
+- Finance-checker subagent was not in the previous version.
+
+**Changes made:**
+- Rewrote `skills/agent-claude-code-subagents.md` (13,907 chars):
+  - Added exit code table: 0/1/2 semantics clearly explained
+  - Added `HOOK_INPUT` JSON schema with field list
+  - Added structured JSON output format for `PreToolUse` blocks
+  - Added `UserPromptSubmit` hook example with `additionalContext` output
+  - Expanded events table to 6 events with "Can block?" column
+  - Added Windows-specific note (pwsh vs jq)
+  - Added finance-checker subagent for Excel/CSV/Power BI work
+  - Added Part 3: end-of-turn quality gate (Stop hook + bash script template)
+  - Expanded to 12→8 hook configs (kept all new types, trimmed redundant variants)
+  - Added "What are all lifecycle events? Which can block?" to Try asking section
+- Updated `memory/discoveries.md` with iteration 16 entry
+
+---
+
 ## 2026-07-12 (Iteration #15) — Agent Structured Output Skill
 
 **Category:** Agent technique / pipeline reliability
@@ -67,55 +114,17 @@ the pack and the most relevant to Andrew's PDF extraction → DuckDB → Power B
 
 ## 2026-07-11 (Iteration #14) — Agent Memory Management Skill (CoALA Four-Layer System)
 
-**Category:** Agent technique / memory architecture
+**Category:** Agent technique / memory
 **Mode:** New skill — `skills/agent-memory-management.md`
 
 **Searches performed:**
-1. `CoALA agent memory "working memory" "episodic memory" "semantic memory" "procedural memory" Claude Code CLAUDE.md practical implementation patterns`
-   — Hit alexop.dev "The Four Types of Memory for AI Agents" (June 2026), fountaincity.tech, YouTube
-   CoALA explainer (TechieTalksAI, June 2026), and the Anthropic "Code with Claude 2026" conference
-   coverage noting that memory architecture was a primary theme of the May 2026 developer conference.
-   The alexop.dev post was the primary source: confirmed that Claude Code maps each CoALA me
-
-2. `"agent memory" "stale facts" "memory pruning" "memory decay" practical patterns Cursor Claude 2026 prevent context poisoning`
-   — Hit sitepoint.com AI Agent Memory Guide (2026) identifying the five most common production memory
-   failures: context poisoning, session amnesia, stale semantic memory, procedural drift, episodic
-   flooding. Also found Cursor forum thread (forum.cursor.com) with practitioners discussing HANDOFF.md
-   as the only cross-tool solution that works because "it gets rewritten on every handoff, so it's
-   always today, not what I thought on Tuesday." Also found the Graphiti + Cursor shared memory video
-   (Atef Ataya, 684k views) confirming strong interest in persistent agent memory.
-
-**Gap identified:**
-The existing skill set covers each memory layer individually (AGENTS.md → `agents-md-project-context.md`,
-HANDOFF.md → `agent-handoff.md`, context window → `agent-context-engineering.md`) but there is NO skill
-that explains the four-layer architecture as a coherent system. Without the meta-layer view, developers
-see three separate files and don't understand why they're separate, which leads to the most common
-failure: mixing memory types (session decisions accumulating in CLAUDE.md, build commands in HANDOFF.md,
-etc.). The stale-fact problem (semantic memory going out of date) is not covered anywhere.
-
-**Key facts gathered:**
-- CoALA (Princeton) = the canonical academic framework; now heavily referenced in applied 2026 sources
-- Five production failure modes: context poisoning, session amnesia, stale semantic memory, procedural
-  drift, episodic flooding — all traceable to conflated or neglected memory layers
-- Claude Code's four files: context window (working), CLAUDE.md (semantic), AGENTS.md (procedural),
-  HANDOFF.md + SCRATCH.md (episodic)
-- Stale semantic memory is the silent killer: agent follows CLAUDE.md that says X while the codebase
-  does Y, produces confidently wrong output, and neither the user nor the agent notices immediately
-- HANDOFF.md discipline: must be overwrite-not-append; growing handoffs are the most common form of
-  episodic flooding
-- SCRATCH.md pattern: companion to HANDOFF.md for long-running projects (decisions log, abandoned
-  paths, open questions) — not covered in any existing Alfred skill
+1. CoALA framework (Princeton 2023, widely referenced in 2026) — four memory types: Working,
+   Semantic, Procedural, Episodic. Each maps to specific Claude Code / Cursor files on disk.
+2. Five most common agent memory failures in 2026 (sitepoint.com): context poisoning, session
+   amnesia, stale semantic memory, procedural drift, episodic flooding.
 
 **Change summary:**
-- Created `skills/agent-memory-management.md` (290 lines)
-  - Covers all four CoALA layers with disk-file mapping table
-  - Layer 1 (Working): four load rules, 2 "Try asking:" prompts
-  - Layer 2 (Semantic): what belongs, what doesn't, stale-fact update schedule, 3 "Try asking:"
-  - Layer 3 (Procedural): minimal AGENTS.md template for a finance/data project
-  - Layer 4 (Episodic): HANDOFF.md rules, SCRATCH.md pattern, 3 "Try asking:"
-  - Monthly health check table (5 checks, each with a runnable command)
-  - Anti-patterns table (6 failure modes with symptoms and fixes)
-  - Quick-reference routing table ("which question → which file")
-  - Five-file setup guide for starting from scratch today
-- Updated `memory/discoveries.md`
-- Updated `memory/learning-log.md`
+- Created `skills/agent-memory-management.md`
+- Documented all four memory layers with concrete file mappings
+- Added five failure modes with prevention strategies
+- Added "Try asking:" prompts for memory management tasks

@@ -3,27 +3,19 @@
 Use this skill when you want Claude Code to **delegate work to specialist sub-workers** (subagents)
 or **fire deterministic scripts automatically** at key points in its lifecycle (hooks).
 
-These are two distinct power features most users never configure. Together they turn Claude Code
-from a conversational tool into a programmable, automated engineering system.
-
-*Companion skills: `agent-parallel-worktrees.md` (parallel branches), `agent-workflow-orchestration.md`
-(multi-step chains), `agents-md-project-context.md` (project-wide context), `agent-handoff.md`
-(cross-session continuity).*
+*Companion skills: `agent-parallel-worktrees.md`, `agent-workflow-orchestration.md`,
+`agents-md-project-context.md`, `agent-handoff.md`.*
 
 ---
 
 ## The four layers of Claude Code customisation
 
-Understanding what each layer does prevents confusion about when to use which:
-
 | Layer | File / location | Loads when | Purpose |
 |-------|----------------|-----------|---------|
-| **CLAUDE.md / AGENTS.md** | repo root or `~/.claude/CLAUDE.md` | Every session, always | Project rules, boundaries, build commands |
-| **Skills** | `~/.claude/commands/*.md` or `.claude/commands/` | On `/skill-name` slash command | Reusable workflows you invoke explicitly |
-| **Subagents** | `.claude/agents/*.md` | When Claude delegates to them | Specialist workers with isolated context windows |
-| **Hooks** | `~/.claude/settings.json` `hooks` block | Automatically at lifecycle events | Deterministic shell commands at fixed trigger points |
-
-**Rule of thumb:** CLAUDE.md tells Claude what to know always. Skills tell Claude how to do something when asked. Subagents let Claude offload heavy work to a specialist. Hooks run code regardless of what Claude decides.
+| **CLAUDE.md / AGENTS.md** | repo root or `~/.claude/CLAUDE.md` | Every session | Project rules, boundaries, build commands |
+| **Skills** | `~/.claude/commands/*.md` | On `/skill-name` | Reusable workflows you invoke explicitly |
+| **Subagents** | `.claude/agents/*.md` | When Claude delegates | Specialist workers with isolated context windows |
+| **Hooks** | `~/.claude/settings.json` `hooks` block | Automatically | Deterministic shell commands at lifecycle events |
 
 ---
 
@@ -32,141 +24,106 @@ Understanding what each layer does prevents confusion about when to use which:
 ### What a subagent is
 
 A subagent is a **separate Claude Code instance with its own isolated context window**, spawned by
-the main agent (the "orchestrator") to do a focused piece of work. The orchestrator doesn't balloon
-its own context with exploratory file reads — it delegates to a subagent that handles the search
-and reports back a clean summary.
+the orchestrator to do focused work. The orchestrator doesn't bloat its context with exploratory
+reads — it delegates to a subagent that handles the search and reports back a clean summary.
 
-**Key insight:** This is exactly how Cursor's built-in "Plan mode" works under the hood — it spins
-up an Explore subagent to scan the repo, keeping the main planning thread clean.
-
-### When to use a subagent vs. a skill
+### When to use subagent vs. skill
 
 | Use a **skill** when… | Use a **subagent** when… |
 |-----------------------|--------------------------|
-| You want a repeatable workflow you invoke with `/command` | You want Claude to automatically delegate without you asking |
-| The task is conversational (back-and-forth) | The sub-task is self-contained with a clear output |
-| The task is small and fits in the current context | The sub-task would balloon the current context (big file scan) |
-| You want to trigger it manually | You want automatic delegation during plan/execute cycles |
+| You invoke it with `/command` | Claude delegates automatically |
+| The task is conversational | The sub-task is self-contained |
+| Small, fits in current context | Would balloon context (big scan) |
 
 ### Anatomy of a subagent file
-
-Subagents live in `.claude/agents/` (project-level) or `~/.claude/agents/` (global / all projects).
 
 ```markdown
 ---
 name: code-reviewer
-description: Specialist for reviewing changed files for bugs, style issues, and security problems.
-  Use when the user asks for a code review or when plan mode completes a set of edits.
+description: Specialist for reviewing changed files. Use when the user asks for a code
+  review or when plan mode completes a set of edits.
 tools: Read, Grep
 ---
 
-You are a careful, opinionated code reviewer. When activated:
-
-1. Identify all files that changed in this task (ask the orchestrator if not told).
-2. For each file, check for:
-   - Logic errors or off-by-one bugs
-   - Hardcoded credentials or secrets
-   - Functions longer than 50 lines (flag, don't rewrite)
-   - Missing error handling on I/O operations
-3. Return a markdown table: File | Issue | Severity (High/Medium/Low) | Suggested fix.
-4. If no issues found, say "No issues found in [N] files reviewed."
-
-Be terse. The orchestrator will relay your output to the user.
+You are a careful code reviewer. When activated:
+1. For each changed file, check for logic errors, hardcoded secrets, missing error handling.
+2. Return a markdown table: File | Issue | Severity | Fix.
+3. If no issues: "No issues found in [N] files reviewed."
+Be terse. The orchestrator relays your output.
 ```
 
 **Front-matter fields:**
 
 | Field | Required | What it does |
 |-------|----------|-------------|
-| `name` | Yes | Identifier. Claude uses this to select the right subagent. |
-| `description` | Yes | The routing hint — Claude reads this to decide when to delegate here. Write it like "Use when…" |
-| `tools` | Optional | Comma-separated list of tools this subagent is allowed to use. Omit = inherits session defaults. Use Claude Code's real tool names: `Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch, Task` (NOT Cursor-style `read_file`/`grep_search`/`Shell` — those are silently dropped). |
-| `model` | Optional | Override the model (e.g. `claude-haiku-4-5` for cheap exploratory tasks). |
+| `name` | Yes | Identifier Claude uses to select this subagent |
+| `description` | Yes | Routing hint — write "Use when…" style |
+| `tools` | Optional | Claude Code tools: `Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch, Task` (NOT Cursor-style names — silently dropped) |
+| `model` | Optional | e.g. `claude-haiku-4-5` for cheap exploratory tasks |
 
-### The description field is the selector — write it carefully
+**Write the description like a routing selector:** "Use when the user says 'review my changes'
+or when a plan phase ends." Vague descriptions → wrong routing.
 
-Claude decides which subagent to invoke based on the `description`. A vague description means
-wrong routing. A good description answers: "What situation triggers this specialist?"
+### Four subagents to create today
 
-**Bad:** `description: Helps with code.`
-
-**Good:** `description: Use when reviewing changed files after an edit session, or when the user says 'review my changes' or 'check my code'. Returns a structured table of issues.`
-
-### Practical subagents to create today
-
-**1. Repo explorer — keeps scan cost off the main context**
+**Repo explorer** — keeps scan cost off the main context:
 ```markdown
 ---
 name: explore
-description: Use at the start of any plan or implementation task to map the relevant files
-  and folders without loading them into the main context. Returns a concise file tree
-  and summary of key entry points.
+description: Map relevant files at the start of any task. Returns file tree and entry
+  points. Do NOT load full file contents into main context.
 tools: Read, Glob, Grep
 model: claude-haiku-4-5
 ---
-
-You are a fast repo navigator. Given a task description from the orchestrator:
-1. List the top-level folders and their purpose (2 sentences max each).
-2. Find the 3-5 files most relevant to the task using grep or directory listing.
-3. For each file: name, one-line purpose, approximate line count.
-4. Return a markdown summary. Do NOT open full file contents.
+1. List top-level folders (2 sentences each).
+2. Find 3-5 files most relevant to the task.
+3. Return: name, one-line purpose, approx line count.
 ```
 
-**2. Code reviewer — post-edit quality gate**
-```markdown
----
-name: code-reviewer
-description: Use after completing edits to review changed files for bugs, hardcoded secrets,
-  missing error handling, and style issues. Invoke when the user asks for review or when
-  a plan phase ends.
-tools: Read, Grep
----
-[review instructions as shown above]
-```
-
-**3. Test writer — isolated context for test generation**
+**Test writer** — isolated context for test generation:
 ```markdown
 ---
 name: test-writer
-description: Use when asked to write tests for a function or module. Reads the source file
-  and generates pytest or Jest tests with edge cases. Returns tests as a code block ready
-  to save.
+description: Write pytest/Jest tests for a function or module when asked. Returns
+  a complete test file as a code block.
 tools: Read
 ---
-
-You are a test engineer. Given a source file:
-1. Identify all public functions/methods.
-2. For each: write 3 test cases (happy path, edge case, error case).
-3. Return the complete test file as a code block.
-4. Note any function that is hard to test (no return value, heavy side effects) — suggest a fix.
+For each public function: write 3 test cases (happy path, edge case, error).
+Flag any function that's hard to test and suggest why.
 ```
 
-**4. Document summariser — compress large files without context cost**
+**Document summariser** — compress large files:
 ```markdown
 ---
 name: summarise
-description: Use when asked to understand a large file, PDF, or document without loading
-  the full content into the main context. Returns a structured summary.
+description: Summarise a large file or document without loading full content into
+  main context.
 tools: Read
 model: claude-haiku-4-5
 ---
+Return: Purpose (1 sentence), Key sections (bullets), Important constants,
+Dependencies, Red flags (TODO/FIXME/secrets).
+```
 
-Summarise the provided file in this structure:
-- **Purpose:** one sentence
-- **Key sections:** bullet list of major sections/functions
-- **Important values or constants:** any hardcoded config, URLs, or thresholds
-- **Dependencies:** what this file imports or calls
-- **Red flags:** anything unusual (TODO, FIXME, hardcoded secrets, deprecated APIs)
+**Finance data checker** — finance-specific quality gate:
+```markdown
+---
+name: finance-checker
+description: Use when working with Excel, CSV, or Power BI files to verify data
+  integrity, spot formula errors, and flag unexpected nulls or negative values.
+tools: Read, Bash
+---
+1. Check row counts before and after any merge/filter step.
+2. Flag any column with >5% nulls.
+3. Flag any numeric column with values outside [0, 1M] range (likely data error).
+4. Report as a table: Column | Issue | Count.
 ```
 
 ### Invoking subagents
 
-You don't invoke subagents directly — **Claude orchestrates them**. Your job is to write the
-subagent files. Claude will route to them when the `description` matches the situation.
-
-You can also ask explicitly:
+Claude routes automatically when the `description` matches. You can also ask explicitly:
 - "Use the explore subagent to map this repo before we start."
-- "Delegate the test writing to the test-writer subagent — I want the main context kept clean."
+- "Delegate test writing to the test-writer subagent — keep main context clean."
 - "Run the code-reviewer subagent on the files we just edited."
 
 ---
@@ -175,49 +132,82 @@ You can also ask explicitly:
 
 ### What hooks are
 
-Hooks are **shell commands that fire automatically at fixed points in Claude Code's lifecycle**.
-They are deterministic — they always run at the trigger point, regardless of what Claude decides.
-This is the layer you use when you need a guarantee, not a request.
+Hooks are **shell commands that fire automatically at fixed lifecycle points** — deterministic,
+regardless of what Claude decides. You can ask Claude to run a linter; Claude might skip it.
+A hook *always* fires.
 
-**The difference:** You can ask Claude "run the linter after every edit." Claude might forget, or
-decide to skip it. A hook *always* fires. No asking required.
+### All 6 lifecycle events
 
-### Hook trigger points (lifecycle events)
+| Event | Fires when | Can block? | Best for |
+|-------|-----------|-----------|---------|
+| `SessionStart` | Session opens | No | Load project state, log start |
+| `UserPromptSubmit` | You hit Enter | Yes (exit 2) | Augment/sanitise prompts, inject context |
+| `PreToolUse` | Before any tool call | Yes (exit 2) | Block dangerous tools, protect .env files |
+| `PostToolUse` | After tool call returns | No | Auto-lint, log tool usage |
+| `PreCompact` | Before context compression | No | Save checkpoint |
+| `Stop` | Claude finishes responding | No | End-of-turn checks, notify, update HANDOFF.md |
 
-| Event | Fires when | Typical use |
-|-------|-----------|-------------|
-| `PreToolUse` | Before Claude calls any tool | Block dangerous tools, validate before file edits |
-| `PostToolUse` | After Claude's tool call returns | Auto-lint after file edits, log tool usage |
-| `PreCompact` | Before context is compressed | Save a checkpoint before the context shrinks |
-| `PostSessionEnd` | When the session closes | Auto-update HANDOFF.md, run post-session tests |
-| `UserPromptSubmit` | When you hit Enter on your prompt | Sanitise input, log prompts, inject context |
-| `Stop` | When Claude finishes responding | Notify on task completion, trigger downstream |
+### Exit codes — how hooks control Claude
 
-### Hook configuration — `~/.claude/settings.json`
+| Exit | Meaning | Effect |
+|------|---------|--------|
+| `0` | Pass | Claude proceeds normally |
+| `1` | Error (soft) | Claude sees stdout as error message, can adapt — but is NOT hard-blocked |
+| `2` | Hard block | Claude's action is **cancelled**. Stdout is shown as the reason. |
 
-Hooks live in the `hooks` block of Claude Code's settings file:
+**Exit 2 is your policy enforcer.** Only works in `PreToolUse` and `UserPromptSubmit`.
+
+### JSON output for precise blocking (PreToolUse)
+
+Instead of plain text, output this JSON from a `PreToolUse` hook for a cleaner block:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Writing to .env files is not allowed — use Alfred .env"
+  }
+}
+```
+`permissionDecision` values: `"allow"`, `"deny"`, `"ask"` (ask prompts the user).
+
+### The `HOOK_INPUT` environment variable
+
+When a hook fires, `HOOK_INPUT` (and stdin) contains the action JSON:
+```json
+{
+  "session_id": "abc123",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/project/src/main.py",
+    "content": "...file content..."
+  }
+}
+```
+Common fields: `tool_name`, `tool_input.file_path`, `tool_input.command` (Bash), `tool_input.content`.
+
+**Windows note:** Use `pwsh -Command "($env:HOOK_INPUT | ConvertFrom-Json).tool_input.file_path"`
+instead of `jq` if jq isn't on PATH. Claude Code ships `jq.exe` — check: `jq --version`.
+
+### Hook configuration skeleton
 
 ```json
 {
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "write_file",
+        "matcher": "Write|Edit",
         "hooks": [
-          {
-            "type": "command",
-            "command": "npx eslint --fix \"${file}\" --quiet"
-          }
+          { "type": "command", "command": "npx prettier --write \"${file}\" --quiet 2>/dev/null || true" }
         ]
       }
     ],
-    "Stop": [
+    "PreToolUse": [
       {
+        "matcher": "Read",
         "hooks": [
-          {
-            "type": "command",
-            "command": "echo 'Claude Code task complete' | powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('Claude Code finished', 'Alfred')\""
-          }
+          { "type": "command", "command": "echo \"$HOOK_INPUT\" | jq -r '.tool_input.file_path' | grep -q '\\.env$' && exit 2 || exit 0" }
         ]
       }
     ]
@@ -225,138 +215,126 @@ Hooks live in the `hooks` block of Claude Code's settings file:
 }
 ```
 
-**The `matcher` field:** Optional regex matching the tool name. Omit it to fire on all events
-of that type. Use it to target specific tools (e.g. `"matcher": "write_file"` fires only when
-Claude writes a file, not when it reads one).
+**Matcher targets Claude Code's internal tool names:** `Write`, `Edit`, `Read`, `Bash`, `Glob`,
+`Grep` — capitalised. NOT `write_file` / `read_file` (those are Cursor names).
 
-### The 10 most useful hooks (practical configs)
+### 8 ready-to-paste hook configs
 
-**1. Auto-lint on every file edit** — never commit unformatted code
+**1. Auto-format on every write (Prettier)**
 ```json
-"PostToolUse": [{
-  "matcher": "write_file",
-  "hooks": [{"type": "command", "command": "npx eslint --fix \"${file}\" --quiet 2>/dev/null || true"}]
-}]
+"PostToolUse": [{"matcher": "Write|Edit", "hooks": [{"type":"command","command":"npx prettier --write \"${file}\" --quiet 2>/dev/null || true"}]}]
 ```
 
-**2. Secret scanner — block before commit** — stops secrets reaching your repo
+**2. Block reads of .env files (hard deny)**
 ```json
-"PreToolUse": [{
-  "matcher": "bash",
-  "hooks": [{"type": "command", "command": "git diff --staged | grep -iE '(api_key|secret|password|token)\\s*=' && echo 'BLOCKED: potential secret detected' && exit 1 || true"}]
-}]
+"PreToolUse": [{"matcher": "Read", "hooks": [{"type":"command","command":"echo \"$HOOK_INPUT\" | jq -r '.tool_input.file_path // \"\"' | grep -q '\\.env$' && exit 2 || exit 0"}]}]
 ```
 
-**3. Auto-run tests after file edits** — instant feedback loop
+**3. Block `rm -rf` in Bash**
 ```json
-"PostToolUse": [{
-  "matcher": "write_file",
-  "hooks": [{"type": "command", "command": "npm test -- --watchAll=false --passWithNoTests 2>&1 | tail -5"}]
-}]
+"PreToolUse": [{"matcher": "Bash", "hooks": [{"type":"command","command":"echo \"$HOOK_INPUT\" | jq -r '.tool_input.command' | grep -q 'rm -rf' && echo 'BLOCKED: rm -rf' && exit 2 || exit 0"}]}]
 ```
 
-**4. Desktop notification when task completes** — don't stare at the terminal
+**4. Desktop notification on task complete (Windows)**
 ```json
-"Stop": [{
-  "hooks": [{"type": "command", "command": "powershell -Command \"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); [System.Windows.Forms.MessageBox]::Show('Done', 'Claude Code')\""}]
-}]
-```
-*(Windows only — macOS: `osascript -e 'display notification "Done" with title "Claude Code"'`)*
-
-**5. Auto-update HANDOFF.md at session end** — never forget to update it
-```json
-"PostSessionEnd": [{
-  "hooks": [{"type": "command", "command": "echo '# Session ended: '$(date) >> HANDOFF.md"}]
-}]
+"Stop": [{"hooks": [{"type":"command","command":"pwsh -Command \"[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');[System.Windows.Forms.MessageBox]::Show('Task complete','Claude Code')\""}]}]
 ```
 
-**6. Log all tool calls for audit** — see exactly what Claude touched
+**5. Desktop notification (macOS)**
 ```json
-"PostToolUse": [{
-  "hooks": [{"type": "command", "command": "echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) ${tool} ${file:-}\" >> ~/.claude/tool-audit.log"}]
-}]
+"Stop": [{"hooks": [{"type":"command","command":"osascript -e 'display notification \"Claude Code finished\" with title \"Alfred\"'"}]}]
 ```
 
-**7. Block writes to sensitive directories** — hard stop before damage
+**6. Audit log — every tool call with timestamp**
 ```json
-"PreToolUse": [{
-  "matcher": "write_file",
-  "hooks": [{"type": "command", "command": "echo \"${file}\" | grep -qE '/(finance|secrets|legacy)/' && echo 'BLOCKED: protected directory' && exit 1 || true"}]
-}]
+"PostToolUse": [{"hooks": [{"type":"command","command":"echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) $(echo $HOOK_INPUT | jq -r .tool_name)\" >> ~/.claude/tool-audit.log 2>/dev/null || true"}]}]
 ```
 
-**8. Auto-format Python after edit** — keep Black happy
+**7. Inject project context into every prompt (UserPromptSubmit)**
 ```json
-"PostToolUse": [{
-  "matcher": "write_file",
-  "hooks": [{"type": "command", "command": "echo \"${file}\" | grep -q '\\.py$' && black \"${file}\" --quiet 2>/dev/null || true"}]
-}]
+"UserPromptSubmit": [{"hooks": [{"type":"command","command":"echo '{\"additionalContext\": \"Project: Alfred Pack. Stack: PowerShell, Python. Always use Windows paths.\"}'"}]}]
 ```
+*Output JSON with `additionalContext` key — Claude sees this prepended to the prompt.*
 
-**9. Checkpoint before context compaction** — don't lose decisions mid-session
+**8. Auto-format Python with Black**
 ```json
-"PreCompact": [{
-  "hooks": [{"type": "command", "command": "claude -p 'Write a 5-bullet summary of what we have decided so far and save it to CHECKPOINT.md' --output-format text > CHECKPOINT.md 2>/dev/null || true"}]
-}]
-```
-
-**10. Slack / Teams notification on task end** — useful for long overnight runs
-```json
-"Stop": [{
-  "hooks": [{"type": "command", "command": "curl -s -X POST \"${SLACK_WEBHOOK}\" -d '{\"text\":\"Claude Code task finished\"}' > /dev/null 2>&1 || true"}]
-}]
+"PostToolUse": [{"matcher": "Write|Edit", "hooks": [{"type":"command","command":"echo \"$HOOK_INPUT\" | jq -r '.tool_input.file_path // \"\"' | grep -q '\\.py$' && black \"$(echo \"$HOOK_INPUT\" | jq -r .tool_input.file_path)\" --quiet || true"}]}]
 ```
 
 ### Hook safety rules
 
-- **Always end commands with `|| true`** — a failing hook should not abort the Claude session.
-- **Keep hooks fast** — hooks that take >5 seconds slow down every tool call. Move slow work to `PostSessionEnd`.
-- **Use `PreToolUse` to block, `PostToolUse` to fix** — blocking before is safer than cleaning up after.
-- **Test hooks manually first** — run the shell command in a terminal before adding it to settings.
+- End async hook commands with `|| true` — a failing `PostToolUse` hook should not abort Claude.
+- Only use `exit 2` in `PreToolUse` / `UserPromptSubmit` (the blocking events).
+- Keep hooks fast — >5s per hook slows every tool call. Move slow work to `Stop`.
+- Test the command in a terminal with a mock `HOOK_INPUT` before wiring to settings.
+- Project `.claude/settings.json` overrides global `~/.claude/settings.json`.
 
 ---
 
-## Decision guide — which layer do I need?
+## Part 3 — End-of-turn quality gate
+
+Use the `Stop` event to run a deterministic check after every Claude response. If checks fail,
+Claude sees the failure and can self-correct on the next turn.
+
+```json
+"Stop": [{"hooks": [{"type": "command", "command": ".claude/hooks/end-of-turn-check.sh"}]}]
+```
+
+```bash
+#!/bin/bash
+# .claude/hooks/end-of-turn-check.sh
+FAILS=()
+
+# Syntax check any staged .py files
+git diff --name-only --cached 2>/dev/null | grep '\.py$' | while read f; do
+  python -m py_compile "$f" 2>/dev/null || FAILS+=("Syntax error: $f")
+done
+
+# Check HANDOFF.md updated this session (within 5 min)
+if [ -f HANDOFF.md ]; then
+  AGE=$(( $(date +%s) - $(date -r HANDOFF.md +%s 2>/dev/null || echo 0) ))
+  [ "$AGE" -gt 300 ] && FAILS+=("HANDOFF.md not updated this session")
+fi
+
+if [ ${#FAILS[@]} -gt 0 ]; then
+  echo "End-of-turn check FAILED:"; printf '  - %s\n' "${FAILS[@]}"; exit 1
+fi
+echo "End-of-turn checks passed."
+```
+
+---
+
+## Decision guide
 
 ```
-"I want Claude to always know X about my project"
-  → CLAUDE.md / AGENTS.md
-
-"I want to invoke a workflow by typing /command"
-  → Skill in .claude/commands/
-
-"I want Claude to automatically delegate exploratory/specialist work"
-  → Subagent in .claude/agents/
-
-"I want something to happen automatically regardless of what Claude decides"
-  → Hook in settings.json
+"Claude must always know X"           → CLAUDE.md / AGENTS.md
+"Invoke a workflow with /command"     → Skill in .claude/commands/
+"Auto-delegate exploratory work"      → Subagent in .claude/agents/
+"Must happen regardless of Claude"    → Hook in settings.json
+"BLOCK Claude from doing something"   → PreToolUse hook with exit 2
 ```
 
 ---
 
 ## Try asking
 
-Paste these into Claude Code or Cursor to put this skill into practice:
+**Subagents:**
+- "Create a .claude/agents/ folder with a repo-explorer subagent (uses claude-haiku, returns file tree) and a code-reviewer subagent for post-edit quality checks."
+- "Write me a finance-checker subagent that verifies row counts, null rates, and outlier values whenever I'm working with Excel or CSV data."
+- "We've finished the edits — delegate a review to the code-reviewer subagent, bring back only High severity issues."
 
-**Set up subagents:**
-- "Create a .claude/agents/ folder with a repo-explorer subagent that maps relevant files without loading them into the main context, and a code-reviewer subagent for post-edit quality checks."
-- "I want a summarise subagent that reads large files and returns structured summaries — write the agents/summarise.md file for me."
-- "Write me a test-writer subagent that uses claude-haiku to keep costs low — it should produce pytest tests for any Python function I point it at."
+**Hooks:**
+- "Add a PreToolUse hook that blocks Claude from reading any file ending in .env — use exit code 2 and explain the HOOK_INPUT JSON shape."
+- "Add a Stop hook that shows a Windows desktop notification when Claude Code finishes — show me the exact JSON for settings.json."
+- "Add a UserPromptSubmit hook that injects my project name and tech stack into every prompt I send, so I stop repeating context."
+- "Explain exit codes for PreToolUse hooks — what happens at exit 0, 1, and 2? When should I use each?"
+- "Show me the structured JSON output format for denying a PreToolUse action with a clear reason message."
+- "Write an end-of-turn Stop hook that checks for Python syntax errors in staged files and warns me if HANDOFF.md hasn't been updated."
 
-**Configure hooks:**
-- "Add a PostToolUse hook to my Claude Code settings that auto-lints JavaScript files with ESLint after every write — show me the exact JSON to add to settings.json."
-- "Add a Stop hook that shows a Windows desktop notification when Claude Code finishes a task, so I don't have to watch the terminal."
-- "Add a PreToolUse hook that blocks any write_file call to a path containing /finance/ — I want a hard stop, not just a warning."
-- "Show me a hook that logs every tool call with timestamp to a file — I want an audit trail of what Claude touched in each session."
-
-**Use subagents explicitly:**
-- "Before we start, use the explore subagent to map this repo — I don't want file reads filling up our main context."
-- "We've finished the edits. Delegate a review to the code-reviewer subagent and bring back only the High severity issues."
-- "I have a 4,000-line Python file. Use the summarise subagent to extract the key structure — don't read the whole thing into our context."
-
-**Understand the system:**
-- "Explain the difference between a Claude Code skill, a subagent, and a hook — and give me an example of when I'd use each one for a finance report task."
-- "What's in my .claude/agents/ folder right now? List all subagents and describe when each one gets invoked."
+**Understanding the system:**
+- "What's the difference between a subagent and a hook? Give me an example of when I'd use each for a finance report task."
+- "Show me the HOOK_INPUT JSON shape for a PreToolUse Write event — what fields can I match against?"
+- "What are all the Claude Code lifecycle events? Which ones can block Claude's action and which can't?"
 
 ---
 
@@ -365,24 +343,13 @@ Paste these into Claude Code or Cursor to put this skill into practice:
 Subagents and hooks are built into Claude Code — no additional install needed.
 
 **Subagent directories:**
-- Project-level: `.claude/agents/` (in your repo — checked into git, shared with team)
-- Global: `~/.claude/agents/` (your personal specialists, available in every project)
+- Project-level: `.claude/agents/` (git-tracked, shared with team)
+- Global: `~/.claude/agents/` (personal specialists, available everywhere)
 
-**Hooks config location:**
-- `~/.claude/settings.json` (global — applies to all sessions)
-- `.claude/settings.json` (project-level — overrides global for this repo)
+**Hooks config:**
+- Global: `~/.claude/settings.json`
+- Project override: `.claude/settings.json`
 
-**To see current settings:**
-```bash
-cat ~/.claude/settings.json
-```
-
-**To create your first subagent:**
-```bash
-mkdir -p .claude/agents
-# Then create .claude/agents/explore.md with the content from the "Repo explorer" example above
-```
-
-**Available in Claude Code version:** 1.7+ (subagents), 1.9+ (full hooks suite).
-**Available after next provision:** Skills sync to `~/.claude/skills/` on next `Provision-Cursor.ps1` run.
-This skill is for Claude Code only — Cursor does not have subagents or lifecycle hooks (use rules/parallel agents instead).
+**Available in Claude Code:** 1.7+ (subagents), 1.9+ (full hooks including `UserPromptSubmit` + JSON output).
+**Available after next provision:** Syncs to `~/.claude/skills/` on next `Provision-Cursor.ps1` run.
+This skill is Claude Code only — Cursor uses rules and parallel agents instead.
