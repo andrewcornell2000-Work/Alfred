@@ -368,3 +368,5 @@ AGENTS.md                        Coding agent guidelines
 **npm global install fails with permission errors** - Re-run `Alfred-Install.exe` as Administrator, or install the CLI manually with `npm install -g`.
 
 **Local `Node/` folders** - These are machine-local caches and are ignored by git. Fresh installs should use `setup.ps1` to install or detect Node.js instead of committing a Node runtime into the repo.
+
+**Azure / AKS device-code blocked** - Use browser/SSO `az login` only — never `az login --use-device-code`. For AKS kubeconfig remediation: `powershell -ExecutionPolicy Bypass -File scripts\Fix-AzureKubeAuth.ps1` (runs `kubelogin convert-kubeconfig -l azurecli`). CI/CD should use a service principal or managed/workload identity, not a user account.

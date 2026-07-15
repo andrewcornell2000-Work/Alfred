@@ -479,13 +479,15 @@ if ((Find-Command "az") -or $azVenv) {
     $azBin = if (Find-Command "az") { "az" } else { $azVenv }
     $azVer = & $azBin version 2>&1 | Select-Object -First 1
     Write-OK "az (Azure CLI) -- $azVer"
+    Write-Info "az login = browser/SSO only. Never --use-device-code. AKS: scripts\Fix-AzureKubeAuth.ps1"
 } elseif (Find-Command "winget") {
     Write-Host "  Installing Azure CLI via winget..." -ForegroundColor Cyan
     winget install Microsoft.AzureCLI --scope user --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
     Refresh-Path
     if (Find-Command "az") {
         Write-Done "Azure CLI installed."
-        Write-Info "Run 'az login' once to connect your Microsoft/Maersk account."
+        Write-Info "Run 'az login' once (browser / company SSO). Never use --use-device-code."
+        Write-Info "AKS: powershell -File scripts\Fix-AzureKubeAuth.ps1"
     } else {
         Write-Info "az: run 'winget install Microsoft.AzureCLI' manually. Alfred works fine without it."
     }
@@ -631,7 +633,7 @@ if (Find-Command "pandoc")                                     { Write-Host "  [
 $ghReady = (Find-Command "gh") -or (Test-Path (Join-Path $Root "bin\gh.exe"))
 if ($ghReady)                                                  { Write-Host "  [x] gh      --  run 'gh auth login' to connect GitHub" -ForegroundColor Green   } else { Write-Host "  [ ] gh      --  portable ZIP, see setup output above"    -ForegroundColor DarkGray }
 $azReady = (Find-Command "az") -or (Test-Path (Join-Path $VenvPath "Scripts\az.cmd")) -or (Test-Path (Join-Path $VenvPath "Scripts\az.bat")) -or (Test-Path (Join-Path $VenvPath "Scripts\az"))
-if ($azReady)                                                  { Write-Host "  [x] az      --  run 'az login' to connect Microsoft account" -ForegroundColor Green } else { Write-Host "  [ ] az      --  winget install Microsoft.AzureCLI"       -ForegroundColor DarkGray }
+if ($azReady)                                                  { Write-Host "  [x] az      --  'az login' (browser/SSO; never --use-device-code)" -ForegroundColor Green } else { Write-Host "  [ ] az      --  winget install Microsoft.AzureCLI"       -ForegroundColor DarkGray }
 
 Write-Host ""
 
