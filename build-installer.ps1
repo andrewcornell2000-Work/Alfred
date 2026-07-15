@@ -69,7 +69,9 @@ if (-not (Test-Path $InputFile)) {
 }
 
 function Get-InstallerModuleBody([string]$Path) {
-    $content = Get-Content $Path -Raw
+    # UTF8 required: Windows PowerShell 5.1 defaults to ANSI and corrupts em-dashes
+    # in inlined modules, which breaks the merged script parse (ps2exe).
+    $content = Get-Content $Path -Raw -Encoding UTF8
     $content = ($content -replace '(?m)^#Requires[^\r\n]*\r?\n', '').Trim()
     # Script-level param() blocks cannot be inlined into the merged exe body.
     # Use the AST so function-level param blocks are never touched (a naive regex
@@ -103,7 +105,7 @@ foreach ($rel in @("installer\alfred-logo-embedded.ps1", "installer\Alfred-UiCom
     $moduleParts += Get-InstallerModuleBody $path
 }
 
-$mainRaw = Get-Content $InputFile -Raw
+$mainRaw = Get-Content $InputFile -Raw -Encoding UTF8
 $splitMarker = '# ALFRED_INSTALLER_WIZARD_START'
 $split = $mainRaw -split [regex]::Escape($splitMarker), 2
 if ($split.Count -lt 2) {
@@ -117,10 +119,14 @@ if ($commonBody) {
     $mainHead = [regex]::Replace($mainHead, $inlinePattern, { $commonBody + "`n`n" })
 }
 $merged = ($mainHead + "`n`n" + ($moduleParts -join "`n`n") + "`n`n" + $mainTail)
-Set-Content -Path $BuildFile -Value $merged -Encoding UTF8
+# Normalize fancy punctuation: Windows PowerShell 5.1 ParseFile / ps2exe may mis-read
+# UTF-8 em-dashes without a BOM and break the script. ASCII is safe everywhere.
+$merged = $merged -replace [char]0x2014, '--' -replace [char]0x2013, '-' -replace [char]0x2026, '...'
+$utf8Bom = New-Object System.Text.UTF8Encoding $true
+[System.IO.File]::WriteAllText($BuildFile, $merged, $utf8Bom)
 
 $parseErrors = $null
-$null = [System.Management.Automation.Language.Parser]::ParseFile($BuildFile, [ref]$null, [ref]$parseErrors)
+$null = [System.Management.Automation.Language.Parser]::ParseInput($merged, [ref]$null, [ref]$parseErrors)
 if ($parseErrors) {
     Write-Host "Merged installer script has parse errors:" -ForegroundColor Red
     $parseErrors | ForEach-Object { Write-Host $_.ToString() -ForegroundColor Red }

@@ -97,7 +97,7 @@ function Set-AlfredNodeCaCert {
         Zscaler'd Maersk laptop). This exports every currently-valid trusted root
         from the Windows store into a combined PEM and points NODE_EXTRA_CA_CERTS
         at it (User + Process scope). Vendor-agnostic: it trusts exactly what
-        Windows already trusts. Idempotent — refreshes the PEM in place each run.
+        Windows already trusts. Idempotent -- refreshes the PEM in place each run.
         Returns $true if the bundle was written.
     #>
     param(
@@ -119,7 +119,7 @@ function Set-AlfredNodeCaCert {
             Sort-Object Thumbprint -Unique
 
         if (-not $roots -or @($roots).Count -eq 0) {
-            & $OnStep "No root certificates found to export — skipping Node CA setup."
+            & $OnStep "No root certificates found to export -- skipping Node CA setup."
             return $false
         }
 
@@ -142,7 +142,7 @@ function Set-AlfredNodeCaCert {
             ForEach-Object { ([regex]::Match($_.Subject, $vendorPattern)).Value } |
             Select-Object -Unique
         if ($mitm) {
-            & $OnStep ("Corporate TLS proxy detected (" + ($mitm -join ', ') + ") — Node will now trust it.")
+            & $OnStep ("Corporate TLS proxy detected (" + ($mitm -join ', ') + ") -- Node will now trust it.")
         }
         & $OnStep ("Node CA bundle written ($(@($roots).Count) roots) -> NODE_EXTRA_CA_CERTS")
         return $true
