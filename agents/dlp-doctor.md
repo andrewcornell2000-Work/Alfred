@@ -94,13 +94,14 @@ a table's real source with `partition_operations Get` before trusting its name.
    refresh the **PBIX** last (separate refresh; never auto-updates).
 
 ## REST tooling (read-only; Gen1 has NO write API)
-To read a dataflow's deployed M / IR policy / partitions, reuse the dump scripts in
-`…\Labour Planning\dataflow-refresh\` (`Dump-DataflowM.ps1`, `Dump-PlansPolicy.ps1`,
-`Dump-Silver.ps1`). They do a one-time device-code sign-in (client
-`23d8f6bd-1eb0-4cc2-a08c-7bf525c67bcd`, `.default`+`offline_access`) and write M/schema/
-policy to `%LOCALAPPDATA%\Temp\dlp_dfdump`. Refresh a dataflow via
-`POST …/groups/{ws}/dataflows/{id}/refreshes`. Error text is NOT in the API — get it from
-the Service refresh-history UI or a screenshot.
+Prefer **browser/SSO `az login`** then `az rest` against the Power BI / Fabric APIs
+(see `skills/_packs/common/AUTH-HARD-RULES.md`). Do **not** use legacy dump scripts that
+depend on device-code sign-in — those are unsafe under Conditional Access.
+
+To inspect deployed M / IR policy / partitions when needed: with an active `az` session,
+call the read-only Power BI REST endpoints the dump scripts wrapped, or use the Service UI.
+Refresh a dataflow via `POST …/groups/{ws}/dataflows/{id}/refreshes`. Error text is NOT
+in the API — get it from the Service refresh-history UI or a screenshot.
 
 ## HARD RULES
 - **Never edit a Gen1 dataflow programmatically** — there's no write-back API. Produce the M +

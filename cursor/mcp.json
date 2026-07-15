@@ -6,7 +6,8 @@
     "time",
     "codegraph",
     "sqlite",
-    "powerbi"
+    "powerbi",
+    "ms-365"
   ],
   "mcpServers": {
     "powerbi-modeling-mcp": {
@@ -211,18 +212,6 @@
       "_windowsOnly": true,
       "_note": "Read and manage local Microsoft Outlook calendar on Windows — list events in a date range, create/update meetings, find free time slots, check attendee status, access multiple calendars. Requires Outlook desktop client installed. Windows 11 24H2+ users must enable VBScript via Settings → Apps → Optional features → VBScript before this server will work. No API key needed."
     },
-    "ms-365": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@softeria/ms-365-mcp-server",
-        "--read-only"
-      ],
-      "_bucket": "office365",
-      "_requires": [],
-      "_requiresCommand": "npx",
-      "_note": "Microsoft 365 via Graph API — read SharePoint sites/files, OneDrive, Outlook mail, Calendar, Teams, and To-Do. Runs read-only by default (safe). First use runs MSAL device-code login (browser pop-up, once). Remove --read-only to enable write/send actions. Skill: sharepoint-graph.md. Auto-skipped if Node/npx is not on PATH."
-    },
     "supabase": {
       "url": "https://mcp.supabase.com/mcp?project_ref=${env:SUPABASE_PROJECT_REF}",
       "_bucket": "cloud",
@@ -242,7 +231,7 @@
   },
   "_buckets": {
     "core": "Always installed — universal day-to-day dev everyone benefits from (GitHub, docs, filesystem, code review, debugging, Jean Paul/Mr Smith).",
-    "office365": "Microsoft 365 + Excel (mail, calendar, SharePoint, live + closed workbooks).",
+    "office365": "Excel + Outlook calendar (live + closed workbooks). ms-365 Graph MCP is retired from default provision (TENANT-FORBIDDEN device-code login).",
     "powerbi": "Power BI semantic-model editing (needs the VS Code Power BI Modeling MCP extension).",
     "web": "Browsing, research, scraping (Playwright, parallel-search, Firecrawl, fetch).",
     "data": "Local data + history (DuckDB SQL, markitdown, longhand session recall).",

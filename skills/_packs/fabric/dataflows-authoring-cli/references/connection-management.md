@@ -81,7 +81,7 @@ Additional caller requirements:
 - **Service principals creating connections** require Fabric tenant admin enablement: see [*Service principals can create workspaces, connections, and deployment pipelines*](https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer#service-principals-can-create-workspaces-connections-and-deployment-pipelines).
 - **Gateway connections** require the caller to have permission on the target gateway.
 
-For `az login` recipes and token audience rules, see [COMMON-CLI.md § Authentication Recipes](../../../common/COMMON-CLI.md#authentication-recipes) and [COMMON-CORE.md § Authentication & Token Acquisition](../../../common/COMMON-CORE.md#authentication--token-acquisition).
+For auth policy and safe `az login` recipes, see [AUTH-HARD-RULES.md](../../../common/AUTH-HARD-RULES.md) and [COMMON-CLI.md § Authentication Recipes](../../../common/COMMON-CLI.md#authentication-recipes). Token audiences: [COMMON-CORE.md § Authentication & Token Acquisition](../../../common/COMMON-CORE.md#authentication--token-acquisition).
 
 ## Concept Model
 

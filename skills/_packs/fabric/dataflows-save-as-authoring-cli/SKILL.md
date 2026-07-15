@@ -41,7 +41,8 @@ A save-as companion for creating upgraded Gen2.1 copies from Power BI Gen1 dataf
 | Authentication & Token Acquisition | [COMMON-CORE.md § Authentication](../../common/COMMON-CORE.md#authentication--token-acquisition) | Wrong audience = 401 |
 | Core Control-Plane REST APIs | [COMMON-CORE.md § Core REST APIs](../../common/COMMON-CORE.md#core-control-plane-rest-apis) | Pagination, LRO polling, rate limits |
 | Tool Selection Rationale | [COMMON-CLI.md § Tool Selection](../../common/COMMON-CLI.md#tool-selection-rationale) | |
-| Authentication Recipes | [COMMON-CLI.md § Auth Recipes](../../common/COMMON-CLI.md#authentication-recipes) | `az login` flows and token acquisition |
+| Auth hard rules | [AUTH-HARD-RULES.md](../../common/AUTH-HARD-RULES.md) | Browser/SSO `az login` only; never device-code |
+| Authentication Recipes | [COMMON-CLI.md § Auth Recipes](../../common/COMMON-CLI.md#authentication-recipes) | Safe `az login` / SP / MI recipes only |
 | Fabric Control-Plane API via `az rest` | [COMMON-CLI.md § az rest](../../common/COMMON-CLI.md#fabric-control-plane-api-via-az-rest) | **Always pass `--resource`** |
 | Gotchas & Troubleshooting (CLI) | [COMMON-CLI.md § Gotchas](../../common/COMMON-CLI.md#gotchas--troubleshooting-cli-specific) | `az rest` audience, shell escaping |
 | Quick Reference | [COMMON-CLI.md § Quick Ref](../../common/COMMON-CLI.md#quick-reference) | Token audience / tool matrix |

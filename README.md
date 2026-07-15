@@ -124,7 +124,7 @@ which buckets install **per machine**:
 | Bucket | Servers | For |
 |---|---|---|
 | `core` *(always on)* | filesystem, github, context7 | general dev |
-| `office365` | ms-365, outlook-calendar, excel, excel-mcp | Microsoft 365 + Excel |
+| `office365` | outlook-calendar, excel, excel-mcp | Excel + Outlook calendar (`ms-365` Graph MCP quarantined — device-code forbidden) |
 | `powerbi` | powerbi-modeling-mcp | Power BI model editing |
 | `web` | playwright, parallel-search, firecrawl, fetch | browsing, research, scraping |
 | `data` | duckdb, markitdown, longhand | local data + history |
@@ -369,4 +369,6 @@ AGENTS.md                        Coding agent guidelines
 
 **Local `Node/` folders** - These are machine-local caches and are ignored by git. Fresh installs should use `setup.ps1` to install or detect Node.js instead of committing a Node runtime into the repo.
 
-**Azure / AKS device-code blocked** - Use browser/SSO `az login` only — never `az login --use-device-code`. For AKS kubeconfig remediation: `powershell -ExecutionPolicy Bypass -File scripts\Fix-AzureKubeAuth.ps1` (runs `kubelogin convert-kubeconfig -l azurecli`). CI/CD should use a service principal or managed/workload identity, not a user account.
+**Fabric / Azure auth** - Fabric skills need browser/SSO `az login` only — never `az login --use-device-code`. Policy: `skills/_packs/common/AUTH-HARD-RULES.md`. After update/install, re-run `Provision-Cursor.ps1` so the quarantined `ms-365` MCP is removed from Cursor configs.
+
+**Azure / AKS device-code blocked** - Same rule: browser/SSO `az login` only — never `az login --use-device-code`. AKS kubeconfig remediation is **optional** (kube/AKS only — skip if you only use Fabric): `powershell -ExecutionPolicy Bypass -File scripts\Fix-AzureKubeAuth.ps1` (runs `kubelogin convert-kubeconfig -l azurecli`). CI/CD should use a service principal or managed/workload identity, not a user account.

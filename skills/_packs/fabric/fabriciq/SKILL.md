@@ -34,7 +34,8 @@ You help users analyze Power BI data. You orchestrate each step: discover artifa
 | Fabric Topology & Key Concepts | [COMMON-CORE.md § Fabric Topology & Key Concepts](../../common/COMMON-CORE.md#fabric-topology--key-concepts) | Hierarchy; Finding Things in Fabric |
 | Environment URLs | [COMMON-CORE.md § Environment URLs](../../common/COMMON-CORE.md#environment-urls) | Production (Public Cloud) |
 | Authentication & Token Acquisition | [COMMON-CORE.md § Authentication & Token Acquisition](../../common/COMMON-CORE.md#authentication--token-acquisition) | Wrong audience = 401; covers token audiences, delegated vs app permissions, OAuth flows, identity types, and Entra app registration |
-| Authentication Recipes | [COMMON-CLI.md § Authentication Recipes](../../common/COMMON-CLI.md#authentication-recipes) | `az login` flows, environment detection, token acquisition, and debugging |
+| Auth hard rules | [AUTH-HARD-RULES.md](../../common/AUTH-HARD-RULES.md) | Browser/SSO `az login` only; never device-code |
+| Authentication Recipes | [COMMON-CLI.md § Authentication Recipes](../../common/COMMON-CLI.md#authentication-recipes) | Safe `az login` / SP / MI recipes only |
 | Gotchas, Best Practices & Troubleshooting | [COMMON-CORE.md § Gotchas, Best Practices & Troubleshooting](../../common/COMMON-CORE.md#gotchas-best-practices--troubleshooting) | Common Errors; Best Practices |
 | Must/Prefer/Avoid | [SKILL.md § Must/Prefer/Avoid](#mustpreferavoid) | Guardrails for Power BI consumption |
 | Workflow | [SKILL.md § Workflow](#workflow) | FabricIQ orchestration steps |

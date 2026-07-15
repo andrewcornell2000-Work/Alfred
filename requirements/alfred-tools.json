@@ -320,13 +320,15 @@
         "name": "ms365",
         "source": "npx",
         "package": "ms-365-mcp-server",
-        "purpose": "200+ Microsoft 365 tools — Outlook email+calendar, Teams, SharePoint, OneDrive, Word, Excel via Graph API",
+        "purpose": "Microsoft 365 Graph MCP — QUARANTINED; not in default provision (TENANT-FORBIDDEN device-code login)",
         "category": "EXECUTE",
         "destructive": true,
         "trust": "community",
         "requiresKey": "Microsoft Graph API (Azure AD app registration)",
         "keySource": "https://entra.microsoft.com — requires Azure app with Mail/Calendar/Files scopes",
-        "status": "needs-key"
+        "status": "retired",
+        "loginCommand": "FORBIDDEN — never device-code; do not run ms-365 --login under corporate CA",
+        "notes": "Removed from cursor/mcp.json mcpServers; listed in _retiredServers so Provision-Cursor.ps1 purges existing configs. Prefer OneDrive sync + filesystem MCP."
       },
       {
         "name": "git",

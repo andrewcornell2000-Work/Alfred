@@ -28,7 +28,8 @@ description: >
 Read these companion documents — they contain the foundational context this skill depends on:
 
 - [COMMON-CORE.md](../../common/COMMON-CORE.md) — Fabric REST API patterns, authentication, token audiences, item discovery
-- [COMMON-CLI.md](../../common/COMMON-CLI.md) — `az rest`, `az login`, token acquisition, Fabric REST via CLI
+- [AUTH-HARD-RULES.md](../../common/AUTH-HARD-RULES.md) — browser/SSO `az login` only; never device-code
+- [COMMON-CLI.md](../../common/COMMON-CLI.md) — safe `az login` recipes; skill-local patterns for `az rest` / discovery
 - [SPARK-AUTHORING-CORE.md](../../common/SPARK-AUTHORING-CORE.md) — Notebook deployment, lakehouse creation, job execution
 - [notebook-api-operations.md](../spark-authoring-cli/resources/notebook-api-operations.md) — **Required for notebook creation** — `.ipynb` structure requirements, cell format, `getDefinition`/`updateDefinition` workflow
 

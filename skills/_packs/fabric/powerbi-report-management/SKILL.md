@@ -70,7 +70,9 @@ All calls use the Fabric API audience. Using the wrong audience returns a 401.
 For the shared authentication model, token audiences, and identity types, see
 [COMMON-CORE.md § Authentication & Token Acquisition](../../common/COMMON-CORE.md#authentication--token-acquisition).
 
-For full authentication recipes (interactive, device-code, service principal, managed identity),
+**Auth hard rules:** [AUTH-HARD-RULES.md](../../common/AUTH-HARD-RULES.md) — browser/SSO `az login` only; never device-code.
+
+For allowed authentication recipes (browser/`az login`, service principal, managed identity),
 see [COMMON-CLI.md § Authentication Recipes](../../common/COMMON-CLI.md#authentication-recipes).
 
 ## Finding Workspaces and Reports

@@ -208,11 +208,15 @@ function Install-AlfredOptionalCliTools {
     if ((Find-Command 'az') -or $azVenv) {
         $azBin = if (Find-Command 'az') { 'az' } else { $azVenv }
         Write-OK ('az - ' + (& $azBin version 2>&1 | Select-Object -First 1))
+        Write-Warn 'az login = browser/SSO only. Never --use-device-code.'
     } elseif (Find-Command 'winget') {
         if (Test-AlfredGuiInstall) { $script:InstallProgress.SetDetail('Installing Azure CLI...') }
         winget install Microsoft.AzureCLI --scope user --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
         Refresh-Path
-        if (Find-Command 'az') { Write-Done 'Azure CLI installed.' }
+        if (Find-Command 'az') {
+            Write-Done 'Azure CLI installed.'
+            Write-Warn "Run 'az login' once (browser / company SSO). Never use --use-device-code."
+        }
         else { Write-Warn 'Azure CLI skipped - Alfred works without it.' }
     }
 }

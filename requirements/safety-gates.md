@@ -17,6 +17,16 @@ Operations that require explicit user confirmation before execution:
 - `all folders`
 - `whole workspace`
 
+## Forbidden auth (agent actions)
+
+Device-code authentication is **forbidden** for Alfred agent actions and skill guidance:
+
+- Never run or suggest `az login --use-device-code`
+- Never recommend MSAL device-code / Graph MCP `--login` while `ms-365` is quarantined
+- Interactive Azure: browser/SSO `az login` only; unattended: service principal / managed / workload identity
+
+See `skills/_packs/common/AUTH-HARD-RULES.md`.
+
 ## When adding a destructive MCP
 
 1. Set `"destructive": true` in `requirements/alfred-tools.json`.

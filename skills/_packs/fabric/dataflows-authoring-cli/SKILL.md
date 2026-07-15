@@ -61,7 +61,8 @@ description: >
 
 | File | When to read |
 |---|---|
-| [COMMON-CLI.md](../../common/COMMON-CLI.md) | `az login`, token acquisition, `az rest`, pagination, LRO polling, CLI gotchas. **§ Finding Workspaces and Items in Fabric is mandatory.** |
+| [AUTH-HARD-RULES.md](../../common/AUTH-HARD-RULES.md) | **Auth policy** — browser/SSO `az login` only; never device-code. |
+| [COMMON-CLI.md](../../common/COMMON-CLI.md) | Safe `az login` recipes, token notes. **§ Finding Workspaces and Items in Fabric is mandatory** (skill-local when stub has no section). |
 | [COMMON-CORE.md](../../common/COMMON-CORE.md) | Fabric topology, environment URLs, authentication, core REST API surface |
 | [ITEM-DEFINITIONS-CORE.md](../../common/ITEM-DEFINITIONS-CORE.md) | Definition envelope; per-item-type payload contracts |
 | [DATAFLOWS-AUTHORING-CORE.md](../../common/DATAFLOWS-AUTHORING-CORE.md) | Authoring capability matrix; 3-part definition structure; M structure; connection model; ALM / Git integration |

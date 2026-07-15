@@ -36,7 +36,8 @@ description: >
 | Capacity Management | [COMMON-CORE.md § Capacity Management](../../common/COMMON-CORE.md#capacity-management) | List Capacities; Assign Workspace to Capacity |
 | Gotchas, Best Practices & Troubleshooting | [COMMON-CORE.md § Gotchas, Best Practices & Troubleshooting](../../common/COMMON-CORE.md#gotchas-best-practices--troubleshooting) | Common Errors; Best Practices |
 | Tool Selection Rationale | [COMMON-CLI.md § Tool Selection Rationale](../../common/COMMON-CLI.md#tool-selection-rationale) ||
-| Authentication Recipes | [COMMON-CLI.md § Authentication Recipes](../../common/COMMON-CLI.md#authentication-recipes) | `az login` flows, environment detection, token acquisition, and debugging |
+| Auth hard rules | [AUTH-HARD-RULES.md](../../common/AUTH-HARD-RULES.md) | Browser/SSO `az login` only; never device-code |
+| Authentication Recipes | [COMMON-CLI.md § Authentication Recipes](../../common/COMMON-CLI.md#authentication-recipes) | Safe `az login` / SP / MI recipes only |
 | Fabric Control-Plane API via `az rest` | [COMMON-CLI.md § Fabric Control-Plane API via `az rest`](../../common/COMMON-CLI.md#fabric-control-plane-api-via-az-rest) | **Always pass `--resource`**; includes workspace/item operations, pagination, and LRO patterns |
 | OneLake Data Access via `curl` | [COMMON-CLI.md § OneLake Data Access via `curl`](../../common/COMMON-CLI.md#onelake-data-access-via-curl) | Use `curl` not `az rest` (different token audience); file list/read/upload/delete and directory creation |
 | SQL / TDS Data-Plane Access | [COMMON-CLI.md § SQL / TDS Data-Plane Access](../../common/COMMON-CLI.md#sql--tds-data-plane-access) | `sqlcmd` (Go) connect, query, CSV export, service principal auth, and connection parameter discovery |

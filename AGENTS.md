@@ -35,6 +35,7 @@ Instructions for Codex, Claude Code, and other coding agents working in this rep
 - New tools with file-write or destructive capabilities must be documented in `requirements/safety-gates.md` before they are provisioned.
 - Never auto-pull or auto-install tools without explicit user approval.
 - When modifying executor/scoping prompts in skills, preserve minimum-scope principles in `skills/karpathy-coding-guidelines.md`.
+- **Device-code auth is forbidden** for agent actions — browser/SSO `az login` only (see `skills/_packs/common/AUTH-HARD-RULES.md`). Do not suggest `az login --use-device-code` or MSAL device-code Graph login.
 
 ---
 
