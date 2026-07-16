@@ -505,12 +505,12 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 # ── Machine profile → MCP bucket mapping ──────────────────────────────────────
 # The installer offers two profiles. Each maps to a bucket set consumed by
 # Provision-Cursor.ps1 -Buckets (the single source of truth for MCP servers):
-#   work     -> the analyst working set: Power BI, Excel/O365, DuckDB analytics,
-#               doc-reading + connect-the-dots (context7, markitdown, longhand),
-#               and design (Magic UI). Excludes only the heavy browser-automation
-#               (Playwright/Firecrawl) and cloud-dev (Supabase/Vercel) buckets so
-#               it stays workable without swamping RAM.
-#   personal -> everything (adds browser automation + cloud/web-app dev).
+#   work     -> core,office365,powerbi,data,mediagen
+#               Analyst set: Power BI, Excel/Outlook, DuckDB, markitdown, parallel-search
+#               (in core), context7, Magic UI design. Explicitly OFF on Work:
+#               fetch, playwright, firecrawl (web bucket); vercel, supabase (cloud);
+#               ms-365 (retired — TENANT-FORBIDDEN device-code Graph login).
+#   personal -> all (adds web browsing/scraping + cloud/web-app dev).
 function Get-AlfredProfileBuckets([string]$Profile) {
     switch (($Profile + '').ToLower()) {
         'personal' { return 'all' }
@@ -589,8 +589,8 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
     $defaultProfile = Get-AlfredDefaultProfile $InstallPath
     Write-Host ""
     Write-Host "  Machine type:" -ForegroundColor White
-    Write-Host "    [1] Work machine     - lean, data-analyst tools, low RAM (default)" -ForegroundColor Gray
-    Write-Host "    [2] Personal machine - everything (browser, media/UI gen, cloud dev)" -ForegroundColor Gray
+    Write-Host "    [1] Work machine     - PBI/Excel/DuckDB/docs/design; no fetch/playwright/ms-365/vercel (default)" -ForegroundColor Gray
+    Write-Host "    [2] Personal machine - everything (adds browser automation + cloud/web-app dev)" -ForegroundColor Gray
     $profPick = Read-Host "  Choose 1 or 2 (Enter for $defaultProfile)"
     $script:AlfredInstallProfile = switch ($profPick.Trim()) {
         '1'     { 'work' }

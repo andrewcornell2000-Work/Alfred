@@ -6,8 +6,7 @@ description: >-
   archetypes, chart types, layout, color, typography, theme direction, or
   accessibility approach, (2) redesign/restyle an existing report, apply a
   brand, or critique chart/layout choices, (3) produce a design contract for
-  `powerbi-report-authoring`. For end-to-end requirements, approval, and build
-  sequencing, use `powerbi-report-planning`. Triggers: "design Power BI report",
+  `powerbi-report-authoring`. Triggers: "design Power BI report",
   "make dashboard look professional", "choose chart type", "apply brand to
   report", "redesign report", "create design brief".
 metadata:

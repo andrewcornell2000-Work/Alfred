@@ -245,7 +245,20 @@ function Install-ThirdPartyAgentSkills {
         }
     }
 
-    if (Test-SupabaseAgentSkillsInstalled) {
+    # Cloud-only third-party installs (Supabase / Vercel). Work profile excludes
+    # the cloud bucket — skip install and prune leftovers so they don't linger.
+    $cloudOn = ($SelectedBuckets -contains 'cloud') -or ($SelectedBuckets -contains 'all')
+    if (-not $cloudOn) {
+        $agentsRoot = Join-Path $HOME ".agents\skills"
+        foreach ($name in @('supabase', 'supabase-postgres-best-practices', 'alfred-supabase', 'alfred-vercel', 'vercel')) {
+            $dir = Join-Path $agentsRoot $name
+            if (Test-Path $dir) {
+                Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+                Write-OK "Removed cloud skill '$name' (cloud bucket not selected)"
+            }
+        }
+        Write-Skip "supabase/vercel third-party installs skipped -- cloud bucket not selected (Work profile)."
+    } elseif (Test-SupabaseAgentSkillsInstalled) {
         Write-Skip "supabase/agent-skills already in ~/.agents/skills -- skipping npx install."
     } else {
         Write-Step "Third-party skills: supabase/agent-skills -> ~/.agents/skills"
@@ -258,7 +271,9 @@ function Install-ThirdPartyAgentSkills {
         }
     }
 
-    if (Test-VercelPluginInstalled) {
+    if (-not $cloudOn) {
+        # vercel already skipped with supabase above
+    } elseif (Test-VercelPluginInstalled) {
         Write-Skip "vercel/vercel-plugin already installed -- skipping npx install."
     } elseif ($SkipOptionalPlugins -or $InstallerMode) {
         Write-Skip "vercel/vercel-plugin deferred -- install later if you use Vercel: npx plugins add vercel/vercel-plugin"

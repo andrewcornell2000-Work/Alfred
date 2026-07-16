@@ -9,7 +9,7 @@ description: >
   (5) refreshing semantic models,
   (6) configuring data sources and permissions,
   (7) DAX performance optimization.
-  Supports both Power BI Desktop and Fabric Service development workflows. For read-only DAX queries, use `semantic-model-consumption`.
+  Supports both Power BI Desktop and Fabric Service development workflows. For read-only DAX queries, use Power BI Modeling MCP / `execute_dax`.
   Does NOT handle report layout/visual authoring, workspace administration, or RLS/OLS role membership management.
   Triggers: "create semantic model", "edit semantic model", "add a DAX measure to semantic model", "refresh semantic model", "set semantic model permissions", "Prepare semantic model for AI/Copilot".
 ---
@@ -57,7 +57,7 @@ Load these references on demand when a workflow step requires them. Do not load 
 | TMDL Editing                     | [tmdl-guidelines.md](./references/tmdl-guidelines.md)                              | Before generating or editing any TMDL file                                                  |
 | PBIP Projects                    | [pbip.md](./references/pbip.md)                                                    | When working with PBIP folders                                                              |
 | DAX Language                     | [dax-guidelines.md](./references/dax-guidelines.md)                                | When writing or reviewing any DAX code                                                      |
-| DAX Queries & Metadata Discovery | [semantic-model-consumption](../semantic-model-consumption/SKILL.md)                     | Read-only DAX queries; use for post-creation validation                                     |
+| DAX Queries & Metadata Discovery | Power BI Modeling MCP (`execute_dax`, model tools) | Read-only DAX queries; use for post-creation validation |
 | DAX Performance Decision Guide   | [dax-perf-decision-guide.md](./references/dax-perf-decision-guide.md)              | Start here when optimizing DAX                                                             |
 | DAX Performance Pattern Catalog  | [dax-perf-patterns.md](./references/dax-perf-patterns.md)                          | Load on demand after the decision guide identifies candidate patterns                       |
 | Semantic Model AI Readiness                | [semantic-model-ai-readiness.md](./references/semantic-model-ai-readiness.md)                          | When preparing a model for Copilot or Data Agents                                           |
@@ -312,7 +312,7 @@ If any check fails, fix the issue and re-run validation.
 - **Star schema over snowflake or flat tables** - denormalized dimensions with single-column relationship keys
 - **Consistency with existing model patterns** - when editing an existing model, match its naming conventions and structure rather than imposing new ones
 - **TMDL format over TMSL** - text-based, diff-friendly, preferred for Fabric
-- **Cross-reference `semantic-model-consumption`** for post-creation validation — run DAX queries to verify measures, relationships, and data.
+- **Validate with Power BI Modeling MCP** (`execute_dax` / model tools) after creation — verify measures, relationships, and data.
 
 ### AVOID
 

@@ -136,8 +136,9 @@ function Show-AlfredInstallWizard {
 
     # ── Machine-type profile selector ──────────────────────────────────────────
     # Chooses which MCP bucket set Provision-Cursor.ps1 installs:
-    #   work     -> core,office365,powerbi,data  (lean, data-analyst tools, low RAM)
-    #   personal -> all                          (adds web, mediagen, cloud dev)
+    #   work     -> core,office365,powerbi,data,mediagen
+    #               (OFF: fetch, playwright, firecrawl, vercel, supabase, ms-365)
+    #   personal -> all  (adds web browsing/scraping + cloud/web-app dev)
     $profileState = @{ Profile = $DefaultProfile }
 
     $profileLabel = New-Object System.Windows.Forms.Label
@@ -227,8 +228,8 @@ function Show-AlfredInstallWizard {
         return $card
     }
 
-    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'work' -Title 'Work machine' -Desc "Power BI, Excel, analytics, design & doc tools. No heavy browser/cloud dev."))
-    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'personal' -Title 'Personal machine' -Desc "Everything: adds browser automation and cloud/web-app dev."))
+    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'work' -Title 'Work machine' -Desc "PBI, Excel, DuckDB, docs, design. No fetch/playwright/ms-365/vercel."))
+    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'personal' -Title 'Personal machine' -Desc "Everything: adds browser automation + cloud/web-app dev."))
 
     $pathLabel = New-Object System.Windows.Forms.Label
     $pathLabel.Text = 'INSTALL FOLDER'

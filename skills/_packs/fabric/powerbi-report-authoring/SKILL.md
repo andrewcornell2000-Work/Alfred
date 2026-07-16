@@ -6,8 +6,7 @@ description: >-
   to: (1) implement an approved report spec or design brief, (2) add or edit
   pages, visuals, filters, slicers, bookmarks, themes, or formatting, (3)
   validate PBIR and verify rendering in Power BI Desktop. For open-ended visual
-  design, use `powerbi-report-design` first. For end-to-end requirements and
-  approval workflow, use `powerbi-report-planning` first. Triggers: "edit PBIR",
+  design, use `powerbi-report-design` first. Triggers: "edit PBIR",
   "create Power BI report page", "add visual to PBIP", "format report visual",
   "validate Power BI report", "reload Desktop screenshot", "implement an approved PBIP report spec", "edit PBIR pages/visuals".
 metadata:
@@ -48,12 +47,11 @@ definition files in the **PBIR (Power BI Report)** format used by **PBIP
 ### AVOID
 
 - Do not guess PBIR JSON from memory when CLI metadata or reference files are available.
-- Do not use only this skill for open-ended design, report planning, or Fabric report item CRUD; pair it with `powerbi-report-design`, `powerbi-report-planning`, or `powerbi-report-management`.
+- Do not use only this skill for open-ended design; pair visual-design work with `powerbi-report-design`.
 
 ## Quick Start Workflow
 
-0. **Plan/design routing** → for greenfield builds, read `powerbi-report-planning`
-   first; for theming, visual style, layout, redesigns, or critiques, read
+0. **Design routing** → for theming, visual style, layout, redesigns, or critiques, read
    `powerbi-report-design`. Return here for PBIR mechanics. Before authoring,
    use the `Design Brief:` yaml block from `_brief/report-spec.md` (or an
    approved inline `Design Brief:` block in the conversation) as implementation
@@ -120,9 +118,7 @@ Use the user's intent to choose the relevant topic file(s) before editing:
 > JSON, bindings, filters, slicers, themes, formatting, navigation, bookmarks,
 > validation, Desktop reloads, and screenshots.
 >
-> Use `powerbi-report-planning` before authoring for new report/dashboard
-> requests, requirements gathering, dependency checks, approval, or end-to-end
-> build sequencing. Use `powerbi-report-design` for open-ended visual design,
+> Use `powerbi-report-design` for open-ended visual design,
 > redesign/restyle, brand/theme direction, chart selection, or layout critique.
 > Return here once there is an approved spec/design brief or a concrete PBIR
 > edit to implement — see Quick Start step 0 for how to consume the brief.

@@ -28,7 +28,7 @@ git clone https://github.com/andrewcornell2000-Work/Alfred.git "$env:USERPROFILE
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Alfred\Alfred-Install.ps1"
 ```
 
-In the wizard, choose **Work machine** — it provisions the analyst working set (Power BI, Excel, DuckDB analytics, doc/graphify tools, and design) and leaves out the heavy browser-automation and cloud-dev buckets. Git must already be present (it is on most managed machines). If Python/Node aren't, the script installs them per-user where policy allows, or prints the exact manual step.
+In the wizard, choose **Work machine** — it provisions the analyst working set (`core,office365,powerbi,data,mediagen`: Power BI, Excel/Outlook, DuckDB, markitdown, parallel-search, context7, Magic UI) and **leaves out** `fetch`, `playwright`, `firecrawl`, `ms-365`, `vercel`, and `supabase` (web + cloud buckets; `ms-365` is retired). Pick **Personal machine** for the full set. Git must already be present (it is on most managed machines). If Python/Node aren't, the script installs them per-user where policy allows, or prints the exact manual step.
 
 ### Personal machine — installer .exe
 
@@ -110,19 +110,22 @@ which buckets install **per machine**:
 
 | Bucket | Servers | For |
 |---|---|---|
-| `core` *(always on)* | filesystem, github, context7 | general dev |
-| `office365` | outlook-calendar, excel, excel-mcp | Excel + Outlook calendar (`ms-365` Graph MCP quarantined — device-code forbidden) |
+| `core` *(always on)* | filesystem, github, context7, parallel-search | general dev + light web research |
+| `office365` | outlook-calendar, excel, excel-mcp | Excel + Outlook calendar (`ms-365` retired) |
 | `powerbi` | powerbi-modeling-mcp | Power BI model editing |
-| `web` | playwright, parallel-search, firecrawl, fetch | browsing, research, scraping |
+| `web` | playwright, firecrawl, fetch | heavy browsing / scraping (Personal only) |
 | `data` | duckdb, markitdown, longhand | local data + history |
 | `mediagen` | fal-ai, magic | image/video/audio + UI generation |
-| `cloud` | supabase, vercel | web-app backends |
+| `cloud` | supabase, vercel | web-app backends (Personal only) |
+
+**Work profile** = `core,office365,powerbi,data,mediagen` (no `web` / `cloud`; no `ms-365`).
+**Personal profile** = `all`.
 
 Choose them when you install — the provisioner shows an interactive picker — or
 non-interactively:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,office365,powerbi"
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,office365,powerbi,data,mediagen"
 # or "all"; the choice is saved to ALFRED_BUCKETS in .env so re-provisions are consistent
 ```
 
