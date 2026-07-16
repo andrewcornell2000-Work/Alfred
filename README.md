@@ -2,7 +2,7 @@
 
 **Alfred is a Windows installer and toolchain pack** — not a chat app you use every day.
 
-Run `Alfred-Install.exe` once and it wires your PC for AI work:
+Install it once — **git clone on work/managed machines**, `Alfred-Install.exe` on personal ones (see [Install](#install)) — and it wires your PC for AI work:
 
 - **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, …)
 - **Skills + rules** → all three agents globally
@@ -15,54 +15,41 @@ Run `Alfred-Install.exe` once and it wires your PC for AI work:
 
 ---
 
-## Fresh-Machine Setup
+## Install
 
-1. **Download the installer**
+Pick the path that fits the machine.
 
-   Download **`Alfred-Install.exe`** from the latest GitHub Release:
+### Work / managed machine — git clone (recommended)
 
-   ```text
-   https://github.com/andrewcornell2000-Work/Alfred/releases/latest/download/Alfred-Install.exe
-   ```
+Use this on any corporate or locked-down PC. There is **no compiled binary**, so there's nothing for security tooling (EDR / SmartScreen) to flag as an unknown, unsigned executable — `git` is an already-trusted tool, and you (or IT) can read every line before it runs.
 
-   Save it anywhere, then double-click it.
+```powershell
+git clone https://github.com/andrewcornell2000-Work/Alfred.git "$env:USERPROFILE\Alfred"
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Alfred\Alfred-Install.ps1"
+```
 
-   When Windows asks whether to run it, choose **More info** -> **Run anyway** if needed.
+In the wizard, choose **Work machine** — it provisions the analyst working set (Power BI, Excel, DuckDB analytics, doc/graphify tools, and design) and leaves out the heavy browser-automation and cloud-dev buckets. Git must already be present (it is on most managed machines). If Python/Node aren't, the script installs them per-user where policy allows, or prints the exact manual step.
 
-2. **Confirm the install folder**
+### Personal machine — installer .exe
 
-   Press `Y` when prompted. The installer installs Git if needed, clones or updates Alfred in `%USERPROFILE%\Alfred`, and continues setup from there.
+The one-double-click bootstrapper for a bare machine — it installs Git, Python, and Node for you:
 
-   Developer/manual fallback: download the full repo ZIP, extract it, open the extracted folder, and double-click `Install-Alfred.bat`.
+```text
+https://github.com/andrewcornell2000-Work/Alfred/releases/latest/download/Alfred-Install.exe
+```
 
-   If Git is already installed, cloning is better because Alfred can check for updates:
+Save it, double-click, and choose **More info → Run anyway** if SmartScreen prompts. Pick **Personal machine** in the wizard for the full toolset. The exe is unsigned, so it may be flagged on locked-down machines — which is exactly why work machines should use the git-clone path above.
 
-   ```powershell
-   git clone https://github.com/andrewcornell2000-Work/Alfred.git Alfred
-   cd Alfred
-   ```
+### Then, on either machine
 
-3. **Let the installer finish**
+The installer checks/installs Git, Python, Node 18+, and the Claude/Codex CLIs, creates `.venv`, runs `Provision-Cursor.ps1` to register MCP servers + skills into **Cursor, Claude Code, and Codex**, and drops a desktop shortcut that runs **update + provision** (not a chat window). Then log in once:
 
-   The installer will:
-   - Check Python, Git, Node.js 18+, and npm
-   - Install Git, Python, and Node.js with `winget` when available, or tell you the exact manual step if Windows blocks an install
-   - Install Claude Code CLI and Codex CLI from `requirements/npm-tools.txt`
-   - Create `.venv` and install Python packages from `requirements/python-requirements.txt`
-   - Print login instructions for Claude and Codex
-   - Run `Provision-Cursor.ps1` — registers all MCP servers and skills into **Cursor, Claude Code, and Codex**
-   - Create a desktop shortcut that runs **update + provision** (not a chat window)
+```powershell
+claude auth login
+codex login
+```
 
-4. **Log in once**
-
-   After install, open a new terminal and run:
-
-   ```powershell
-   claude auth login
-   codex login
-   ```
-
-   Re-run `Alfred-Install.exe` any time to update or repair Alfred. All setup steps are intended to be idempotent.
+**Updating (both machines):** just run the desktop shortcut (or `run-alfred.bat`) — it does `git pull` + re-provision. No exe needed to update. All steps are idempotent.
 
 ### Cross-tool MCP + skills (Cursor, Claude Code, Codex)
 
