@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-07-17 (Iteration #17) — New skill: agent-task-decomposition.md — Plan-Before-Execute discipline
+
+**Category:** Agent technique / task planning
+**Mode:** NEW skill — `skills/agent-task-decomposition.md`
+
+**Searches performed:**
+1. `web_search` "agent task decomposition planning before execution 2026 Claude Cursor prompt patterns checklist" — confirmed "plan-and-execute" as a named 2026 agent architecture pattern (from LangChain/ReAct lineage: planner LLM generates a task queue, executor LLM processes it). Confirmed that this decompose-before-execute discipline is consistently cited as the top reliability lever in professional 2026 agentic workflows. Found Trilogy AI substack documenting a "28-bead dependency graph with 5 decision gates" for a complex build — evidence that serious practitioners plan extremely deliberately before executing. Also found claudedirectory.org documenting Claude Code's built-in Plan Mode feature.
+
+2. `web_search` "Claude Code plan mode 2026 when to use how to activate finance report agent" — confirmed Claude Code Plan Mode is a real built-in feature toggled with `Shift+Tab` mid-session (or `claude --plan` flag). In Plan Mode, the agent can read and reason but cannot write files or run side-effecting commands. Also confirmed r/ClaudeCode community pattern: "breakdown into milestones → individual PRs" before any execution. Found Claude Code docs confirming the feature and its role as a safety/reliability gate.
+
+**Gap identified:**
+- `agent-spec-driven.md` has a "PLAN" phase but it assumes you already know what to build and are writing a formal spec — it starts from "write SPEC.md."
+- `agent-workflow-orchestration.md` covers executing a multi-step chain after the plan exists.
+- Neither covers the upstream question: **how do you get the agent to decompose a task before starting, check its own assumptions, map dependencies, and get approval** — especially for ambiguous requests like "build me the report" where the agent doesn't know what columns exist.
+- Claude Code Plan Mode (a real feature) was not documented anywhere in the pack.
+
+**New skill content (agent-task-decomposition.md, 9,653 chars):**
+- Four failure modes of one-shot complex prompts (scope creep, hidden dependency, silent assumption, wrong decomposition) with root cause table
+- Decision checklist: 7 criteria for when to decompose vs. one-shot
+- Claude Code Plan Mode: how to activate (Shift+Tab, `--plan` flag), what it does, Plan Mode prompt template
+- The generic decomposition prompt (works in Cursor, Claude Code, Codex)
+- Dependency-first decomposition pattern for data workflows (dependency map format with example output)
+- Finance/office examples: variance report, CSV analysis, pipeline refactor, Power BI measure
+- "After the plan is approved" execute prompt
+- Decomposition anti-patterns table (5 patterns with fixes)
+- Skill cross-reference table (how this fits with spec-driven, orchestration, parallel-worktrees, etc.)
+- 6 "Try asking:" prompts
+- Relationship table to other skills
+
+**Why this matters for Andrew:**
+The most common failure mode in Andrew's finance work is "build me the July report" → agent invents column names, guesses sheet names, overwrites the wrong file. This skill teaches the habit of making the agent read and list what it sees FIRST, then plan, then get approval, then execute. Claude Code Plan Mode is specifically relevant — Andrew can toggle it with Shift+Tab and review the full plan before anything is touched.
+
+---
+
 ## 2026-07-14 (Iteration #16) — Hooks deep-dive: exit codes, HOOK_INPUT, UserPromptSubmit, JSON block output
 
 **Category:** Agent technique / Claude Code hooks
@@ -65,66 +99,60 @@
    inference level, giving 99%+ schema conformity vs. ~70% from a plain "return JSON" instruction.
    Sources cross-checked: collinwilkins.com "LLM Structured Outputs: Schema Validation for Real
    Pipelines" (2026), kenhuangus.substack.com Chapter 15 (2026), Reddit r/ClaudeAI structured
-   outputs launch thread, Peace of Code "Claude Certified Architect Ep 16: Structured Output &
-   JSON Schema" (May 2026).
-
-**Gap identified:**
-- `agent-self-check.md` = logical correctness (agent verifies its reasoning)
-- `agent-output-evaluation.md` = quality via critic (fresh agent reviews the output)
-- `agent-structured-output.md` (NEW) = data shape enforcement (schema contracts, type safety,
-  pipeline reliability)
-
-These are three genuinely distinct failure modes. Structured output is the one missing from
-the pack and the most relevant to Andrew's PDF extraction → DuckDB → Power BI workflows.
-
-**Key facts gathered:**
-- "JSON please" is advisory text generation: Claude produces something that looks like JSON but
-  field names, types, and structure drift across runs. Reliability: ~70%.
-- The fix is a 4-level escalation: format hint → output contract → JSON Schema declaration →
-  tool-call enforcement. Each level has a concrete reliability estimate and paste-ready prompt.
-- `additionalProperties: false` in JSON Schema is the single highest-value addition: prevents
-  the model inventing "notes" or "confidence" fields to explain uncertainty.
-- `enum` for category strings stops "Labour" vs "labour" vs "Labour costs" divergence that
-  breaks Power BI measures and DuckDB GROUP BY queries.
-- The tool-call enforcement trick: describing the output as "call this tool with these typed
-  arguments" routes Claude through its tool-use inference pathway (trained on typed argument
-  filling) rather than text-generation, producing dramatically more consistent structure.
-- Schema drift is the silent killer for recurring tasks — the same prompt produces "FTE Count"
-  one week and "headcount" the next. Saving a SCHEMA_*.json file and referencing it by filename
-  is the cheapest fix with the highest recurring payoff.
-- Multi-agent output contracts: Agent 1 writes HANDOFF_data.json to a declared schema; Agent 2
-  reads it. Without this, agents invent field names independently and break each other silently.
-
-**Change summary:**
-- Created `skills/agent-structured-output.md` (12,613 chars)
-  - Four enforcement levels with reliability estimates and paste-ready prompts
-  - JSON Schema design rules (6 rules from 2026 production experience)
-  - Validation + retry pattern with targeted error correction prompts
-  - Failure mode table (5 common failures, causes, prevention)
-  - Three finance recipes: PDF extraction → DuckDB, weekly variance schema file,
-    markdown table for Excel paste
-  - Multi-agent output contract pattern (HANDOFF_data.json with declared schema)
-  - Pre-run checklist (5 checks)
-  - Five "Try asking:" prompts (PDF extraction, reusable schema creation, retry on
-    failed validation, Excel paste table, two-agent interface contract)
-- Updated `memory/discoveries.md` with iteration 15 entry
-- Updated `memory/learning-log.md` (this file)
+   outputs launch thread, Peace of Code "Claude Certifi
 
 ---
 
-## 2026-07-11 (Iteration #14) — Agent Memory Management Skill (CoALA Four-Layer System)
+## 2026-07-11 (Iteration #14) — Agent Memory Management Skill
 
-**Category:** Agent technique / memory
+**Category:** Agent technique / memory architecture
 **Mode:** New skill — `skills/agent-memory-management.md`
 
 **Searches performed:**
-1. CoALA framework (Princeton 2023, widely referenced in 2026) — four memory types: Working,
-   Semantic, Procedural, Episodic. Each maps to specific Claude Code / Cursor files on disk.
-2. Five most common agent memory failures in 2026 (sitepoint.com): context poisoning, session
+1. `web_search` "agent memory management CoALA framework Claude 2026" — confirmed the CoALA
+   (Cognitive Architecture for Language Agents) framework from Princeton. Found sitepoint.com
+   article documenting the 5 most common memory failures in 2026: context poisoning, session
    amnesia, stale semantic memory, procedural drift, episodic flooding.
+2. `web_search` "Claude Code CLAUDE.md AGENTS.md HANDOFF.md agent memory layers 2026" — confirmed
+   Claude Code's file-based memory approach. CLAUDE.md = semantic (facts/conventions),
+   AGENTS.md = procedural (build commands), HANDOFF.md = episodic (session decisions).
 
-**Change summary:**
-- Created `skills/agent-memory-management.md`
-- Documented all four memory layers with concrete file mappings
-- Added five failure modes with prevention strategies
-- Added "Try asking:" prompts for memory management tasks
+---
+
+## 2026-07-10 (Iteration #13) — Agent Output Evaluation Skill
+
+**Category:** Agent technique / output quality
+**Mode:** New skill — `skills/agent-output-evaluation.md`
+
+**Searches performed:**
+1. `web_search` "agent output evaluation critic pattern Claude 2026 checklist" — found multiple
+   2026 sources describing the evaluator/critic pattern and LLM-as-judge technique.
+2. `web_search` "LLM evaluator judge self-evaluation agent 2026 prompt patterns" — confirmed
+   the peer-review prompting pattern where you ask the model to critique its own output as a
+   "sceptical colleague."
+
+---
+
+## 2026-07-09 (Iteration #12) — Agent Reasoning Skill (agent-reasoning.md)
+
+**Category:** Agent technique / extended thinking
+**Mode:** New skill — `skills/agent-reasoning.md`
+
+**Searches performed:**
+1. `web_search` "Claude extended thinking 2026 budget tokens finance analysis" — confirmed
+   Claude 3.7's extended thinking feature with `thinking` blocks and configurable `budget_tokens`.
+2. `web_search` "chain of thought prompting agent 2026 step by step reasoning finance" — found
+   patterns for forcing visible reasoning chains in both Cursor and Claude Code.
+
+---
+
+## 2026-07-03 (Iteration #11) — Agent handoff skill (agent-handoff.md)
+
+**Category:** Agent technique / session continuity
+**Mode:** New skill — `skills/agent-handoff.md`
+
+**Searches performed:**
+1. `web_search` "agent session handoff HANDOFF.md Claude Code Cursor 2026 multi-session" — found
+   multiple 2026 sources describing the practice of writing end-of-session summary files.
+2. `web_search` "agent memory handoff multi-session context continuity 2026" — confirmed the
+   HANDOFF.md pattern as widely adopted in professional Claude Code workflows.
