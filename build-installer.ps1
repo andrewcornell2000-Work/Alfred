@@ -12,7 +12,15 @@
 
 param(
     # Version stamped into the .exe metadata. CI passes the git tag (without the leading "v").
-    [string]$Version = "2.6.2"
+    [string]$Version = "2.6.2",
+
+    # Authenticode code-signing. An UNSIGNED exe is flagged by AV/EDR/SmartScreen as
+    # untrusted — the only legitimate fix is signing with a certificate the target
+    # machines trust (a Maersk-issued internal code-signing cert, or a CA-purchased one).
+    # A self-signed cert will NOT satisfy EDR. Provide the signing cert's thumbprint
+    # (in Cert:\CurrentUser\My or LocalMachine\My) here or via ALFRED_SIGN_CERT_THUMBPRINT.
+    [string]$SignCertThumbprint = $env:ALFRED_SIGN_CERT_THUMBPRINT,
+    [string]$TimestampUrl       = 'http://timestamp.digicert.com'
 )
 
 $ErrorActionPreference = "Stop"
@@ -153,6 +161,32 @@ if (Test-Path $IconFile) {
 Invoke-ps2exe @ps2exeArgs
 
 Remove-Item $BuildFile -Force -ErrorAction SilentlyContinue
+
+# ── Code signing ──────────────────────────────────────────────────────────────
+# Without a trusted signature the exe is treated as untrusted software and will be
+# flagged. Sign it here IF a code-signing cert thumbprint was supplied.
+if ($SignCertThumbprint) {
+    $cert = Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -CodeSigningCert -ErrorAction SilentlyContinue |
+        Where-Object { $_.Thumbprint -eq $SignCertThumbprint.Replace(' ', '').ToUpper() } | Select-Object -First 1
+    if (-not $cert) {
+        Write-Host "SIGNING SKIPPED: no code-signing cert with thumbprint $SignCertThumbprint found in your cert store." -ForegroundColor Yellow
+    } else {
+        Write-Host "Signing with $($cert.Subject) ($($cert.Thumbprint))..." -ForegroundColor Cyan
+        $sig = Set-AuthenticodeSignature -FilePath $OutputFile -Certificate $cert `
+            -TimestampServer $TimestampUrl -HashAlgorithm SHA256
+        if ($sig.Status -eq 'Valid') {
+            Write-Host "Signed OK (Authenticode Valid, timestamped)." -ForegroundColor Green
+        } else {
+            Write-Host "Signing returned status '$($sig.Status)': $($sig.StatusMessage)" -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host ""
+    Write-Host "NOT SIGNED. This exe will be flagged as untrusted by AV/EDR/SmartScreen." -ForegroundColor Yellow
+    Write-Host "To fix legitimately: obtain a code-signing cert your machines trust (Maersk internal PKI" -ForegroundColor DarkYellow
+    Write-Host "or a CA), then rebuild with -SignCertThumbprint <thumbprint> (or set ALFRED_SIGN_CERT_THUMBPRINT)." -ForegroundColor DarkYellow
+    Write-Host "A self-signed cert will NOT satisfy EDR; do not attempt to bypass your security tooling." -ForegroundColor DarkYellow
+}
 
 Write-Host ""
 Write-Host "Done: $OutputFile" -ForegroundColor Green

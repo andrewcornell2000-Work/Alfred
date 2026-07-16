@@ -171,7 +171,7 @@
         "mcp-remote",
         "https://search.parallel.ai/mcp"
       ],
-      "_bucket": "web",
+      "_bucket": "core",
       "_requires": [],
       "_note": "LLM-optimized web search + fetch (citation-backed excerpts in one call). Works key-free for anonymous use via the mcp-remote stdio bridge. Prefer over fetch for research after context7/docs. For higher rate limits set PARALLEL_API_KEY and add an Authorization header."
     },
@@ -230,10 +230,10 @@
     }
   },
   "_buckets": {
-    "core": "Always installed — universal day-to-day dev everyone benefits from (GitHub, docs, filesystem, code review, debugging, Jean Paul/Mr Smith).",
+    "core": "Always installed — universal day-to-day dev everyone benefits from (GitHub, docs, filesystem, web search, code review, debugging, Jean Paul/Mr Smith).",
     "office365": "Excel + Outlook calendar (live + closed workbooks). ms-365 Graph MCP is retired from default provision (TENANT-FORBIDDEN device-code login).",
     "powerbi": "Power BI semantic-model editing (needs the VS Code Power BI Modeling MCP extension).",
-    "web": "Browsing, research, scraping (Playwright, parallel-search, Firecrawl, fetch).",
+    "web": "Heavy browsing + scraping (Playwright, Firecrawl, fetch). Lightweight parallel-search now lives in core.",
     "data": "Local data + history (DuckDB SQL, markitdown, longhand session recall).",
     "mediagen": "Image/video/audio + UI generation (fal.ai, Magic UI).",
     "cloud": "Web apps, game development, and hosted backends (Supabase, Vercel, Next.js/React/game subagents)."

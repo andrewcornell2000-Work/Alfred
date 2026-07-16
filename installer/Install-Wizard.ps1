@@ -5,7 +5,9 @@ function Show-AlfredInstallWizard {
     param(
         [string]$DefaultInstallPath = "$env:USERPROFILE\Alfred",
         [string]$RepoUrl = 'https://github.com/andrewcornell2000-Work/Alfred.git',
-        [string]$AssetsRoot
+        [string]$AssetsRoot,
+        [ValidateSet('work', 'personal')]
+        [string]$DefaultProfile = 'work'
     )
 
     if ([string]::IsNullOrWhiteSpace($AssetsRoot)) {
@@ -104,11 +106,11 @@ function Show-AlfredInstallWizard {
     $content = New-Object System.Windows.Forms.TableLayoutPanel
     $content.Dock = 'Fill'
     $content.ColumnCount = 1
-    $content.RowCount = 7
+    $content.RowCount = 9
     $content.Padding = New-Object System.Windows.Forms.Padding(48, 44, 48, 28)
     $content.BackColor = $script:AlfredUiTheme.BgDeep
     $content.Margin = [System.Windows.Forms.Padding]::Empty
-    foreach ($pct in @(0, 0, 0, 0, 0, 100, 0)) {
+    foreach ($pct in @(0, 0, 0, 0, 0, 0, 0, 100, 0)) {
         $st = if ($pct -eq 100) { [System.Windows.Forms.SizeType]::Percent } else { [System.Windows.Forms.SizeType]::AutoSize }
         [void]$content.RowStyles.Add((New-Object System.Windows.Forms.RowStyle($st, [float]$pct)))
     }
@@ -129,8 +131,104 @@ function Show-AlfredInstallWizard {
     $sub.MaximumSize = New-Object System.Drawing.Size($contentWidth, 0)
     $sub.Font = Get-AlfredUiFont 10.5
     $sub.ForeColor = $script:AlfredUiTheme.TextMuted
-    $sub.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 32)
+    $sub.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 24)
     $content.Controls.Add($sub, 0, 1)
+
+    # ── Machine-type profile selector ──────────────────────────────────────────
+    # Chooses which MCP bucket set Provision-Cursor.ps1 installs:
+    #   work     -> core,office365,powerbi,data  (lean, data-analyst tools, low RAM)
+    #   personal -> all                          (adds web, mediagen, cloud dev)
+    $profileState = @{ Profile = $DefaultProfile }
+
+    $profileLabel = New-Object System.Windows.Forms.Label
+    $profileLabel.Text = 'MACHINE TYPE'
+    $profileLabel.AutoSize = $true
+    $profileLabel.Font = Get-AlfredUiFont 8.5 'Bold'
+    $profileLabel.ForeColor = $script:AlfredUiTheme.TextDim
+    $profileLabel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
+    $content.Controls.Add($profileLabel, 0, 2)
+
+    $profileRow = New-Object System.Windows.Forms.FlowLayoutPanel
+    $profileRow.FlowDirection = 'LeftToRight'
+    $profileRow.WrapContents = $false
+    $profileRow.AutoSize = $true
+    $profileRow.Dock = 'Fill'
+    $profileRow.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 24)
+    $profileRow.BackColor = [System.Drawing.Color]::Transparent
+    $content.Controls.Add($profileRow, 0, 3)
+
+    $script:AlfredProfileCards = @()
+
+    function New-AlfredProfileCard {
+        param([string]$Id, [string]$Title, [string]$Desc)
+
+        $card = New-Object System.Windows.Forms.Panel
+        $card.Width = 214
+        $card.Height = 92
+        $card.Margin = New-Object System.Windows.Forms.Padding(0, 0, 12, 0)
+        $card.Cursor = [System.Windows.Forms.Cursors]::Hand
+        $card.Tag = $Id
+
+        $titleLbl = New-Object System.Windows.Forms.Label
+        $titleLbl.Text = $Title
+        $titleLbl.AutoSize = $false
+        $titleLbl.Dock = 'Top'
+        $titleLbl.Height = 26
+        $titleLbl.Padding = New-Object System.Windows.Forms.Padding(14, 12, 12, 0)
+        $titleLbl.Font = Get-AlfredUiFont 11 'Semibold'
+        $titleLbl.ForeColor = $script:AlfredUiTheme.Text
+        $titleLbl.BackColor = [System.Drawing.Color]::Transparent
+        $titleLbl.Cursor = [System.Windows.Forms.Cursors]::Hand
+
+        $descLbl = New-Object System.Windows.Forms.Label
+        $descLbl.Text = $Desc
+        $descLbl.AutoSize = $false
+        $descLbl.Dock = 'Fill'
+        $descLbl.Padding = New-Object System.Windows.Forms.Padding(14, 2, 12, 10)
+        $descLbl.Font = Get-AlfredUiFont 8.5
+        $descLbl.ForeColor = $script:AlfredUiTheme.TextMuted
+        $descLbl.BackColor = [System.Drawing.Color]::Transparent
+        $descLbl.Cursor = [System.Windows.Forms.Cursors]::Hand
+
+        $card.Controls.Add($descLbl)
+        $card.Controls.Add($titleLbl)
+
+        $card.Add_Paint({
+            param($s, $e)
+            $selected = ($profileState.Profile -eq $s.Tag)
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $rect = New-Object System.Drawing.Rectangle(0, 0, ($s.Width - 1), ($s.Height - 1))
+            $bg = if ($selected) { $script:AlfredUiTheme.BgPanel } else { $script:AlfredUiTheme.BgDeep }
+            $brush = New-Object System.Drawing.SolidBrush $bg
+            $g.FillRectangle($brush, $rect)
+            $brush.Dispose()
+            $penColor = if ($selected) { $script:AlfredUiTheme.Accent } else { $script:AlfredUiTheme.Border }
+            $penWidth = if ($selected) { 2 } else { 1 }
+            $pen = New-Object System.Drawing.Pen($penColor, $penWidth)
+            $g.DrawRectangle($pen, $rect)
+            $pen.Dispose()
+        })
+
+        $selectHandler = {
+            param($s, $e)
+            $ctl = $s
+            while ($ctl -and -not ($ctl -is [System.Windows.Forms.Panel] -and $ctl.Tag)) { $ctl = $ctl.Parent }
+            if ($ctl) {
+                $profileState.Profile = [string]$ctl.Tag
+                foreach ($c in $script:AlfredProfileCards) { $c.Invalidate() }
+            }
+        }
+        $card.Add_Click($selectHandler)
+        $titleLbl.Add_Click($selectHandler)
+        $descLbl.Add_Click($selectHandler)
+
+        $script:AlfredProfileCards += $card
+        return $card
+    }
+
+    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'work' -Title 'Work machine' -Desc "Power BI, Excel, analytics, design & doc tools. No heavy browser/cloud dev."))
+    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'personal' -Title 'Personal machine' -Desc "Everything: adds browser automation and cloud/web-app dev."))
 
     $pathLabel = New-Object System.Windows.Forms.Label
     $pathLabel.Text = 'INSTALL FOLDER'
@@ -138,7 +236,7 @@ function Show-AlfredInstallWizard {
     $pathLabel.Font = Get-AlfredUiFont 8.5 'Bold'
     $pathLabel.ForeColor = $script:AlfredUiTheme.TextDim
     $pathLabel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
-    $content.Controls.Add($pathLabel, 0, 2)
+    $content.Controls.Add($pathLabel, 0, 4)
 
     $pathRow = New-Object System.Windows.Forms.TableLayoutPanel
     $pathRow.ColumnCount = 2
@@ -148,7 +246,7 @@ function Show-AlfredInstallWizard {
     $pathRow.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 12)
     [void]$pathRow.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
     [void]$pathRow.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 104)))
-    $content.Controls.Add($pathRow, 0, 3)
+    $content.Controls.Add($pathRow, 0, 5)
 
     $pathBox = New-AlfredModernTextBox $DefaultInstallPath
     $pathBox.Dock = 'Fill'
@@ -174,12 +272,12 @@ function Show-AlfredInstallWizard {
     $repoNote.MaximumSize = New-Object System.Drawing.Size($contentWidth, 0)
     $repoNote.Font = Get-AlfredUiFont 8.5
     $repoNote.ForeColor = $script:AlfredUiTheme.TextDim
-    $content.Controls.Add($repoNote, 0, 4)
+    $content.Controls.Add($repoNote, 0, 6)
 
     $fillSpacer = New-Object System.Windows.Forms.Panel
     $fillSpacer.Dock = 'Fill'
     $fillSpacer.BackColor = [System.Drawing.Color]::Transparent
-    $content.Controls.Add($fillSpacer, 0, 5)
+    $content.Controls.Add($fillSpacer, 0, 7)
 
     $footer = New-Object System.Windows.Forms.Panel
     $footer.Dock = 'Fill'
@@ -201,7 +299,7 @@ function Show-AlfredInstallWizard {
     $btnRow.BackColor = [System.Drawing.Color]::Transparent
     $footer.Controls.Add($btnRow)
 
-    $outcome = @{ Confirmed = $false; InstallPath = $DefaultInstallPath }
+    $outcome = @{ Confirmed = $false; InstallPath = $DefaultInstallPath; Profile = $DefaultProfile }
 
     $btnInstall = New-AlfredModernButton -Text 'Continue' -Variant 'primary' -Width 140 -Height 42
     $btnInstall.Margin = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
@@ -212,7 +310,7 @@ function Show-AlfredInstallWizard {
     $btnCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     [void]$btnRow.Controls.Add($btnCancel)
 
-    $content.Controls.Add($footer, 0, 6)
+    $content.Controls.Add($footer, 0, 8)
 
     $form.AcceptButton = $btnInstall
     $form.CancelButton = $btnCancel
@@ -224,6 +322,7 @@ function Show-AlfredInstallWizard {
         } else {
             $outcome.Confirmed = $true
             $outcome.InstallPath = $path
+            $outcome.Profile = $profileState.Profile
         }
     }
 

@@ -502,13 +502,50 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
     }
 }
 
+# ── Machine profile → MCP bucket mapping ──────────────────────────────────────
+# The installer offers two profiles. Each maps to a bucket set consumed by
+# Provision-Cursor.ps1 -Buckets (the single source of truth for MCP servers):
+#   work     -> the analyst working set: Power BI, Excel/O365, DuckDB analytics,
+#               doc-reading + connect-the-dots (context7, markitdown, longhand),
+#               and design (Magic UI). Excludes only the heavy browser-automation
+#               (Playwright/Firecrawl) and cloud-dev (Supabase/Vercel) buckets so
+#               it stays workable without swamping RAM.
+#   personal -> everything (adds browser automation + cloud/web-app dev).
+function Get-AlfredProfileBuckets([string]$Profile) {
+    switch (($Profile + '').ToLower()) {
+        'personal' { return 'all' }
+        default     { return 'core,office365,powerbi,data,mediagen' }  # work / default
+    }
+}
+
+# On a re-run, infer the prior choice from ALFRED_BUCKETS in .env so we default the
+# wizard to what the machine already is (and don't flip a personal box back to work).
+# Work now includes mediagen (design), so only the web/cloud buckets mark a personal box.
+function Get-AlfredDefaultProfile([string]$InstallPath) {
+    $envFile = Join-Path $InstallPath '.env'
+    if (Test-Path $envFile) {
+        $line = Get-Content $envFile -ErrorAction SilentlyContinue |
+            Where-Object { $_ -match '^\s*ALFRED_BUCKETS\s*=' } | Select-Object -First 1
+        if ($line) {
+            $val = ($line -replace '^\s*ALFRED_BUCKETS\s*=', '').Trim().ToLower()
+            if ($val -eq 'all' -or $val -match '(^|,)\s*(web|cloud)\s*($|,)') { return 'personal' }
+            if ($val) { return 'work' }
+        }
+    }
+    return 'work'
+}
+
+# Set by the wizard / CLI prompt below; consumed by Step 10 provisioning.
+$script:AlfredInstallProfile = 'work'
+
 # ALFRED_INSTALLER_WIZARD_START
 # ── Install wizard ────────────────────────────────────────────────────────────
 
 if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction SilentlyContinue)) {
     $script:WizardUsedDefaults = $false
+    $defaultProfile = Get-AlfredDefaultProfile $InstallPath
     try {
-        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $ScriptRoot
+        $wizard = Show-AlfredInstallWizard -DefaultInstallPath $InstallPath -RepoUrl $RepoUrl -AssetsRoot $ScriptRoot -DefaultProfile $defaultProfile
     } catch {
         $wizardMsg = $_.Exception.Message
         if ($script:AlfredInstallLogPath) {
@@ -516,7 +553,7 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
         }
         if ($script:AlfredRunningAsExe -or (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue)) {
             $script:WizardUsedDefaults = $true
-            $wizard = @{ Confirmed = $true; InstallPath = $InstallPath }
+            $wizard = @{ Confirmed = $true; InstallPath = $InstallPath; Profile = $defaultProfile }
         } else {
             Show-InstallerFatalError "Could not open the install wizard:`n`n$wizardMsg"
             exit 1
@@ -524,16 +561,20 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
     }
     if (-not $wizard.Confirmed) { exit 0 }
     $InstallPath = $wizard.InstallPath
+    if ($wizard.Profile) { $script:AlfredInstallProfile = [string]$wizard.Profile }
     $uiDetail = if ($script:WizardUsedDefaults) { 'Install wizard unavailable — continuing with default folder...' } else { $null }
     Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot -DetailOnFallback $uiDetail | Out-Null
     Complete-InstallStage 'prepare'
 } elseif ($NoWizard -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue) -and $script:AlfredRunningAsExe) {
+    $script:AlfredInstallProfile = Get-AlfredDefaultProfile $InstallPath
     Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot | Out-Null
     Complete-InstallStage 'prepare'
 } elseif ($script:AlfredRunningAsExe -and (Get-Command Start-AlfredInstallProgress -ErrorAction SilentlyContinue)) {
+    $script:AlfredInstallProfile = Get-AlfredDefaultProfile $InstallPath
     Initialize-AlfredInstallUi -InstallPath $InstallPath -AssetsRoot $ScriptRoot | Out-Null
     Complete-InstallStage 'prepare'
 } elseif ($NoWizard) {
+    $script:AlfredInstallProfile = Get-AlfredDefaultProfile $InstallPath
     Enable-AlfredHeadlessInstallLogging -InstallPath $InstallPath
 } else {
     Write-Banner "Alfred Installer"
@@ -544,6 +585,19 @@ if (-not $NoWizard -and (Get-Command Show-AlfredInstallWizard -ErrorAction Silen
     Write-Host ""
     $confirm = Read-Host "  Install / update Alfred here? (Y/n)"
     if ($confirm -match "^[Nn]") { Write-Host "Cancelled."; exit 0 }
+    # Machine profile → which MCP bucket set to install (see Get-AlfredProfileBuckets).
+    $defaultProfile = Get-AlfredDefaultProfile $InstallPath
+    Write-Host ""
+    Write-Host "  Machine type:" -ForegroundColor White
+    Write-Host "    [1] Work machine     - lean, data-analyst tools, low RAM (default)" -ForegroundColor Gray
+    Write-Host "    [2] Personal machine - everything (browser, media/UI gen, cloud dev)" -ForegroundColor Gray
+    $profPick = Read-Host "  Choose 1 or 2 (Enter for $defaultProfile)"
+    $script:AlfredInstallProfile = switch ($profPick.Trim()) {
+        '1'     { 'work' }
+        '2'     { 'personal' }
+        default { $defaultProfile }
+    }
+    Write-Host "  Profile: $script:AlfredInstallProfile" -ForegroundColor DarkGray
 }
 
 if ($script:AlfredRunningAsExe -and (Get-Command Stop-AlfredAgentProcesses -ErrorAction SilentlyContinue)) {
@@ -1251,6 +1305,10 @@ $provisionScript = Join-Path $InstallPath "Provision-Cursor.ps1"
 if (Test-Path $provisionScript) {
     $provisionParams = @{ ProjectPath = $InstallPath }
     if (Test-AlfredGuiInstall) { $provisionParams.InstallerMode = $true }
+    # Machine profile → MCP buckets. Provision-Cursor.ps1 persists the selection to
+    # ALFRED_BUCKETS in .env, so day-to-day re-runs stay on the chosen set.
+    $provisionParams.Buckets = Get-AlfredProfileBuckets $script:AlfredInstallProfile
+    Write-Step ("Machine profile: {0} -> MCP buckets: {1}" -f $script:AlfredInstallProfile, $provisionParams.Buckets)
     $provExit = Invoke-AlfredPowerShellScript -ScriptPath $provisionScript -Parameters $provisionParams `
         -StatusMessage 'Provisioning MCPs, skills, and rules for Cursor and Claude Code...'
     if ($provExit -ne 0) {
