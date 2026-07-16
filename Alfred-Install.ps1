@@ -1319,13 +1319,6 @@ if (Test-Path $provisionScript) {
     Write-Warn "Provision-Cursor.ps1 not found — update Alfred (git pull) and re-run the installer."
 }
 
-$removeScript = Join-Path $InstallPath 'installer\Remove-LeanCtx.ps1'
-if (Test-Path $removeScript) {
-    Write-Step 'Final pass: removing lean-ctx from agent configs...'
-    Invoke-AlfredPowerShellScript -ScriptPath $removeScript -Parameters @{ RepoRoot = $InstallPath; ProjectPath = $InstallPath } `
-        -StatusMessage 'Removing lean-ctx MCP, hooks, and rules...' | Out-Null
-}
-
 Complete-InstallStage 'verify'
 
 # ── Step 8: Desktop shortcut ──────────────────────────────────────────────────

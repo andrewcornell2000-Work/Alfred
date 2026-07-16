@@ -7,7 +7,8 @@
     "codegraph",
     "sqlite",
     "powerbi",
-    "ms-365"
+    "ms-365",
+    "lean-ctx"
   ],
   "mcpServers": {
     "powerbi-modeling-mcp": {

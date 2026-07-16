@@ -68,9 +68,6 @@ $Root = $PSScriptRoot
 $closeAppsScript = Join-Path $Root 'installer\Close-AgentApps.ps1'
 if (Test-Path $closeAppsScript) { . $closeAppsScript }
 
-$removeLeanCtxScript = Join-Path $Root 'installer\Remove-LeanCtx.ps1'
-if (Test-Path $removeLeanCtxScript) { . $removeLeanCtxScript -RepoRoot $Root }
-
 # ── output helpers ────────────────────────────────────────────────────────────
 function Write-Step([string]$m) { Write-Host ""; Write-Host "> $m" -ForegroundColor Cyan }
 function Write-OK([string]$m)   { Write-Host "  [OK]    $m" -ForegroundColor Green }
@@ -1206,9 +1203,59 @@ Sync-AlfredRepoCtxRules -RepoRoot $Root
 # ── Impeccable Cursor hook ──
 Wire-ImpeccableCursorHook
 
-Write-Step "Removing lean-ctx from agent configs"
-if (Get-Command Invoke-RemoveLeanCtxFromMachine -ErrorAction SilentlyContinue) {
-    [void](Invoke-RemoveLeanCtxFromMachine -SourceRoot $Root -Project $ProjectPath)
+# ── Toolchain / MCP freshness (informational; does not auto-upgrade) ───────────
+Write-Step "Toolchain freshness (Node / npm / MCP packages)"
+$nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+$npmCmd  = Get-Command npm -ErrorAction SilentlyContinue
+if ($nodeCmd) {
+    $nv = (& node --version 2>&1 | Select-Object -First 1).ToString().Trim()
+    $major = 0
+    if ($nv -match '^v?(\d+)') { $major = [int]$Matches[1] }
+    if ($major -gt 0 -and $major -lt 20) {
+        Write-Warn2 "Node.js $nv — recommend Node 20+ LTS for MCP hosts. Upgrade: winget install OpenJS.NodeJS.LTS"
+    } elseif ($major -ge 20) {
+        Write-OK "Node.js $nv (LTS-class major)"
+    } else {
+        Write-OK "Node.js $nv"
+    }
+} else {
+    Write-Warn2 "node not on PATH — MCP npx servers will fail until Node is installed."
+}
+if ($npmCmd) {
+    $npv = (& npm --version 2>&1 | Select-Object -First 1).ToString().Trim()
+    Write-OK "npm $npv"
+    Write-Info "Global CLI upgrades (claude/codex): npm outdated -g  then  npm update -g <pkg>  (or re-run setup.ps1)."
+} else {
+    Write-Warn2 "npm not on PATH."
+}
+$npxServers = @($managed.Keys | Where-Object {
+    $s = $managed[$_]; $s.command -and ((""+$s.command) -match '(?i)npx')
+})
+if ($npxServers.Count -gt 0) {
+    Write-OK ("npx MCP servers use '-y' (latest package on each spawn): " + ($npxServers -join ', '))
+    Write-Info "If an npx MCP looks stale: npx clear-npx-cache   then re-open the client."
+}
+$excelMcpExe = Join-Path $Root 'bin\excel-mcp\mcp-excel.exe'
+if (Test-Path $excelMcpExe) {
+    try {
+        $vi = (Get-Item $excelMcpExe).VersionInfo
+        $ver = $vi.FileVersion; if (-not $ver) { $ver = $vi.ProductVersion }
+        if (-not $ver) { $ver = (Get-Item $excelMcpExe).LastWriteTime.ToString('yyyy-MM-dd') }
+        Write-OK "excel-mcp exe present ($ver)"
+    } catch { Write-OK "excel-mcp exe present" }
+} elseif ($SelectedBuckets -contains 'office365') {
+    Write-Warn2 "excel-mcp exe missing under bin\excel-mcp — re-run setup.ps1 to download."
+}
+$pbiExt = Get-ChildItem (Join-Path $env:USERPROFILE '.vscode\extensions') -Directory -Filter 'analysis-services.powerbi-modeling-mcp-*' -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending | Select-Object -First 1
+if (-not $pbiExt) {
+    $pbiExt = Get-ChildItem (Join-Path $env:USERPROFILE '.cursor\extensions') -Directory -Filter 'analysis-services.powerbi-modeling-mcp-*' -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | Select-Object -First 1
+}
+if ($pbiExt) {
+    Write-OK "Power BI Modeling MCP extension: $($pbiExt.Name)"
+} elseif ($SelectedBuckets -contains 'powerbi') {
+    Write-Warn2 "Power BI Modeling MCP extension not found — install from VS Code/Cursor marketplace."
 }
 
 # ── summary ───────────────────────────────────────────────────────────────────

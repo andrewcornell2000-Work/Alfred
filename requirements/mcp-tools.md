@@ -97,7 +97,7 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 
 ### filesystem
 - **Install:** `npx -y @modelcontextprotocol/server-filesystem <finance-dir>`
-- **Purpose:** Scoped finance OneDrive access — **not** Alfred repo code (use LeanCTX there)
+- **Purpose:** Scoped finance OneDrive access — **not** Alfred repo code (use native Read/Grep there)
 - **Trust:** official
 - **Destructive:** true
 

@@ -5,7 +5,7 @@ know your project's build commands, coding conventions, forbidden zones, and arc
 constraints — **without repeating them every session**.
 
 *Companion skills: `agent-context-engineering.md` (window management), `agent-reasoning.md`
-(decompose tasks), `lean-ctx.md` (context budget). This skill covers the **project-persistent**
+(decompose tasks). This skill covers the **project-persistent**
 layer: what goes in the repo, not the conversation.*
 
 ---

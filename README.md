@@ -53,13 +53,16 @@ codex login
 
 ### Cross-tool MCP + skills (Cursor, Claude Code, Codex)
 
-`cursor/mcp.json` is the portable MCP template. `Provision-Cursor.ps1` resolves paths and secrets from `.env`, then writes:
+`cursor/mcp.json` is the portable MCP template. `Provision-Cursor.ps1` resolves paths and secrets from `.env`, then writes **the same selected server set** into each client’s own config (not a shared process pool):
 
 | Tool | Where MCPs land |
 |------|-----------------|
-| Cursor | `~/.cursor/mcp.json` |
+| Cursor | `~/.cursor/mcp.json` (Cursor reads this for all projects) |
 | Claude Code | `claude mcp add --scope user` |
+| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Codex | `codex mcp add` |
+
+Opening **only Cursor** runs only Cursor’s MCPs. Opening Cursor **and** Claude Desktop starts a second copy of each server (RAM scales with clients open). There is no “Cursor local stack + separate global stack” layered on top of each other.
 
 Skills from `skills/` sync **once** to `~/.agents/skills` — the cross-tool Agent
 Skills standard that Cursor, Claude Code, and Codex all read. (Per-tool copies in

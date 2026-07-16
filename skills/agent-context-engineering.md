@@ -164,29 +164,19 @@ Run through this before kicking off any multi-step agent task in Cursor:
 
 ## 8. Alfred-specific patterns
 
-### LeanCTX as context budget manager (optional)
+### Native tools as context budget manager
 
-Use native Read/Grep first. For large files or re-reads, lean-ctx can reduce tokens:
+Use Cursor/Claude native **Read / Grep / Glob** first. Prefer map-style exploration (list dirs, grep for symbols) before dumping whole files into context.
 
-```
-ctx_read(file, mode="map")      →  ~200 tokens — structure overview
-ctx_read(file, start=40, end=80) →  ~40 tokens  — targeted line range
-ctx_search(query, files=[...])   →  ~50 tokens  — semantic hit list
-```
+Compare: reading a 400-line file costs ~3 000 tokens; a targeted Grep + 40-line Read is far cheaper.
 
-Compare: reading a 400-line file with standard `read_file` costs ~3 000 tokens.
-LeanCTX map mode costs ~200 tokens when you already know the file is large.
+### Session memory (files, not a memory MCP)
 
-### Session memory (LeanCTX, not memory MCP)
+Alfred no longer provisions LeanCTX or a memory MCP. Persist facts in:
 
-At the start of a long or multi-day task:
-
-```
-ctx_knowledge(action="recall", query="alfred pack conventions")
-ctx_knowledge(action="remember", content="confirmed fact …")
-```
-
-The retired memory MCP is not provisioned — use `ctx_knowledge` only.
+- Project `AGENTS.md` / rules for standing conventions
+- A gitignored `SCRATCH.md` or handoff note for multi-hour sessions
+- Explicit user-approved memory only when the product supports it
 
 ### Scratch file pattern for long sessions
 
@@ -218,4 +208,4 @@ Delete: at session end (or let .gitignore handle it)
 |-------|--------|
 | `agent-token-efficiency.md` | Tactical tool choices to save tokens |
 | `agent-reasoning.md` | Decompose + verify + act pattern |
-| `lean-ctx.md` | LeanCTX MCP usage in detail |
+| `mcp-routing.md` | Which MCP for which task |

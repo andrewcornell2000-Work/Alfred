@@ -205,7 +205,7 @@ foreach ($t in $targets.Keys) {
     $report.mcp[$t] = [ordered]@{ present = $present; missing = $missing; retired = $staleRetired; dupes = $dupes }
 }
 
-# ── Secret hygiene: no plaintext tokens in any config ──────────────────────────
+# ── Secret hygiene: no unexpected plaintext tokens in configs ─────────────────
 Write-Head "Secret hygiene (no plaintext tokens in configs)"
 $secretScanTargets = @(
     (Join-Path $HOME ".cursor\mcp.json"),
@@ -215,21 +215,45 @@ $secretScanTargets = @(
 )
 # Known live-token prefixes. ${env:...} placeholders are safe by construction.
 $secretPatterns = @('ghp_[A-Za-z0-9]{20,}', 'github_pat_[A-Za-z0-9_]{20,}', 'sk-ant-[A-Za-z0-9\-_]{20,}', 'sk-[A-Za-z0-9]{20,}', 'fc-[A-Za-z0-9]{20,}', 'tvly-[A-Za-z0-9]{16,}', 'xox[baprs]-[A-Za-z0-9-]{10,}')
+# Tokens Alfred intentionally expands from .env into client configs (GitHub MCP)
+# are OK when they still match .env — Doctor only fails on stale/foreign secrets.
+$envMapDoctor = Read-DotEnv (Join-Path $Root '.env')
+$allowedSecrets = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($k in @('GITHUB_TOKEN', 'GITHUB_PERSONAL_ACCESS_TOKEN')) {
+    if ($envMapDoctor.ContainsKey($k) -and $envMapDoctor[$k]) {
+        [void]$allowedSecrets.Add([string]$envMapDoctor[$k])
+    }
+}
 $secretHits = 0
+$secretAllowed = 0
 foreach ($cfg in $secretScanTargets) {
     if (-not (Test-Path $cfg)) { continue }
     $raw = Get-Content $cfg -Raw -ErrorAction SilentlyContinue
     if (-not $raw) { continue }
-    $hitPrefixes = @()
-    foreach ($pat in $secretPatterns) { if ($raw -match $pat) { $hitPrefixes += ($pat -split '\[')[0] } }
-    if ($hitPrefixes.Count -gt 0) {
+    $foreignPrefixes = @()
+    foreach ($pat in $secretPatterns) {
+        $matches = [regex]::Matches($raw, $pat)
+        foreach ($m in $matches) {
+            if ($allowedSecrets.Contains($m.Value)) { $secretAllowed++; continue }
+            $foreignPrefixes += ($pat -split '\[')[0]
+        }
+    }
+    $foreignPrefixes = @($foreignPrefixes | Select-Object -Unique)
+    if ($foreignPrefixes.Count -gt 0) {
         $secretHits++
         $leaf = Split-Path $cfg -Leaf
-        Add-Failure ("PLAINTEXT SECRET in $leaf (prefix " + ($hitPrefixes -join ', ') + ") -- rotate it and move to Alfred .env as an env placeholder")
+        Add-Failure ("PLAINTEXT SECRET in $leaf (prefix " + ($foreignPrefixes -join ', ') + ") -- rotate it and move to Alfred .env as an env placeholder")
     }
 }
-if ($secretHits -eq 0) { Write-Pass "No plaintext tokens found in Cursor/Claude/Codex configs" }
+if ($secretHits -eq 0) {
+    if ($secretAllowed -gt 0) {
+        Write-Pass "No unexpected plaintext tokens (Alfred .env GitHub token in client configs is expected)"
+    } else {
+        Write-Pass "No plaintext tokens found in Cursor/Claude/Codex configs"
+    }
+}
 $report.secretLeaks = $secretHits
+$report.secretAllowedFromEnv = $secretAllowed
 
 # ── Skills: one copy, in ~/.agents/skills ──────────────────────────────────────
 Write-Head "Skills (single copy in ~/.agents/skills)"

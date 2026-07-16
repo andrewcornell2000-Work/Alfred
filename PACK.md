@@ -34,8 +34,8 @@ cursor/rules/*.mdc       → Cursor rules (optional -ProjectPath)
 Provision-Cursor.ps1     → ~/.cursor/mcp.json
                          → claude mcp add --scope user
                          → codex mcp add
-                         → ~/.cursor/skills + ~/.claude/skills + ~/.codex/skills
-                         → removes any leftover lean-ctx config
+                         → ~/.agents/skills (single copy)
+                         → retires leftover servers (lean-ctx, ms-365, …)
 ```
 
 ## Discovery loop (the real value)
