@@ -38,9 +38,8 @@ Return the 8-section Verdict Card. Run A-Team in parallel. Do not install anythi
 | **repo-eval-logistics** | Analyst / warehouse fit |
 | **repo-eval-web** | Web app shipping fit |
 | **repo-eval-games** | Mobile / game fit |
-| **research-analyst** | Ambiguous / mixed repos |
 
-Evaluators triage; **builders** (`nextjs-developer`, `game-developer`) run only after ADOPT.
+Evaluators triage. **Post-ADOPT build** uses the main agent + domain skills (not builder subagents).
 
 ## Verdicts
 

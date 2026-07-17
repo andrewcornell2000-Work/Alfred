@@ -1091,18 +1091,18 @@ function Sync-Agents {
         }
         $synced++
     }
-    # prune agents whose bucket was de-selected but a prior sync left them
+    # prune: removed from Alfred/agents, or bucket de-selected after a prior sync
     foreach ($d in $dests) {
         Get-ChildItem $d -Filter *.md -File -ErrorAction SilentlyContinue | ForEach-Object {
             $repoHas = Test-Path (Join-Path $src $_.Name)
-            if ($repoHas -and -not $expected.Contains($_.Name)) { Remove-Item $_.FullName -Force }
+            if (-not $repoHas -or -not $expected.Contains($_.Name)) { Remove-Item $_.FullName -Force }
         }
     }
     if (-not $SkipCodex -and (Test-Path $codexAgents)) {
         Get-ChildItem $codexAgents -Filter *.toml -File -ErrorAction SilentlyContinue | ForEach-Object {
             $mdName = ($_.BaseName + '.md')
             $repoHas = Test-Path (Join-Path $src $mdName)
-            if ($repoHas -and -not $expectedCodex.Contains($_.Name)) { Remove-Item $_.FullName -Force }
+            if (-not $repoHas -or -not $expectedCodex.Contains($_.Name)) { Remove-Item $_.FullName -Force }
         }
     }
     $codexNote = if (-not $SkipCodex) { ", $codexAgents (TOML)" } else { '' }

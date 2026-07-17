@@ -2,29 +2,31 @@
 
 Canonical subagent definitions for Cursor, Claude Code, and Codex.
 
+**Design rule:** keep this list small. Prefer skills for workflows; use a subagent only when isolation or true parallelism pays for the extra context window.
+
 ## Bucket guide
 
 | Bucket | Who it's for |
 |--------|----------------|
-| **core** | Universal day-to-day — everyone benefits (Mr Smith, Jean Paul, janitor, code review, debugging, TypeScript, tests) |
-| **cloud** | Web apps + **game development** + hosted backends (Next.js, React, Supabase/Vercel agents, game-developer) |
-| **data** | Commercial / analytical work (SQL, data-analyst, quant, business analyst) |
-| **web** | Research (parallel-search companion agents) |
-| **office365** | Excel + M365 (if enabled) |
+| **core** | Universal day-to-day |
+| **cloud** | Web / hosted backends (lane evals) |
+| **data** | Commercial / analytical lens (lane evals) |
+| **web** | (skills / MCP research — no subagents required) |
+| **office365** | Excel + M365 (skills) |
 | **powerbi** | Power BI + DLP Doctor |
 
 `core` is always installed. Other buckets follow `ALFRED_BUCKETS` in `.env`.
 
-## Alfred-native (custom)
+## Active roster (Alfred-native)
 
 | Agent | Bucket | Role |
 |-------|--------|------|
-| mr-smith | core | Prompt architect / handoffs |
-| design-agent | core | Jean Paul — UI design |
-| janitor | core | Folder clutter cleanup |
+| mr-smith | core | Thin router — durable handoff prompts; see `skills/prompt-handoff.md`. Prefer Cursor Plan Mode for ordinary planning. |
+| design-agent | core | Jean Paul — UI design isolation |
+| janitor | core | Folder clutter cleanup (delete to Recycle Bin) |
 | dlp-doctor | powerbi | DLP / Labour Planning Power BI diagnostics |
 
-### Repo A-Team (GitHub triage — Mr Smith prompt in `skills/repo-scout.md`)
+### Repo A-Team (GitHub triage)
 
 Paste one URL to **repo-scout** → parallel specialists → **ADOPT / TRIAL / SKIP** Verdict Card.
 
@@ -37,7 +39,7 @@ Paste one URL to **repo-scout** → parallel specialists → **ADOPT / TRIAL / S
 | repo-eval-web | cloud | Web app shipping fit (0–5) |
 | repo-eval-games | cloud | Mobile / game dev fit (0–5) |
 
-`research-analyst` joins when lane is mixed. **Builders** (`nextjs-developer`, `game-developer`) are post-ADOPT only.
+Post-ADOPT implementation: main agent + domain skills (`alfred-supabase`, `alfred-vercel`, `jean-paul-design`) — not dedicated builder subagents.
 
 ```text
 Repo Scout — evaluate https://github.com/owner/repo
@@ -45,40 +47,16 @@ Repo Scout — evaluate https://github.com/owner/repo
 
 Canonical prompt: `skills/repo-scout.md`
 
-## VoltAgent imports
+## VoltAgent imports (optional — not installed by default)
 
-Sourced from [VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) (MIT). Re-import:
+Generic persona agents from [VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) were **removed** after a usage audit (near-zero Task invocations). Re-import only if you explicitly want them back:
 
 ```powershell
 .\tools\Import-VoltAgentAgents.ps1 -Force
 .\Provision-Cursor.ps1 -SyncOnly -Buckets all
 ```
 
-| Agent | Bucket | Use |
-|-------|--------|-----|
-| game-developer | cloud | Game dev (engines, gameplay, performance) |
-| nextjs-developer | cloud | Next.js App Router / full-stack |
-| typescript-pro | core | TypeScript strict patterns |
-| react-specialist | cloud | React 18+ UI |
-| postgres-pro | cloud | Supabase / Postgres |
-| api-designer | cloud | REST/GraphQL API design |
-| payment-integration | cloud | Stripe / payments |
-| fintech-engineer | cloud | Billing, fees, money logic |
-| devops-engineer | cloud | CI/CD, Vercel deploys |
-| seo-specialist | cloud | Landing / marketing SEO |
-| test-automator | core | Playwright / test automation |
-| performance-engineer | cloud | Core Web Vitals, perf |
-| code-reviewer | core | PR / quality review |
-| security-auditor | core | OAuth, secrets, prod security |
-| error-detective | core | Prod error traces |
-| debugger | core | Deep debugging |
-| powershell-7-expert | core | Windows / Alfred scripts |
-| data-analyst | data | Insights, dashboards |
-| sql-pro | data | SQL across DuckDB/Postgres |
-| business-analyst | data | Requirements, specs |
-| quant-analyst | data | Quant / modelling |
-| research-analyst | web | Broad research |
-| ab-test-analysis | data | Experiment analysis |
+Edit the `$Catalog` in `Import-VoltAgentAgents.ps1` to choose which personas to pull.
 
 ## Install paths (after provision)
 

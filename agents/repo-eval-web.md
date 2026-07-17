@@ -18,7 +18,7 @@ Input: Intake block from **repo-scout**.
 - Supabase (auth, DB, edge) — MCP + `alfred-supabase` skill
 - Vercel deploy — MCP + `alfred-vercel` skill
 - UI: `design-agent` (Jean Paul), taste skills in `~/.agents/skills`
-- Existing subagents: `nextjs-developer`, `react-specialist`, `api-designer`, `typescript-pro` (for **post-ADOPT** build — not your job)
+- Post-ADOPT build: main agent + `alfred-supabase` / `alfred-vercel` / design skills — not your job
 
 ## Evaluate
 
@@ -46,7 +46,7 @@ Input: Intake block from **repo-scout**.
 **Artifact type:** starter | component lib | MCP | CLI | SDK | other
 **Try asking:** "…"
 **Overlap with Next/Supabase/Vercel stack:** …
-**Post-ADOPT owner:** `nextjs-developer` if scaffold; `design-agent` if UI system
+**Post-ADOPT owner:** main agent (+ Supabase/Vercel skills) if scaffold; `design-agent` if UI system
 **Recommendation:** worth PoC | niche skip | wrong domain
 ```
 

@@ -18,7 +18,7 @@ Input: Intake block from **repo-scout**.
 - Engines: Unity, Godot, Unreal, Phaser, web-first stacks
 - Needs: gameplay systems, performance, asset pipeline, multiplayer only if README claims it
 
-**Post-ADOPT builder:** `game-developer` subagent — not your job during triage.
+**Post-ADOPT build:** main agent + domain skills — not your job during triage.
 
 ## Evaluate
 
@@ -46,7 +46,7 @@ Input: Intake block from **repo-scout**.
 **Platform/engine:** …
 **Try asking:** "…"
 **Overlap with engine defaults:** …
-**Post-ADOPT owner:** `game-developer` if systems implementation
+**Post-ADOPT owner:** main agent if systems implementation
 **Recommendation:** worth PoC | niche skip | wrong domain
 ```
 

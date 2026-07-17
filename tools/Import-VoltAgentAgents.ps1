@@ -1,9 +1,13 @@
 <#
 .SYNOPSIS
-  Import selected VoltAgent subagents into Alfred/agents/ with bucket tags.
+  Optionally import selected VoltAgent subagents into Alfred/agents/ with bucket tags.
 
   Source: https://github.com/VoltAgent/awesome-claude-code-subagents
   License: MIT (see upstream repo)
+
+  Default catalog is EMPTY — Alfred ships a small native roster only.
+  Add entries to $Catalog below if you explicitly want VoltAgent personas back,
+  then run with -Force and re-provision.
 #>
 param(
     [string]$Root = (Split-Path $PSScriptRoot -Parent),
@@ -15,38 +19,10 @@ $AgentsDir = Join-Path $Root 'agents'
 if (-not (Test-Path $AgentsDir)) { New-Item -ItemType Directory -Path $AgentsDir -Force | Out-Null }
 
 # name -> @{ path = category/file.md; bucket = alfred-bucket }
-$Catalog = [ordered]@{
-    # Game development
-    'game-developer'        = @{ path = '07-specialized-domains/game-developer.md'; bucket = 'cloud' }
-
-    # Web app development (Boostl / Next.js stack)
-    'nextjs-developer'      = @{ path = '02-language-specialists/nextjs-developer.md'; bucket = 'cloud' }
-    'typescript-pro'        = @{ path = '02-language-specialists/typescript-pro.md'; bucket = 'core' }
-    'react-specialist'      = @{ path = '02-language-specialists/react-specialist.md'; bucket = 'cloud' }
-    'postgres-pro'          = @{ path = '05-data-ai/postgres-pro.md'; bucket = 'cloud' }
-    'api-designer'          = @{ path = '01-core-development/api-designer.md'; bucket = 'cloud' }
-    'payment-integration'   = @{ path = '07-specialized-domains/payment-integration.md'; bucket = 'cloud' }
-    'fintech-engineer'      = @{ path = '07-specialized-domains/fintech-engineer.md'; bucket = 'cloud' }
-    'devops-engineer'       = @{ path = '03-infrastructure/devops-engineer.md'; bucket = 'cloud' }
-    'seo-specialist'        = @{ path = '07-specialized-domains/seo-specialist.md'; bucket = 'cloud' }
-    'test-automator'        = @{ path = '04-quality-security/test-automator.md'; bucket = 'core' }
-    'performance-engineer'  = @{ path = '04-quality-security/performance-engineer.md'; bucket = 'cloud' }
-
-    # Quality / core
-    'code-reviewer'         = @{ path = '04-quality-security/code-reviewer.md'; bucket = 'core' }
-    'security-auditor'      = @{ path = '04-quality-security/security-auditor.md'; bucket = 'core' }
-    'error-detective'       = @{ path = '04-quality-security/error-detective.md'; bucket = 'core' }
-    'debugger'              = @{ path = '04-quality-security/debugger.md'; bucket = 'core' }
-    'powershell-7-expert'   = @{ path = '02-language-specialists/powershell-7-expert.md'; bucket = 'core' }
-
-    # Commercial / analytical work
-    'data-analyst'          = @{ path = '05-data-ai/data-analyst.md'; bucket = 'data' }
-    'sql-pro'               = @{ path = '02-language-specialists/sql-pro.md'; bucket = 'data' }
-    'business-analyst'      = @{ path = '08-business-product/business-analyst.md'; bucket = 'data' }
-    'quant-analyst'         = @{ path = '07-specialized-domains/quant-analyst.md'; bucket = 'data' }
-    'research-analyst'      = @{ path = '10-research-analysis/research-analyst.md'; bucket = 'web' }
-    'ab-test-analysis'      = @{ path = '10-research-analysis/ab-test-analysis.md'; bucket = 'data' }
-}
+# Examples (uncomment / add as needed):
+#   'nextjs-developer' = @{ path = '02-language-specialists/nextjs-developer.md'; bucket = 'cloud' }
+#   'code-reviewer'    = @{ path = '04-quality-security/code-reviewer.md'; bucket = 'core' }
+$Catalog = [ordered]@{}
 
 $AlfredPreamble = @'
 
@@ -74,6 +50,12 @@ function Add-BucketToFrontmatter([string]$Content, [string]$Bucket) {
         return $Content -replace '(?ms)^---\s*\r?\n.*?\r?\n---', "---`n$fm---"
     }
     return "---`nbucket: $Bucket`n---`n`n" + $Content
+}
+
+if ($Catalog.Count -eq 0) {
+    Write-Host "Catalog is empty (Alfred default). Add agents to `$Catalog in this script, then re-run with -Force." -ForegroundColor Yellow
+    Write-Host "Native roster lives in agents/ — see agents/README.md." -ForegroundColor DarkGray
+    exit 0
 }
 
 $imported = 0

@@ -52,7 +52,8 @@ Launch **in one parallel batch** using the stable brief below.
 | `repo-eval-logistics` | logistics/supply-chain/warehouse/excel/powerbi/data keywords OR lane includes logistics |
 | `repo-eval-web` | next/react/supabase/vercel/fullstack/ui keywords OR lane includes web |
 | `repo-eval-games` | game/unity/godot/unreal/phaser/mobile-game keywords OR lane includes games |
-| `research-analyst` | lane is `mixed` or `devtools` and purpose unclear |
+
+If lane is `mixed` / `devtools` and purpose is unclear, deepen intake yourself (or use web search) — do not spawn a research persona subagent.
 
 ### Stable delegation brief (paste verbatim; fill Intake block)
 
@@ -126,7 +127,7 @@ Is this **genuinely helpful** or **already covered**? …
 - Install, `npx`, `pip install`, or `Provision-Cursor.ps1` during triage
 - ADOPT without overlap check
 - Score 5 without Andrew-specific "Try asking" example
-- Delegate to `nextjs-developer` / `game-developer` for triage (use `repo-eval-web` / `repo-eval-games` instead — builders are for post-ADOPT implementation)
+- Delegate to deleted builder personas for triage (use `repo-eval-web` / `repo-eval-games`; post-ADOPT build is the main agent + skills)
 
 ## Truth files for overlap context
 
