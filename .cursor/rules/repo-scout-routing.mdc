@@ -1,24 +1,24 @@
 ---
-description: When Andrew shares a GitHub repo URL to evaluate, route to Repo Scout A-Team automatically.
+description: When Andrew shares a GitHub repo URL to evaluate, follow the repo-scout skill in the current agent.
 alwaysApply: true
 ---
 
-# GitHub repo URL → Repo A-Team (auto-route)
+# GitHub repo URL → Repo Scout skill (auto-route)
 
 When the user's message contains a **GitHub repository URL** or `owner/repo` slug **and** the intent is to evaluate, review, check, triage, or decide whether a repo is worth using — **do not** do a casual one-off README skim.
 
-**Route to Repo Scout** (`agents/repo-scout.md` / subagent `repo-scout`). Follow `skills/repo-scout.md`.
+**Follow** [`skills/repo-scout.md`](skills/repo-scout.md) **in the current agent**. Do **not** launch `repo-*` subagents or Task fan-out for triage.
 
 ## Triggers (any of these + a GitHub link)
 
 - "look at this", "check this", "worth it?", "should I use", "add value", "overlap", "safe?", "evaluate", "triage"
 - Paste-only: user sends little more than `https://github.com/owner/repo`
-- Explicit: "Repo Scout", "A-Team", "repo scout"
+- Explicit: "Repo Scout", "repo scout"
 
 ## Default action
 
-1. Act as **Repo Scout** (or launch `repo-scout` via Task in parallel with specialists).
-2. Run intake → delegate **in parallel** to: `repo-safety-guard`, `repo-stack-overlap`, and lane evaluators (`repo-eval-logistics`, `repo-eval-web`, `repo-eval-games`) as signals dictate.
+1. Read and follow `skills/repo-scout.md` (or provisioned `alfred-repo-scout`).
+2. Run intake → safety → overlap → lens scores **yourself** (sequential checklist in one context).
 3. Return the **8-section Verdict Card** (ADOPT / TRIAL / SKIP).
 4. **Do not install**, clone, or provision during triage.
 
@@ -26,7 +26,7 @@ When the user's message contains a **GitHub repository URL** or `owner/repo` slu
 
 - GitHub **PR/issue** links for code review in an existing project → normal dev flow
 - Non-GitHub URLs → fetch / parallel-search as usual
-- User explicitly wants a quick factual answer only ("what license?") → answer briefly; offer full A-Team if they want value/safety/overlap
+- User explicitly wants a quick factual answer only ("what license?") → answer briefly; offer full Verdict Card if they want value/safety/overlap
 
 ## Focus override
 

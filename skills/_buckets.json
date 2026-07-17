@@ -1,27 +1,15 @@
 {
-  "_comment": "Maps Alfred skills to the same buckets as MCP servers (cursor/mcp.json _buckets). Only skills whose bucket is in the machine's selected buckets (ALFRED_BUCKETS) are synced to ~/.agents/skills; the rest are removed on re-provision. Unlisted skills fall back to _default. 'packs' maps a skills/_packs/<name> vendored folder to a bucket (the whole pack is skipped if its bucket isn't selected). Bucket names must match cursor/mcp.json _buckets. 'core' is always installed.",
+  "_comment": "Maps Alfred skills to the same buckets as MCP servers (cursor/mcp.json _buckets). Only skills whose bucket is in the machine's selected buckets (ALFRED_BUCKETS) are synced to ~/.agents/skills; the rest are removed on re-provision. Unlisted skills fall back to _default. 'packs' maps a skills/_packs/<name> vendored folder to a bucket. Bucket names must match cursor/mcp.json _buckets. 'core' is always installed.",
   "_default": "core",
   "skills": {
-    "agent-claude-code-subagents": "core",
-    "agent-context-engineering": "core",
+    "agent-planning": "core",
     "agent-handoff": "core",
-    "agent-loop-debugging": "core",
-    "agent-mcp-security": "core",
-    "agent-output-evaluation": "core",
-    "agent-parallel-worktrees": "core",
-    "agent-reasoning": "core",
-    "agent-self-check": "core",
-    "agent-spec-driven": "core",
     "agent-token-efficiency": "core",
-    "agent-workflow-orchestration": "core",
-    "agent-memory-management": "core",
-    "agents-md-project-context": "core",
-    "continuous-learning": "core",
     "karpathy-coding-guidelines": "core",
-    "tool-discovery": "core",
     "repo-scout": "core",
     "prompt-handoff": "core",
     "github": "core",
+    "jean-paul-design": "core",
 
     "excel-financial-models": "office365",
     "excel-live-editing": "office365",
@@ -36,18 +24,11 @@
     "browser-automation": "web",
     "web-search": "web",
 
-    "data-analysis-planning": "data",
-    "data-eda": "data",
-    "data-executive-summary": "data",
-    "data-metrics-calculator": "data",
+    "data-analysis": "data",
     "data-reconciliation": "data",
-    "data-root-cause": "data",
-    "data-time-series": "data",
 
     "supabase": "cloud",
-    "vercel": "cloud",
-
-    "jean-paul-design": "core"
+    "vercel": "cloud"
   },
   "packs": {
     "fabric": "powerbi"

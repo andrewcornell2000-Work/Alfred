@@ -84,3 +84,17 @@ Reconciliation report must include:
 - Export from Power BI using "Analyse in Excel" or a DAX query for exact figures
 - Check whether the PBI model applies RLS — a row-level security filter may be excluding records
 - If using imported data, check the last refresh timestamp before concluding there's a discrepancy
+
+---
+
+## Root-cause when a metric moves (not a tie-out)
+
+Use when leadership asks “why did X change?” (single series), not “why don’t A and B match?”:
+
+1. **Validate** — refresh/filter/ETL noise? Within historical noise → say so and stop
+2. **Timeline** — abrupt shift vs gradual drift
+3. **Decompose** — rate × volume × mix (or equivalent drivers) before slicing dimensions
+4. **Evidence** — one chart or table that proves the driver; no speculation
+5. **Action** — fix data vs process vs expectation
+
+For broader analysis planning/EDA, use `data-analysis`.

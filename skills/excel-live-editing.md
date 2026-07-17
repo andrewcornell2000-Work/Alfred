@@ -17,7 +17,7 @@ Use this skill for any task involving reading, writing, or formatting an Excel w
 - MCP: `excel` (excellm) — **not** `excel-mcp`
 
 ## When NOT to use this skill
-- Workbook is closed or you need Power Query / M step inspection → use `excel-mcp` instead (see `mcp-routing.md`)
+- Workbook is closed or you need Power Query / M step inspection → use `excel-mcp` instead (see `00-agent-tooling` rule)
 - File-only transform with no live Excel session → use `openpyxl` / `pandas`
 - Do not switch to `excel-mcp` mid-task without asking the user to **close** the workbook first
 

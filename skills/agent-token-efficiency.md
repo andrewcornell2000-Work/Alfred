@@ -160,7 +160,14 @@ Before writing the output: state what the correct answer should be for
 
 ---
 
-## 8. Alfred routing tie-in
+## 8. Context hygiene (from former context-engineering)
+
+- Prefer graphify / grep before dumping directories into chat
+- One MCP path per job (see always-on `00-agent-tooling` rule) — do not ping-pong
+- Checkpoint long sessions: 5-bullet summary of decisions, then continue
+- Do not load overlapping meta-skills; planning lives in `agent-planning`
+
+## 9. Alfred routing tie-in
 
 Alfred routes by cost: `GENERAL` (cheap) → `CLAUDE_EXECUTION` / `POWERBI` (expensive).
 When Alfred dispatches to an agent, the prompt should include **only** the scoped context needed —

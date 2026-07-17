@@ -31,7 +31,7 @@ Then read `Alfred/themes/<id>/THEME.md`.
 | Name | Invoke |
 |------|--------|
 | Jean Paul | `design-agent` / "Jean Paul, …" |
-| Mr Smith / handoffs | Prefer skill `alfred-prompt-handoff`; optional thin subagent `mr-smith` / "Mr Smith, …". Ordinary plans → Cursor Plan Mode. |
+| Handoff prompts | Skill `alfred-prompt-handoff`. Ordinary plans → Cursor Plan Mode. |
 
 Project-only subagents stay in `<repo>/.cursor/agents/` (e.g. `session-hub`, `competitive-analyst`).
 

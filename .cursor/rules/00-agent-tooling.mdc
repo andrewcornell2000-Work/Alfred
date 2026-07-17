@@ -27,7 +27,7 @@ If any MCP call errors or takes more than ~5 seconds, **stop using that MCP for 
 | Ad-hoc SQL on CSV/Parquet | duckdb | Excel MCPs |
 | Live web search (Cursor) | parallel-search | fetch for search |
 | Live web search (Alfred CLI) | Tavily via Alfred | parallel-search |
-| **GitHub repo URL to evaluate** | **repo-scout** A-Team (`repo-scout-routing` rule) | casual README skim only |
+| **GitHub repo URL to evaluate** | Skill `repo-scout` / `alfred-repo-scout` in current agent (`repo-scout-routing` rule) | casual README skim only; no `repo-*` Task fan-out |
 | Supabase / Vercel deploy | supabase / vercel MCP | filesystem |
 
 ## Layer 3 — Skills

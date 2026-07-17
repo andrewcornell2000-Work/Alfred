@@ -5,7 +5,7 @@ Alfred provisions a **lean stack** via `cursor/mcp.json` and `Provision-Cursor.p
 
 ## Routing (avoid overlap)
 
-See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, and retired-server list.
+See **`.cursor/rules/00-agent-tooling.mdc`** (and `cursor/rules/00-agent-tooling.mdc`) — decision table, Excel anti-ping-pong rules, and one-primary-path doctrine.
 
 ## Currently Configured (cursor/mcp.json)
 
@@ -141,7 +141,7 @@ See **`skills/mcp-routing.md`** — decision table, Excel anti-ping-pong rules, 
 
 When Alfred encounters or learns about a new MCP server during a session:
 
-1. **Check overlap first** — read `skills/mcp-routing.md`; do not add redundant servers.
+1. **Check overlap first** — read `00-agent-tooling` rule; do not add redundant servers.
 2. **Add an entry** in the Candidate Tools section below.
 3. **Update `alfred-tools.json`** — add the tool to the `mcp.tools` array.
 4. **Update install manifests** if a persistent install step is needed.

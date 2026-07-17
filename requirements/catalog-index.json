@@ -1,40 +1,32 @@
 {
   "skills": {
-    "agent-context-engineering": {
-      "path": "skills/agent-context-engineering.md",
-      "aliases": ["context-engineering", "kv-cache", "mcp-tool-description-audit"]
-    },
-    "agent-loop-debugging": {
-      "path": "skills/agent-loop-debugging.md",
-      "aliases": ["agent-loop-debugging", "retry-loop", "goal-drift"]
-    },
-    "agent-parallel-worktrees": {
-      "path": "skills/agent-parallel-worktrees.md",
-      "aliases": ["parallel-agents-git-worktrees", "git-worktrees"]
-    },
-    "agent-reasoning": {
-      "path": "skills/agent-reasoning.md",
-      "aliases": []
-    },
-    "agent-spec-driven": {
-      "path": "skills/agent-spec-driven.md",
-      "aliases": ["spec-driven", "spec-md"]
+    "agent-planning": {
+      "path": "skills/agent-planning.md",
+      "aliases": ["task-decomposition", "plan-mode", "agent-reasoning"]
     },
     "agent-token-efficiency": {
       "path": "skills/agent-token-efficiency.md",
-      "aliases": []
+      "aliases": ["token-efficiency", "context-engineering"]
     },
-    "agent-workflow-orchestration": {
-      "path": "skills/agent-workflow-orchestration.md",
-      "aliases": ["workflow-orchestration", "multi-step-agent"]
+    "agent-handoff": {
+      "path": "skills/agent-handoff.md",
+      "aliases": ["handoff-md", "session-handoff"]
     },
-    "agents-md-project-context": {
-      "path": "skills/agents-md-project-context.md",
-      "aliases": ["agents-md", "project-context"]
+    "prompt-handoff": {
+      "path": "skills/prompt-handoff.md",
+      "aliases": ["mr-smith", "executor-prompt"]
     },
-    "mcp-routing": {
-      "path": "skills/mcp-routing.md",
-      "aliases": ["routing-keywords", "tool-routing"]
+    "repo-scout": {
+      "path": "skills/repo-scout.md",
+      "aliases": ["repo-triage", "a-team"]
+    },
+    "data-analysis": {
+      "path": "skills/data-analysis.md",
+      "aliases": ["data-eda", "data-analysis-planning"]
+    },
+    "data-reconciliation": {
+      "path": "skills/data-reconciliation.md",
+      "aliases": ["data-root-cause", "tie-out"]
     }
   },
   "mcp_fingerprints": {
