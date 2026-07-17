@@ -58,11 +58,11 @@ codex login
 | Tool | Where MCPs land |
 |------|-----------------|
 | Cursor | `~/.cursor/mcp.json` (Cursor reads this for all projects) |
-| Claude Code | `claude mcp add --scope user` |
-| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Claude Code | `claude mcp add --scope user` (+ `~/.claude` agents/skills; also used by the **Code tab** inside Claude Desktop) |
+| Claude Desktop Connectors | `%APPDATA%\Claude\claude_desktop_config.json` (chat Connectors only — not required for Claude Code) |
 | Codex | `codex mcp add` |
 
-Opening **only Cursor** runs only Cursor’s MCPs. Opening Cursor **and** Claude Desktop starts a second copy of each server (RAM scales with clients open). There is no “Cursor local stack + separate global stack” layered on top of each other.
+If you only use **Cursor + Claude Code** (including Code inside the Desktop app) and never chat Connectors, set `ALFRED_SKIP_CLAUDE_DESKTOP=1` in Alfred `.env` (or pass `-SkipClaudeDesktop`) so provision does not write a second MCP host. Opening Cursor **and** Claude Desktop Connectors still starts a second copy of each server (RAM scales with clients open).
 
 Skills from `skills/` sync **once** to `~/.agents/skills` — the cross-tool Agent
 Skills standard that Cursor, Claude Code, and Codex all read. (Per-tool copies in

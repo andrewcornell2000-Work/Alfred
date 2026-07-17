@@ -33,6 +33,8 @@
     Skip Claude Code (claude mcp / ~/.claude) provisioning.
 .PARAMETER SkipClaudeDesktop
     Skip Claude Desktop app (%APPDATA%\Claude\claude_desktop_config.json).
+    Also set via .env: ALFRED_SKIP_CLAUDE_DESKTOP=1 (use when you only run Claude Code
+    inside the Desktop Code tab / Cursor — not Claude chat Connectors).
 .PARAMETER SkipCodex
     Skip Codex (codex mcp add) provisioning.
 .PARAMETER SkipThirdPartySkills
@@ -362,6 +364,19 @@ if (-not $SkipCursor -and -not (Test-CursorInstalled)) {
 }
 
 $EnvMap = Read-DotEnv (Join-Path $Root ".env")
+
+# Claude Desktop Connectors are a separate MCP host from Claude Code (including the
+# Code tab inside the Desktop app). Skip writing claude_desktop_config.json when the
+# machine only uses Cursor + Claude Code — set ALFRED_SKIP_CLAUDE_DESKTOP=1 in .env.
+if (-not $SkipClaudeDesktop) {
+    $skipDesk = ''
+    if ($EnvMap.ContainsKey('ALFRED_SKIP_CLAUDE_DESKTOP')) { $skipDesk = [string]$EnvMap['ALFRED_SKIP_CLAUDE_DESKTOP'] }
+    elseif ($env:ALFRED_SKIP_CLAUDE_DESKTOP) { $skipDesk = [string]$env:ALFRED_SKIP_CLAUDE_DESKTOP }
+    if ($skipDesk -match '^(1|true|yes|on)$') {
+        $SkipClaudeDesktop = $true
+        Write-Info "ALFRED_SKIP_CLAUDE_DESKTOP=$skipDesk -- skipping Claude Desktop Connectors MCP write."
+    }
+}
 
 # ── MCP bucket selection (which categories install on THIS machine) ────────────
 # Each server in cursor/mcp.json has a "_bucket" category. Only servers whose
