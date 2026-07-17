@@ -1,6 +1,7 @@
 # Recent Context
-*Last updated: 2026-06-01*
+*Last updated: 2026-07-11*
 
+- **Riot / Vanguard VAN 216 (2026-07-11):** Logged in `memory/notes.md`. Client showed VANGUARD ERROR VAN 216 ("unexpected error… client will now close") while profile `siwvtfqo` still showed **In Game**, with **ACTIVE PENALTIES: 1G** and client UI `26.13`. User asked to keep track of this as the client "working as it should be."
 - **Power BI workflow validated:** User connected Alfred to "zac dash" PBIX file three times on 2026-06-01 (09:57, 10:09, 10:13); multi-step execution (3–4 steps) consistently succeeded; MCP tools confirmed operational; tables and queries enumerated correctly; POWERBI scope leakage issue appears resolved.
 - **Full PC access granted:** User explicitly approved Alfred to read, write, and modify files anywhere on the system at 2026-06-01 10:10:33.
 - **Budget forecast request:** User requested a three-month warehouse budget forecast using files from Desktop\alfred test folder; specifically mentioned `Alfred_Adidas_Weekly_Activity_Report_2026.xlsx` for volumes data; Alfred successfully read the folder contents at 17:39:26 (4-step execution completed).
