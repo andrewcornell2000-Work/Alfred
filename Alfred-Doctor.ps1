@@ -165,7 +165,17 @@ function Get-JsonServers([string]$path) {
 $targets = [ordered]@{}
 $targets['cursor (~/.cursor/mcp.json)']           = Get-JsonServers (Join-Path $HOME ".cursor\mcp.json")
 $targets['claude-code (~/.claude.json user)']     = Get-JsonServers (Join-Path $HOME ".claude.json")
-$targets['claude-desktop (claude_desktop_config)'] = Get-JsonServers (Join-Path $env:APPDATA "Claude\claude_desktop_config.json")
+# Claude Desktop is a SEPARATE MCP host from Claude Code (Code tab reads ~/.claude.json,
+# not this file). Machines that opt out (ALFRED_SKIP_CLAUDE_DESKTOP=1) deliberately leave
+# it unprovisioned to avoid duplicate MCP hosts -- don't flag that as under-registered.
+$skipDesktopDoctor = $false
+$sdFlag = ''
+if ($EnvMap.ContainsKey('ALFRED_SKIP_CLAUDE_DESKTOP')) { $sdFlag = [string]$EnvMap['ALFRED_SKIP_CLAUDE_DESKTOP'] }
+elseif ($env:ALFRED_SKIP_CLAUDE_DESKTOP) { $sdFlag = [string]$env:ALFRED_SKIP_CLAUDE_DESKTOP }
+if ($sdFlag -match '^(1|true|yes|on)$') { $skipDesktopDoctor = $true }
+if (-not $skipDesktopDoctor) {
+    $targets['claude-desktop (claude_desktop_config)'] = Get-JsonServers (Join-Path $env:APPDATA "Claude\claude_desktop_config.json")
+}
 $codexToml = Join-Path $HOME ".codex\config.toml"
 if (Test-Path $codexToml) {
     $targets['codex (~/.codex/config.toml)'] = @(
@@ -180,6 +190,11 @@ if (Test-Path $tplPath) {
     foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
         if (@($prop.Value.PSObject.Properties.Name) -contains '_oauthOnFirstUse' -and $prop.Value._oauthOnFirstUse) { $oauthNames += $prop.Name }
     }
+}
+
+if ($skipDesktopDoctor) {
+    Write-Pass "claude-desktop : intentionally skipped (ALFRED_SKIP_CLAUDE_DESKTOP=1) -- avoids a duplicate MCP host"
+    $report.mcp['claude-desktop (claude_desktop_config)'] = 'skipped'
 }
 
 foreach ($t in $targets.Keys) {
