@@ -8,14 +8,14 @@
 
 ## When This Skill Applies
 
-Alfred should apply these guidelines when a task is classified as `CLAUDE_EXECUTION` or `POWERBI` and involves any of:
+Apply these guidelines to any coding task:
 
 - Writing, reviewing, or generating new code
 - Refactoring or cleaning up existing code
 - Debugging errors, exceptions, or unexpected behaviour
 - Architecture decisions (how to structure modules, APIs, data flows)
 - UI or app/dashboard design and layout changes
-- Alfred self-modification (changes to installer scripts, `backend/cli.py`, routing rules, or manifests)
+- Alfred self-modification (installer scripts, provisioner, manifests)
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial or clearly-scoped tasks, use judgment.
 

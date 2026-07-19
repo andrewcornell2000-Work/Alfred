@@ -93,13 +93,14 @@ function Expand-Tok([string]$v) {
 
 $expected = @()      # servers that SHOULD be registered here
 $notExpected = @()   # servers legitimately skipped (missing secret/command)
+$selectedBuckets = @('core')
 $tplPath = Join-Path $Root "cursor\mcp.json"
 $retired = @()
 if (Test-Path $tplPath) {
     $tpl = Get-Content $tplPath -Raw | ConvertFrom-Json
     if ($tpl.PSObject.Properties.Name -contains '_retiredServers') { $retired = @($tpl._retiredServers) }
     # Selected buckets for THIS machine, matching Provision-Cursor.ps1 precedence
-    # (ALFRED_BUCKETS in .env or env var; 'all'; default core,office365,web). 'core' always on.
+    # (ALFRED_BUCKETS in .env or env var; 'all'; default core,powerbi,data). 'core' always on.
     $allBuckets = @()
     if ($tpl.PSObject.Properties.Name -contains '_buckets') { $allBuckets = @($tpl._buckets.PSObject.Properties.Name) }
     $bktRaw = ''
@@ -112,6 +113,9 @@ if (Test-Path $tplPath) {
     if ($bktRaw -and $bktRaw.ToLower().Trim() -eq 'all') { $selectedBuckets = $allBuckets }
     elseif ($bktRaw) { $selectedBuckets = @($bktRaw -split '[,; ]+' | Where-Object { $_ } | ForEach-Object { $_.ToLower().Trim('"') }) }
     else { $selectedBuckets = $allBuckets }   # no choice recorded -> match provisioner (all)
+    $selectedBuckets = @($selectedBuckets | ForEach-Object {
+        if ($_ -eq 'cloud') { 'webdev' } elseif ($_ -eq 'office365' -or $_ -eq 'excel') { 'data' } else { $_ }
+    })
     $selectedBuckets = @(@($selectedBuckets) + 'core' | Select-Object -Unique)
     foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
         $name = $prop.Name; $def = $prop.Value
@@ -423,23 +427,34 @@ $excelMcpExe = Join-Path $Root "bin\excel-mcp\mcp-excel.exe"
 if (Test-Path $excelMcpExe) { Write-Pass "ExcelMcp server exe (bin\excel-mcp)"; $report.data.excelMcp = $true }
 else { Add-Warning "ExcelMcp exe missing (closed-workbook Excel MCP unavailable) -- re-run setup.ps1"; $report.data.excelMcp = $false }
 
-if ($powerBiMcp) { Write-Pass "Power BI Modeling MCP (VS Code extension)"; $report.data.powerBiMcp = $true }
-else { Add-Warning "Power BI Modeling MCP extension not found (~/.vscode/extensions)"; $report.data.powerBiMcp = $false }
+$wantPowerBi = $selectedBuckets -contains 'powerbi'
+if ($wantPowerBi) {
+    if ($powerBiMcp) { Write-Pass "Power BI Modeling MCP (VS Code extension)"; $report.data.powerBiMcp = $true }
+    else { Add-Warning "Power BI Modeling MCP extension not found (~/.vscode/extensions)"; $report.data.powerBiMcp = $false }
+} else {
+    Write-Note "Power BI Modeling MCP not required (powerbi bucket not selected)"
+    $report.data.powerBiMcp = 'n/a'
+}
 
 $excelExe = "C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE"
 if (Test-Path $excelExe) { Write-Pass "Excel desktop app"; $report.data.excel = $true }
 else { Add-Warning "Excel not found at the default Office16 path"; $report.data.excel = $false }
 
-$pbiDesktop = @(
-    "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe",
-    (Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\PBIDesktopStore.exe")
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $pbiDesktop) {
-    $store = Get-AppxPackage -Name "Microsoft.MicrosoftPowerBIDesktop" -ErrorAction SilentlyContinue
-    if ($store) { $pbiDesktop = "store" }
+if ($wantPowerBi) {
+    $pbiDesktop = @(
+        "C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe",
+        (Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\PBIDesktopStore.exe")
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $pbiDesktop) {
+        $store = Get-AppxPackage -Name "Microsoft.MicrosoftPowerBIDesktop" -ErrorAction SilentlyContinue
+        if ($store) { $pbiDesktop = "store" }
+    }
+    if ($pbiDesktop) { Write-Pass "Power BI Desktop"; $report.data.pbiDesktop = $true }
+    else { Add-Warning "Power BI Desktop not detected (pbi-cli + modeling MCP need it running)"; $report.data.pbiDesktop = $false }
+} else {
+    Write-Note "Power BI Desktop not required (powerbi bucket not selected - SaaS/webdev machine)"
+    $report.data.pbiDesktop = 'n/a'
 }
-if ($pbiDesktop) { Write-Pass "Power BI Desktop"; $report.data.pbiDesktop = $true }
-else { Add-Warning "Power BI Desktop not detected (pbi-cli + modeling MCP need it running)"; $report.data.pbiDesktop = $false }
 
 # ── Save + drift vs previous run ───────────────────────────────────────────────
 $stateDir = Join-Path $env:LOCALAPPDATA "alfred"

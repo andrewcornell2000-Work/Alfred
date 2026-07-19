@@ -1,0 +1,13 @@
+---
+description: Karpathy coding guidelines — think, simplify, stay surgical, verify.
+alwaysApply: true
+---
+
+# Karpathy coding guidelines
+
+Source: [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills). Full text: `skills/karpathy-coding-guidelines.md` (provisioned as `alfred-karpathy-coding-guidelines`).
+
+1. **Think before coding** — state assumptions; ask if uncertain; surface multiple interpretations.
+2. **Simplicity first** — minimum code that solves the problem; no speculative features or abstractions.
+3. **Surgical changes** — touch only what the task requires; match existing style.
+4. **Goal-driven execution** — verifiable goals; brief plan with a verify step for multi-step work.

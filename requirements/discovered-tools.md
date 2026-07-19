@@ -1,6 +1,6 @@
 # Discovered Tools Catalog
 
-*Tools and MCPs found by Alfred's discovery loop — things you wouldn't think to search for.*
+*Catalog of optional tools and MCPs evaluated for Alfred — add via buckets when useful.*
 *Updated by the loop; provisioned to Cursor + Claude + Codex on next `Provision-Cursor.ps1` run.*
 
 Read this when you wonder **"what can I ask that I don't know exists?"**
@@ -39,7 +39,7 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 
 ## Discovered by the loop
 
-*Entries below are added by the nightly growth loop.*
+*Optional catalog entries — promote into `cursor/mcp.json` / skills when adopting.*
 
 <!-- loop appends below this line -->
 
@@ -127,7 +127,7 @@ Read this when you wonder **"what can I ask that I don't know exists?"**
 - **Category:** MCP
 - **What it does:** Microsoft Graph (SharePoint, OneDrive, Outlook, Calendar, Teams, To-Do) via `@softeria/ms-365-mcp-server`.
 - **Status:** **quarantined / not provisioned by default** — login path is TENANT-FORBIDDEN (device-code). Do not install or recommend `--login` under corporate CA.
-- **Use instead:** OneDrive sync + `filesystem` MCP; `outlook-calendar` for local calendar; Fabric via browser/SSO `az login` ([AUTH-HARD-RULES.md](../skills/_packs/common/AUTH-HARD-RULES.md)).
+- **Use instead:** OneDrive sync + `filesystem` MCP; Fabric via browser/SSO `az login` ([AUTH-HARD-RULES.md](../skills/_packs/common/AUTH-HARD-RULES.md)).
 - **Discovered:** 2026-07-04
 - **Skill:** `sharepoint-graph.md` (quarantine notice)
 

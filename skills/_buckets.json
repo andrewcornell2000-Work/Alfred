@@ -1,5 +1,5 @@
 {
-  "_comment": "Maps Alfred skills to the same buckets as MCP servers (cursor/mcp.json _buckets). Only skills whose bucket is in the machine's selected buckets (ALFRED_BUCKETS) are synced to ~/.agents/skills; the rest are removed on re-provision. Unlisted skills fall back to _default. 'packs' maps a skills/_packs/<name> vendored folder to a bucket. Bucket names must match cursor/mcp.json _buckets. 'core' is always installed.",
+  "_comment": "Maps Alfred skills to MCP buckets (cursor/mcp.json). Work = core,powerbi,data (PBI visual design via Fabric pack + jean-paul; no webdev/mediagen MCPs). SaaS/personal adds web,webdev,mediagen. Never commit secrets.",
   "_default": "core",
   "skills": {
     "agent-planning": "core",
@@ -11,11 +11,12 @@
     "github": "core",
     "jean-paul-design": "core",
 
-    "excel-financial-models": "office365",
-    "excel-live-editing": "office365",
-    "office-mastery": "office365",
-    "sharepoint-graph": "office365",
-    "labour-cost-forecasting": "office365",
+    "excel-financial-models": "data",
+    "excel-live-editing": "data",
+    "office-mastery": "data",
+    "labour-cost-forecasting": "data",
+    "data-analysis": "data",
+    "data-reconciliation": "data",
 
     "powerbi-model-editing": "powerbi",
     "power-query-transformations": "powerbi",
@@ -24,11 +25,9 @@
     "browser-automation": "web",
     "web-search": "web",
 
-    "data-analysis": "data",
-    "data-reconciliation": "data",
-
-    "supabase": "cloud",
-    "vercel": "cloud"
+    "sharepoint-graph": "webdev",
+    "supabase": "webdev",
+    "vercel": "webdev"
   },
   "packs": {
     "fabric": "powerbi"

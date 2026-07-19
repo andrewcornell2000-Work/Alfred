@@ -1,12 +1,11 @@
 # Alfred Pack
 
-**Alfred is not a chatbot you talk to every day.** Alfred is a **Windows installer and toolchain pack** that:
+**Alfred is not a chatbot.** It is a **Windows catalog + installer** that:
 
-1. Installs CLIs (Claude Code, Codex, gh, pbi, …)
-2. Provisions **MCP servers** globally into Cursor, Claude Code, and Codex
-3. Syncs **skills** and **rules** into all three agents
-4. Runs a **discovery loop** (GitHub Actions) that finds new MCPs and tools you wouldn't think to search for
-5. Provides **maintenance commands** for update, provision, validate, and diagnostics
+1. Installs CLIs from upstream (Claude Code, Codex, gh, pbi, …)
+2. Provisions **MCP servers** into each host’s native config (Cursor, Claude Code, Codex)
+3. Syncs **skills** once to `~/.agents/skills` and seeds **rules / graphify / subagents** per project
+4. On update: `git pull` → upgrade packages from upstream → re-provision → doctor
 
 ## What you do day-to-day
 
@@ -18,48 +17,35 @@ You do **not** open Alfred to chat or use a menu.
 
 | When | What |
 |------|------|
-| Fresh machine | Run **`Alfred-Install.exe`** once |
-| Weekly / after updates | Re-run **`.exe`** or **`run-alfred.bat`** (git pull → setup → provision) |
-| "What's installed?" | `python -m backend.cli status` or `python -m backend.cli diagnose` |
-| "What can I try in Cursor?" | Read `requirements/discovered-tools.md` |
-| Claude Desktop Connectors empty | Re-run `Provision-Cursor.ps1`, restart Claude app |
+| Fresh machine | Run **`Alfred-Install.exe`** or `Alfred-Install.ps1` once |
+| Weekly / after updates | Re-run **`run-alfred.bat`** (git pull → setup → provision) |
+| "What's installed?" | `Alfred-Doctor.ps1` or `python -m backend.cli diagnose` |
+| Claude Desktop Connectors empty | Prefer `ALFRED_SKIP_CLAUDE_DESKTOP=1` if you only use Cursor + Claude Code |
 
 ## Provision pipeline (single source of truth)
 
 ```
-cursor/mcp.json          → MCP template (no secrets)
+cursor/mcp.json          → MCP catalog (no secrets; buckets; upstream package ids)
 skills/*.md              → agent how-to skills
-skills/_packs/**/SKILL.md→ vendored multi-file skill packs (copied verbatim)
-cursor/rules/*.mdc       → Cursor rules (optional -ProjectPath)
+skills/_packs/**/SKILL.md→ vendored multi-file skill packs
+cursor/rules/*.mdc       → Cursor rules (per-project seed)
 Provision-Cursor.ps1     → ~/.cursor/mcp.json
                          → claude mcp add --scope user
                          → codex mcp add
                          → ~/.agents/skills (single copy)
-                         → retires leftover servers (lean-ctx, ms-365, …)
+                         → retire leftover servers from prior catalogs
+                         → uv tool upgrade graphifyy
 ```
 
-## Discovery loop (the real value)
+## Work vs personal (SaaS)
 
-Every day, cloud Alfred:
+- **Work** = `core,powerbi,data` — Excel, Power BI, DuckDB. PBI dashboard/visual design via Fabric skills + jean-paul. **No** supabase/vercel, **no** design MCPs (fal-ai/magic).
+- **Personal / webdev** = `core,web,webdev,mediagen,data` — SaaS building: search/browse, Supabase, Vercel, design MCPs + heavy design skills.
 
-1. Searches the web for new MCPs, CLIs, and techniques for finance/office/AI-dev work
-2. Compares against what's already in `cursor/mcp.json` and `discovered-tools.md`
-3. Ships a **complete** skill or catalog entry with **"Try asking:"** example prompts (for use in Cursor)
-4. Commits to GitHub → you pull / re-run installer → provision picks it up
-5. Emails a **daily** update (noon AEST) and a **weekly digest** (Monday noon) with tools to try
+## Secrets
 
-You don't hunt for tools. The loop brings them to you.
+Never commit API keys, tokens, or connection strings. Put them only in machine-local Alfred `.env` (gitignored). Client MCP configs may hold resolved tokens locally — never push those files to GitHub.
 
-## Maintenance CLI (optional — not your primary workspace)
+## Always-latest
 
-Developer/automation commands only:
-
-```powershell
-python -m backend.cli update      # same as run-alfred.bat
-python -m backend.cli provision
-python -m backend.cli validate
-python -m backend.cli diagnose
-python -m backend.cli status
-```
-
-Use **Cursor** for actual AI work.
+Alfred points at upstream sources (`npx -y …@latest`, `uvx`, `uv tool upgrade`, GitHub releases). Re-running update refreshes those packages. Checked-in binaries under `bin/` are a cache, not the source of truth.

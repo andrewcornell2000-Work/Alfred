@@ -81,7 +81,7 @@ Diagnostics display: `python -m backend.cli diagnose`.
 | `alfred-tools.json` | MCP/tool metadata for diagnostics |
 | `mcp-tools.md` | MCP server documentation |
 | `safety-gates.md` | Destructive-tool safety keywords for skill authors |
-| `discovered-tools.md` | Growth-loop catalog |
+| `discovered-tools.md` | Optional tools catalog |
 
 ## Adding External Tools
 

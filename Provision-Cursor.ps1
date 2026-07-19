@@ -12,8 +12,8 @@
     REQUIRED secret or command is missing is skipped with a clear message.
     Tokens land in machine-local config files only — never committed to git.
 
-    Skills: every skills/*.md is wrapped as alfred-<name>/SKILL.md and synced into
-    ~/.cursor/skills and ~/.claude/skills (global in both tools).
+    Skills: every skills/*.md is wrapped as alfred-<name>/SKILL.md and synced once into
+    ~/.agents/skills (cross-tool standard read by Cursor, Claude Code, and Codex).
 
     Rules: pass -ProjectPath <repo> to seed cursor/rules/*.mdc into <repo>/.cursor/rules
     and a shared AGENTS.md (read by both tools). Cursor rules are per-project by design.
@@ -230,33 +230,22 @@ function Install-ThirdPartyAgentSkills {
         return
     }
 
-    $agentsSkills = Join-Path $HOME ".agents\skills\design-taste-frontend\SKILL.md"
-    if (Test-Path $agentsSkills) {
-        Write-Skip "taste-skill already in ~/.agents/skills -- skipping npx install."
-    } else {
-        Write-Step "Third-party skills: Leonxlnx/taste-skill -> ~/.agents/skills"
-        if (Invoke-NpxBackgroundJob 'taste-skill' @('--yes', 'skills', 'add', 'https://github.com/Leonxlnx/taste-skill', '--yes') 90) {
-            if (Test-Path $agentsSkills) {
-                Write-OK "taste-skill installed globally (~/.agents/skills)"
-            } else {
-                Write-Warn2 "taste-skill install finished but SKILL.md not found -- run manually if needed."
-            }
-        }
-    }
+    # webdev = Supabase / Vercel (SaaS machines only — never work profile).
+    $webdevOn = ($SelectedBuckets -contains 'webdev') -or ($SelectedBuckets -contains 'all')
+    # mediagen / webdev = heavy UI design skill packs + design MCPs. Work keeps
+    # jean-paul (core) + Fabric powerbi-report-* skills for PBI visuals only.
+    $designStackOn = $webdevOn -or ($SelectedBuckets -contains 'mediagen') -or ($SelectedBuckets -contains 'all')
 
-    # Cloud-only third-party installs (Supabase / Vercel). Work profile excludes
-    # the cloud bucket — skip install and prune leftovers so they don't linger.
-    $cloudOn = ($SelectedBuckets -contains 'cloud') -or ($SelectedBuckets -contains 'all')
-    if (-not $cloudOn) {
+    if (-not $webdevOn) {
         $agentsRoot = Join-Path $HOME ".agents\skills"
         foreach ($name in @('supabase', 'supabase-postgres-best-practices', 'alfred-supabase', 'alfred-vercel', 'vercel')) {
             $dir = Join-Path $agentsRoot $name
             if (Test-Path $dir) {
                 Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
-                Write-OK "Removed cloud skill '$name' (cloud bucket not selected)"
+                Write-OK "Removed webdev skill '$name' (webdev bucket not selected)"
             }
         }
-        Write-Skip "supabase/vercel third-party installs skipped -- cloud bucket not selected (Work profile)."
+        Write-Skip "supabase/vercel installs skipped -- webdev bucket not selected (Work profile)."
     } elseif (Test-SupabaseAgentSkillsInstalled) {
         Write-Skip "supabase/agent-skills already in ~/.agents/skills -- skipping npx install."
     } else {
@@ -270,7 +259,7 @@ function Install-ThirdPartyAgentSkills {
         }
     }
 
-    if (-not $cloudOn) {
+    if (-not $webdevOn) {
         # vercel already skipped with supabase above
     } elseif (Test-VercelPluginInstalled) {
         Write-Skip "vercel/vercel-plugin already installed -- skipping npx install."
@@ -287,7 +276,40 @@ function Install-ThirdPartyAgentSkills {
         }
     }
 
-    # Jean Paul / Boostl design stack (global ~/.agents/skills)
+    # SaaS / personal design stack (not work). Work uses jean-paul + Fabric report-design instead.
+    $designSkillNames = @(
+        'design-taste-frontend', 'design-taste-frontend-v1', 'ui-design-brain', 'frontend-design',
+        'accessibility', 'brandkit', 'gpt-taste', 'high-end-visual-design', 'imagegen-frontend-web',
+        'imagegen-frontend-mobile', 'image-to-code', 'industrial-brutalist-ui', 'minimalist-ui',
+        'redesign-existing-projects', 'stitch-design-taste', 'full-output-enforcement'
+    )
+    if (-not $designStackOn) {
+        $agentsRoot = Join-Path $HOME ".agents\skills"
+        foreach ($name in $designSkillNames) {
+            $dir = Join-Path $agentsRoot $name
+            if (Test-Path $dir) {
+                Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+                Write-OK "Removed design skill '$name' (webdev/mediagen not selected — work uses Fabric + jean-paul)"
+            }
+        }
+        Write-Skip "Heavy design skill packs skipped on work — PBI visuals use Fabric report-design + jean-paul."
+        return
+    }
+
+    $agentsSkills = Join-Path $HOME ".agents\skills\design-taste-frontend\SKILL.md"
+    if (Test-Path $agentsSkills) {
+        Write-Skip "taste-skill already in ~/.agents/skills -- skipping npx install."
+    } else {
+        Write-Step "Third-party skills: Leonxlnx/taste-skill -> ~/.agents/skills"
+        if (Invoke-NpxBackgroundJob 'taste-skill' @('--yes', 'skills', 'add', 'https://github.com/Leonxlnx/taste-skill', '--yes') 90) {
+            if (Test-Path $agentsSkills) {
+                Write-OK "taste-skill installed globally (~/.agents/skills)"
+            } else {
+                Write-Warn2 "taste-skill install finished but SKILL.md not found -- run manually if needed."
+            }
+        }
+    }
+
     $designSkills = @(
         @{ Name = 'ui-design-brain';    Repo = 'https://github.com/carmahhawwari/ui-design-brain';    Skill = 'ui-design-brain' },
         @{ Name = 'frontend-design';    Repo = 'https://github.com/anthropics/skills';                 Skill = 'frontend-design' },
@@ -382,7 +404,7 @@ if (-not $SkipClaudeDesktop) {
 # Each server in cursor/mcp.json has a "_bucket" category. Only servers whose
 # bucket is selected get installed, so e.g. a laptop that never touches Power BI
 # doesn't run that server. Precedence: -Buckets param > ALFRED_BUCKETS in .env >
-# interactive picker > default (core,office365,web). 'core' is always included.
+# interactive picker > default (core,powerbi,data). 'core' is always included.
 $bucketCatalog = [ordered]@{}   # bucket -> description
 $serverBucket  = @{}            # server -> bucket
 $McpTemplateForBuckets = Join-Path $Root "cursor\mcp.json"
@@ -420,8 +442,8 @@ function Resolve-SelectedBuckets {
             Write-Host ("   [{0}] {1,-10}{2} - {3}" -f ($i + 1), $bn, $tag, $bucketCatalog[$bn]) -ForegroundColor Gray
             Write-Host ("        {0}" -f ($servers -join ', ')) -ForegroundColor DarkGray
         }
-        $pick = Read-Host "Enter numbers/names (comma-separated), 'all', or Enter for [core,office365,web]"
-        if (-not $pick) { $sel = @('core', 'office365', 'web') }
+        $pick = Read-Host "Enter numbers/names (comma-separated), 'all', or Enter for [core,powerbi,data]"
+        if (-not $pick) { $sel = @('core', 'powerbi', 'data') }
         elseif ($pick.ToLower().Trim() -eq 'all') { $sel = @($bucketCatalog.Keys) }
         else {
             foreach ($tok in ($pick -split '[,; ]+' | Where-Object { $_ })) {
@@ -435,6 +457,14 @@ function Resolve-SelectedBuckets {
         $sel = @($bucketCatalog.Keys)
         Write-Info "Non-interactive, no bucket selection -> installing all buckets. Set -Buckets or ALFRED_BUCKETS to trim."
     }
+    # Migrate legacy bucket names from older installs
+    $sel = @($sel | ForEach-Object {
+        $b = $_.ToLower().Trim()
+        if ($b -eq 'office365' -or $b -eq 'excel') { 'data' }
+        elseif ($b -eq 'cloud') { 'webdev' }
+        elseif ($b -eq 'outlook') { $null }
+        else { $b }
+    } | Where-Object { $_ })
     $sel = @(@($sel) + 'core' | ForEach-Object { $_.ToLower().Trim() } | Where-Object { $_ } | Select-Object -Unique)
     return @($sel | Where-Object { $bucketCatalog.Contains($_) })
 }
@@ -574,6 +604,8 @@ if (-not (Test-Path $McpTemplatePath)) {
     if ($tpl.PSObject.Properties.Name -contains '_retiredServers') {
         $retiredServers = @($tpl._retiredServers)
     }
+    # One-shot cleanup of historical MCP names no longer in the catalog (do not re-document).
+    $retiredServers = @(@($retiredServers) + @('lean-ctx') | Select-Object -Unique)
     if ($tpl.mcpServers) {
         foreach ($prop in $tpl.mcpServers.PSObject.Properties) {
             $name = $prop.Name
@@ -799,6 +831,37 @@ if (-not $SkipClaudeDesktop -and $managed.Count -gt 0) {
     Write-TextNoBom $desktopPath $json
     Write-OK "Wrote $($managed.Count) managed server(s); $($finalDesktop.Count) total in $desktopPath"
     Write-Info "Restart the Claude Desktop app to see Connectors update."
+} elseif ($SkipClaudeDesktop -and -not $SyncOnly) {
+    # Still prune retired leftovers from Desktop Connectors without registering anything new.
+    $desktopPath = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
+    if (Test-Path $desktopPath) {
+        try {
+            $existingDesktop = Get-Content $desktopPath -Raw | ConvertFrom-Json
+            if ($existingDesktop.mcpServers) {
+                $finalDesktop = [ordered]@{}
+                foreach ($p in $existingDesktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
+                $removed = 0
+                foreach ($r in $retiredServers) {
+                    if ($finalDesktop.Contains($r)) {
+                        $finalDesktop.Remove($r)
+                        $removed++
+                        Write-Info "Removed retired MCP '$r' from Claude Desktop config (skip-write mode)."
+                    }
+                }
+                if ($removed -gt 0) {
+                    $desktopRoot = [ordered]@{}
+                    foreach ($p in $existingDesktop.PSObject.Properties) {
+                        if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
+                    }
+                    $desktopRoot['mcpServers'] = $finalDesktop
+                    Write-TextNoBom $desktopPath ($desktopRoot | ConvertTo-Json -Depth 30)
+                    Write-OK "Pruned $removed retired MCP(s) from Claude Desktop (no new servers added)."
+                }
+            }
+        } catch {
+            Write-Warn2 "Could not prune Claude Desktop config: $_"
+        }
+    }
 }
 
 # ── Codex: codex mcp add (global, idempotent) ─────────────────────────────────
@@ -1181,7 +1244,21 @@ function Invoke-ProjectSeed([string]$repo) {
         try {
             & graphify install --platform cursor 2>&1 | Out-Null
             if (Test-Path (Join-Path $repo ".cursor\rules\graphify.mdc")) {
-                Write-OK "Seeded graphify Cursor rule (build the graph with: graphify or /graphify)."
+                Write-OK "Seeded graphify Cursor rule"
+                $graphJson = Join-Path $repo "graphify-out\graph.json"
+                if (-not (Test-Path $graphJson)) {
+                    Write-Info "No graphify-out/graph.json yet — building AST graph (local, no API)..."
+                    try {
+                        & graphify update . 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Info $_ }
+                    } catch {
+                        Write-Warn2 "graphify update failed: $_ — run: graphify update ."
+                    }
+                    if (-not (Test-Path $graphJson)) {
+                        Write-Warn2 "graphify rule present but graph missing — run: graphify update ."
+                    } else {
+                        Write-OK "graphify-out/graph.json built"
+                    }
+                }
             }
         } catch {
             Write-Warn2 "graphify seed failed: $_"
@@ -1191,14 +1268,19 @@ function Invoke-ProjectSeed([string]$repo) {
     }
 }
 
-# Graphify CLI: install once (uv tool, local/deterministic, no API keys).
-if (-not (Get-Command graphify -ErrorAction SilentlyContinue)) {
-    if (Get-Command uv -ErrorAction SilentlyContinue) {
-        Write-Step "Installing graphify (local knowledge-graph CLI, no API cost)"
-        & uv tool install graphifyy -q 2>&1 | Select-Object -Last 2 | ForEach-Object { Write-Info $_ }
+# Graphify CLI: install/upgrade from PyPI via uv (always-latest; local, no API keys).
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+    Write-Step "Ensuring graphify is installed/upgraded (uv tool, latest from PyPI)"
+    if (Get-Command graphify -ErrorAction SilentlyContinue) {
+        & uv tool upgrade graphifyy -q 2>&1 | Select-Object -Last 2 | ForEach-Object { Write-Info $_ }
+        Write-OK "graphify upgraded (or already latest)"
     } else {
-        Write-Skip "graphify not installed and uv unavailable -- install later: uv tool install graphifyy"
+        & uv tool install graphifyy -q 2>&1 | Select-Object -Last 2 | ForEach-Object { Write-Info $_ }
+        if (Get-Command graphify -ErrorAction SilentlyContinue) { Write-OK "graphify installed" }
+        else { Write-Warn2 "graphify install finished but CLI not on PATH yet — open a new shell or re-run" }
     }
+} elseif (-not (Get-Command graphify -ErrorAction SilentlyContinue)) {
+    Write-Skip "graphify not installed and uv unavailable -- install later: uv tool install graphifyy"
 }
 
 $seedList = @()
@@ -1258,8 +1340,8 @@ if (Test-Path $excelMcpExe) {
         if (-not $ver) { $ver = (Get-Item $excelMcpExe).LastWriteTime.ToString('yyyy-MM-dd') }
         Write-OK "excel-mcp exe present ($ver)"
     } catch { Write-OK "excel-mcp exe present" }
-} elseif ($SelectedBuckets -contains 'office365') {
-    Write-Warn2 "excel-mcp exe missing under bin\excel-mcp — re-run setup.ps1 to download."
+} elseif ($SelectedBuckets -contains 'data') {
+    Write-Warn2 "excel-mcp exe missing under bin\excel-mcp — re-run setup.ps1 to download latest from upstream."
 }
 $pbiExt = Get-ChildItem (Join-Path $env:USERPROFILE '.vscode\extensions') -Directory -Filter 'analysis-services.powerbi-modeling-mcp-*' -ErrorAction SilentlyContinue |
     Sort-Object Name -Descending | Select-Object -First 1

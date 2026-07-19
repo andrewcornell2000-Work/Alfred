@@ -82,9 +82,9 @@ def check_cursorrules() -> None:
     if not path.exists():
         return
     text = path.read_text(encoding="utf-8")
-    if "CRITICAL: ALWAYS use lean-ctx" in text or "NEVER use native Read" in text:
+    if "NEVER use native Read" in text:
         errors.append(
-            ".cursorrules: must not mandate lean-ctx over native tools (see 00-agent-tooling.mdc)"
+            ".cursorrules: must not ban native Read/Grep (see 00-agent-tooling.mdc)"
         )
 
 

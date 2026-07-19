@@ -10,7 +10,7 @@ Canonical subagent definitions for Cursor, Claude Code, and Codex.
 |--------|----------------|
 | **core** | Universal day-to-day |
 | **powerbi** | Power BI + DLP Doctor |
-| **cloud / data / web / office365** | Skills + MCPs (no extra subagents required) |
+| **webdev / data / web / powerbi / mediagen** | Skills + MCPs (no extra subagents required) |
 
 `core` is always installed. Other buckets follow `ALFRED_BUCKETS` in `.env`.
 

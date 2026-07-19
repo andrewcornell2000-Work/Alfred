@@ -1,17 +1,17 @@
-# Alfred Pack 2.0
+# Alfred Pack
 
-**Alfred is a Windows installer and toolchain pack** — not a chat app you use every day.
+**Alfred is a Windows catalog + installer** for AI coding tools — not a chat app and not its own agent platform.
 
-Install it once — **git clone on work/managed machines**, `Alfred-Install.exe` on personal ones (see [Install](#install)) — and it wires your PC for AI work:
+Install once — **git clone on work/managed machines**, `Alfred-Install.exe` on personal ones (see [Install](#install)) — and it provisions each host the way that host expects:
 
-- **MCP servers** → Cursor, Claude Code, Codex (Power BI, Excel, GitHub, …)
-- **Skills + rules** → all three agents globally
-- **CLIs** → Claude, Codex, gh, pbi, jq, …
-- **Discovery loop** → nightly search for new tools you wouldn't think to look for
+- **MCP servers** → Cursor, Claude Code, Codex (native configs only)
+- **Skills** → once to `~/.agents/skills` (cross-tool)
+- **Rules / graphify / subagents** → per seeded project
+- **CLIs** → Claude, Codex, gh, pbi, jq, … pulled from upstream on install/update
 
-**Day-to-day:** work in **Cursor**. Just ask. The pack is already provisioned.
+**Day-to-day:** work in **Cursor** (or Claude Code / Codex). Alfred already pointed those tools at the catalog.
 
-**Maintenance:** re-run the installer or `run-alfred.bat` to update and re-provision — see [PACK.md](PACK.md).
+**Maintenance:** re-run the desktop shortcut or `run-alfred.bat` — `git pull` + upgrade packages from upstream + re-provision. See [PACK.md](PACK.md).
 
 ---
 
@@ -28,7 +28,7 @@ git clone https://github.com/andrewcornell2000-Work/Alfred.git "$env:USERPROFILE
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Alfred\Alfred-Install.ps1"
 ```
 
-In the wizard, choose **Work machine** — it provisions the analyst working set (`core,office365,powerbi,data,mediagen`: Power BI, Excel/Outlook, DuckDB, markitdown, parallel-search, context7, Magic UI) and **leaves out** `fetch`, `playwright`, `firecrawl`, `ms-365`, `vercel`, and `supabase` (web + cloud buckets; `ms-365` is retired). Pick **Personal machine** for the full set. Git must already be present (it is on most managed machines). If Python/Node aren't, the script installs them per-user where policy allows, or prints the exact manual step.
+In the wizard, choose **Work machine** for commercial analyst (`core,powerbi,data`: Power BI + Fabric visual-design skills, Excel, DuckDB — **no** Supabase/Vercel, **no** design MCPs). Choose **Personal machine** for SaaS/web-app building (`core,web,webdev,mediagen,data`: Supabase, Vercel, browse/search, design MCPs + design skills). Git must already be present (it is on most managed machines). If Python/Node aren't, the script installs them per-user where policy allows, or prints the exact manual step. **Never put secrets in git** — only Alfred `.env` on the machine.
 
 ### Personal machine — installer .exe
 
@@ -113,22 +113,23 @@ which buckets install **per machine**:
 
 | Bucket | Servers | For |
 |---|---|---|
-| `core` *(always on)* | filesystem, github, context7, parallel-search | general dev + light web research |
-| `office365` | outlook-calendar, excel, excel-mcp | Excel + Outlook calendar (`ms-365` retired) |
+| `core` *(always on)* | filesystem, github, context7 | general dev + docs |
 | `powerbi` | powerbi-modeling-mcp | Power BI model editing |
-| `web` | playwright, firecrawl, fetch | heavy browsing / scraping (Personal only) |
-| `data` | duckdb, markitdown, longhand | local data + history |
-| `mediagen` | fal-ai, magic | image/video/audio + UI generation |
-| `cloud` | supabase, vercel | web-app backends (Personal only) |
+| `data` | duckdb, markitdown, excel, excel-mcp, longhand | analyst data + Excel |
+| `web` | parallel-search, playwright, firecrawl, fetch | opt-in search/browse (keeps work lean) |
+| `mediagen` | fal-ai, magic | SaaS/personal design MCPs (not work) |
+| `webdev` | supabase, vercel | SaaS backends only (not work) |
 
-**Work profile** = `core,office365,powerbi,data,mediagen` (no `web` / `cloud`; no `ms-365`).
-**Personal profile** = `all`.
+**Work profile** = `core,powerbi,data` (PBI design *skills* via Fabric; no `web` / `mediagen` / `webdev`).
+**Personal / SaaS profile** = `core,web,webdev,mediagen,data`.
 
-Choose them when you install — the provisioner shows an interactive picker — or
+Packages resolve from upstream on install/update (`npx -y …@latest`, `uvx`, `uv tool upgrade`, GitHub latest release for ExcelMcp). Alfred catalogs *what* and *where* — it does not treat checked-in binaries as the source of truth.
+
+Choose buckets when you install — the provisioner shows an interactive picker — or
 non-interactively:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,office365,powerbi,data,mediagen"
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,powerbi,data"
 # or "all"; the choice is saved to ALFRED_BUCKETS in .env so re-provisions are consistent
 ```
 
@@ -139,12 +140,12 @@ bucket prunes its skills from `~/.agents/skills` on the next provision. Unlisted
 skills fall back to `core` (always installed).
 
 Notes:
-- `excel` (ExceLLM, live workbooks) and `excel-mcp` (ExcelMcp, closed-file COM) look
-  redundant but are complementary — both live in `office365`.
+- `excel` (ExceLLM, live workbooks) and `excel-mcp` (ExcelMcp, closed-file COM) are
+  complementary — both live in `data`.
 - Real duplication (e.g. `powerbi-modeling-mcp` also arriving via a Claude Code
   plugin) is flagged by Doctor; pick one source.
 - Running Cursor **and** Claude Desktop at once still doubles whatever you selected —
-  that's inherent to running two clients; close the one you're not using when RAM matters.
+  set `ALFRED_SKIP_CLAUDE_DESKTOP=1` if you only use Cursor + Claude Code.
 
 ### Reset / clean slate
 

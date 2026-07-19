@@ -31,10 +31,11 @@ See **`.cursor/rules/00-agent-tooling.mdc`** (and `cursor/rules/00-agent-tooling
 | Server | Why removed |
 |--------|-------------|
 | sequential-thinking | Inflated responses with multi-step planning loops |
-| memory | Overlapped LeanCTX `ctx_knowledge` |
+| memory | Low value vs native notes / project docs |
 | time | Low value; native reasoning suffices |
-| codegraph | Overlapped LeanCTX `ctx_search`; required per-repo indexing |
+| codegraph | Prefer graphify (local AST graph) + native Grep |
 | sqlite | Overlapped duckdb for analytics workloads |
+| outlook-calendar | Removed from catalog |
 
 **Not in template:** `ms365` (needs Graph key), `git` (overlaps bash git + github MCP).
 

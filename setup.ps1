@@ -437,33 +437,33 @@ if ((Find-Command "gh") -or (Test-Path $ghExe)) {
     }
 }
 
-# excel-mcp — ExcelMcp MCP server (sbroenne, self-contained .exe into Alfred\bin\excel-mcp\, no admin, no .NET runtime)
+# excel-mcp — always fetch latest release from upstream (cache under Alfred\bin\excel-mcp\, not SSoT)
 $excelMcpDir = Join-Path $BinDir "excel-mcp"
 $excelMcpExe = Join-Path $excelMcpDir "mcp-excel.exe"
-if (Test-Path $excelMcpExe) {
-    Write-OK "excel-mcp (ExcelMcp MCP server) -- present in Alfred\bin\excel-mcp\"
-} else {
-    Write-Host "  Installing ExcelMcp MCP server (portable, no admin)..." -ForegroundColor Cyan
-    try {
-        $emRelease = Invoke-RestMethod "https://api.github.com/repos/sbroenne/mcp-server-excel/releases/latest" -UseBasicParsing -ErrorAction Stop
-        $emAsset   = $emRelease.assets | Where-Object { $_.name -match '^ExcelMcp-MCP-Server-.*-windows\.zip$' } | Select-Object -First 1
-        if (-not $emAsset) { throw "ExcelMcp-MCP-Server-*-windows.zip asset not found in latest release." }
-        $emZip        = Join-Path $env:TEMP "excelmcp_server.zip"
-        $emExtractDir = Join-Path $env:TEMP "excelmcp_server_extract"
-        Invoke-WebRequest -Uri $emAsset.browser_download_url -OutFile $emZip -UseBasicParsing -ErrorAction Stop
-        if (Test-Path $emExtractDir) { Remove-Item $emExtractDir -Recurse -Force }
-        Expand-Archive -Path $emZip -DestinationPath $emExtractDir -Force
-        $emSrc = Get-ChildItem -Path $emExtractDir -Filter "mcp-excel.exe" -Recurse | Select-Object -First 1
-        if ($emSrc) {
-            if (-not (Test-Path $excelMcpDir)) { New-Item -ItemType Directory -Path $excelMcpDir -Force | Out-Null }
-            Copy-Item $emSrc.FullName $excelMcpExe -Force
-            Write-Done "ExcelMcp MCP server $($emRelease.tag_name) installed to Alfred\bin\excel-mcp\ (no admin)."
-            Write-Info "Registered as the 'excel-mcp' MCP. Requires Excel; close open workbooks before use (exclusive access)."
-        } else {
-            Write-Fail "mcp-excel.exe not found in downloaded archive."
-        }
-        Remove-Item $emZip, $emExtractDir -Recurse -Force -ErrorAction SilentlyContinue
-    } catch {
+Write-Host "  Fetching latest ExcelMcp MCP server from GitHub releases..." -ForegroundColor Cyan
+try {
+    $emRelease = Invoke-RestMethod "https://api.github.com/repos/sbroenne/mcp-server-excel/releases/latest" -UseBasicParsing -ErrorAction Stop
+    $emAsset   = $emRelease.assets | Where-Object { $_.name -match '^ExcelMcp-MCP-Server-.*-windows\.zip$' } | Select-Object -First 1
+    if (-not $emAsset) { throw "ExcelMcp-MCP-Server-*-windows.zip asset not found in latest release." }
+    $emZip        = Join-Path $env:TEMP "excelmcp_server.zip"
+    $emExtractDir = Join-Path $env:TEMP "excelmcp_server_extract"
+    Invoke-WebRequest -Uri $emAsset.browser_download_url -OutFile $emZip -UseBasicParsing -ErrorAction Stop
+    if (Test-Path $emExtractDir) { Remove-Item $emExtractDir -Recurse -Force }
+    Expand-Archive -Path $emZip -DestinationPath $emExtractDir -Force
+    $emSrc = Get-ChildItem -Path $emExtractDir -Filter "mcp-excel.exe" -Recurse | Select-Object -First 1
+    if ($emSrc) {
+        if (-not (Test-Path $excelMcpDir)) { New-Item -ItemType Directory -Path $excelMcpDir -Force | Out-Null }
+        Copy-Item $emSrc.FullName $excelMcpExe -Force
+        Write-Done "ExcelMcp MCP server $($emRelease.tag_name) installed to Alfred\bin\excel-mcp\ (latest upstream)."
+        Write-Info "Registered as the 'excel-mcp' MCP. Requires Excel; close open workbooks before use (exclusive access)."
+    } else {
+        Write-Fail "mcp-excel.exe not found in downloaded archive."
+    }
+    Remove-Item $emZip, $emExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+} catch {
+    if (Test-Path $excelMcpExe) {
+        Write-Warn "ExcelMcp latest fetch failed ($_); keeping previously cached exe."
+    } else {
         Write-Fail "ExcelMcp portable install failed: $_"
         Write-Info "Download manually from https://github.com/sbroenne/mcp-server-excel/releases (extract mcp-excel.exe to Alfred\bin\excel-mcp\)"
     }

@@ -1,0 +1,51 @@
+{
+  "$schema_comment": "Declarative catalog of what Alfred installs and where packages come from. Provision-Cursor.ps1 still reads cursor/mcp.json for MCP server specs; this file documents upgrade sources and profiles for always-latest installs.",
+  "identity": "catalog-and-installer",
+  "profiles": {
+    "work": {
+      "buckets": ["core", "powerbi", "data"],
+      "skip_claude_desktop": true,
+      "notes": "Analyst. Fabric+jean-paul for PBI visuals. No supabase/vercel/design MCPs. Secrets only in local .env."
+    },
+    "personal": {
+      "buckets": ["core", "web", "webdev", "mediagen", "data"],
+      "skip_claude_desktop": true,
+      "notes": "SaaS / web-app machine. Supabase+Vercel in webdev bucket."
+    }
+  },
+  "targets": {
+    "cursor": { "mcp": "~/.cursor/mcp.json", "skills": "~/.agents/skills", "rules": "<repo>/.cursor/rules" },
+    "claude-code": { "mcp": "claude mcp add --scope user", "skills": "~/.agents/skills", "agents": "~/.claude/agents" },
+    "codex": { "mcp": "codex mcp add", "skills": "~/.agents/skills", "agents": "~/.codex/agents" }
+  },
+  "upgrades": {
+    "graphify": {
+      "kind": "cli",
+      "install": "uv tool install graphifyy",
+      "upgrade": "uv tool upgrade graphifyy",
+      "source": "https://pypi.org/project/graphifyy/"
+    },
+    "excel-mcp": {
+      "kind": "portable-exe",
+      "upgrade": "fetch latest GitHub release zip → bin/excel-mcp/mcp-excel.exe",
+      "source": "https://github.com/sbroenne/mcp-server-excel/releases/latest"
+    },
+    "python-venv": {
+      "kind": "pip",
+      "upgrade": "setup.ps1 → pip install -U from requirements/python-requirements.txt",
+      "source": "https://pypi.org/"
+    },
+    "npm-clis": {
+      "kind": "npm-global",
+      "upgrade": "setup.ps1 → npm i -g from requirements/npm-tools.txt",
+      "source": "https://www.npmjs.com/"
+    },
+    "npx-mcps": {
+      "kind": "npx",
+      "upgrade": "npx -y <package>@latest on each client spawn (no local pin)",
+      "source": "npm registry"
+    }
+  },
+  "mcp_catalog": "cursor/mcp.json",
+  "skills_catalog": "skills/_buckets.json"
+}

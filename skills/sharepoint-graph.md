@@ -13,7 +13,6 @@
 |---|---|
 | Read a file synced to your PC (OneDrive / SharePoint sync) | `filesystem` MCP (finance OneDrive root) or native Read |
 | Open / query a local `.xlsx` | `excel` or `excel-mcp` |
-| Check local Outlook calendar | `outlook-calendar` MCP |
 | Fabric / Power BI via Azure CLI | browser/SSO `az login` + Fabric skills ([AUTH-HARD-RULES.md](_packs/common/AUTH-HARD-RULES.md)) |
 | Browse a SharePoint site in a real browser | `playwright` MCP (manual human SSO in the browser — not device-code CLI) |
 

@@ -19,8 +19,10 @@ $destFiles = Get-ChildItem $dest -Filter '*.mdc' | Sort-Object Name
 $srcNames = @($srcFiles.Name)
 $destNames = @($destFiles.Name)
 
+# graphify.mdc is written by `graphify install --platform cursor` (not Alfred's cursor/rules template).
+$allowedExtra = @('graphify.mdc')
 $missing = $srcNames | Where-Object { $_ -notin $destNames }
-$extra = $destNames | Where-Object { $_ -notin $srcNames }
+$extra = $destNames | Where-Object { $_ -notin $srcNames -and $_ -notin $allowedExtra }
 if ($missing.Count -gt 0) { Write-Error "Missing in .cursor/rules: $($missing -join ', ')" }
 if ($extra.Count -gt 0) { Write-Error "Extra in .cursor/rules: $($extra -join ', ')" }
 

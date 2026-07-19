@@ -2,7 +2,7 @@
 
 When adding MCP tools marked `destructive: true` in `alfred-tools.json`, document the risk here and in the tool's skill file.
 
-Alfred no longer runs an interactive dispatch gate. These keywords are **documentation for skill authors and the growth loop** — agents should treat requests containing them as high-risk unless the user explicitly confirmed the action.
+Alfred no longer runs an interactive dispatch gate. These keywords are **documentation for skill authors** — agents should treat requests containing them as high-risk unless the user explicitly confirmed the action.
 
 ## DANGEROUS_KEYWORDS
 

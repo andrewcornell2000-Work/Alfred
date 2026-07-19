@@ -1,5 +1,5 @@
 {
-  "$comment": "Alfred -> Cursor/Claude MCP source of truth. Template only: ${env:VAR} placeholders are resolved from Alfred's .env (or machine env) by Provision-Cursor.ps1. Path tokens (${repoRoot}, ${financeDir}, etc.) are resolved at provision time. Keys starting with _ are metadata used by the provisioner and are stripped before anything is written. NEVER put real tokens in this file. Each server has a '_bucket' (category, see _buckets). Only servers whose bucket is selected get installed per machine, so you don't run Power BI on a laptop that never touches it. Choose buckets interactively at install, with Provision-Cursor.ps1 -Buckets \"core,office365,powerbi\" (or 'all'), or ALFRED_BUCKETS=... in .env. The 'core' bucket is always installed.",
+  "$comment": "Alfred -> Cursor/Claude/Codex MCP catalog. Template only: ${env:VAR} placeholders are resolved from Alfred's .env (or machine env) by Provision-Cursor.ps1. Path tokens (${repoRoot}, ${financeDir}, etc.) are resolved at provision time. Keys starting with _ are metadata and are stripped before write. NEVER put real tokens here. Each server has a '_bucket'; only selected buckets install. Work default: core,powerbi,data. Choose with Provision-Cursor.ps1 -Buckets \"core,powerbi,data\" (or 'all'), or ALFRED_BUCKETS=... in .env. The 'core' bucket is always installed. Packages are resolved from upstream at install/update time (npx -y, uvx, docker) — Alfred does not vendor MCP binaries as source of truth.",
   "_retiredServers": [
     "sequential-thinking",
     "memory",
@@ -8,7 +8,7 @@
     "sqlite",
     "powerbi",
     "ms-365",
-    "lean-ctx"
+    "outlook-calendar"
   ],
   "mcpServers": {
     "powerbi-modeling-mcp": {
@@ -26,16 +26,16 @@
         "-m",
         "excellm"
       ],
-      "_bucket": "office365",
+      "_bucket": "data",
       "_requires": [],
       "_note": "Read/write live OPEN Excel workbooks only. Do NOT use with excel-mcp (opposite access model). Auto-skipped if Alfred venv python or excellm is missing."
     },
     "excel-mcp": {
       "command": "${repoRoot}\\bin\\excel-mcp\\mcp-excel.exe",
       "args": [],
-      "_bucket": "office365",
+      "_bucket": "data",
       "_requires": [],
-      "_note": "ExcelMcp — CLOSED workbook / exclusive COM only. Complements live 'excel' (excellm). Never alternate mid-task. Auto-skipped if exe missing."
+      "_note": "ExcelMcp — CLOSED workbook / exclusive COM only. Complements live 'excel' (excellm). Never alternate mid-task. Auto-skipped if exe missing. Fetched from upstream release on setup/update."
     },
     "github": {
       "command": "docker",
@@ -59,7 +59,7 @@
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-github"
+          "@modelcontextprotocol/server-github@latest"
         ]
       },
       "_aliases": {
@@ -67,13 +67,13 @@
           "GITHUB_TOKEN"
         ]
       },
-      "_note": "Official GitHub MCP (ghcr.io/github/github-mcp-server). Falls back to legacy npx package when Docker is not installed. Token from GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN in Alfred .env."
+      "_note": "Official GitHub MCP (ghcr.io/github/github-mcp-server). Falls back to npx @latest when Docker is not installed. Token from GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN in Alfred .env."
     },
     "playwright": {
       "command": "npx",
       "args": [
         "-y",
-        "@playwright/mcp",
+        "@playwright/mcp@latest",
         "--browser",
         "chromium"
       ],
@@ -85,7 +85,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@upstash/context7-mcp"
+        "@upstash/context7-mcp@latest"
       ],
       "_bucket": "core",
       "env": {
@@ -95,7 +95,7 @@
       "_optionalEnv": [
         "CONTEXT7_API_KEY"
       ],
-      "_note": "Library/SDK docs only — prefer over fetch/Tavily for API syntax. Do NOT use for repo code or general web search."
+      "_note": "Library/SDK docs only — prefer over fetch for API syntax. Do NOT use for repo code or general web search."
     },
     "markitdown": {
       "command": "uvx",
@@ -105,7 +105,7 @@
       "_bucket": "data",
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "Local file URI conversion (PDF, Office, images). Do NOT use for library docs (context7) or live search (Tavily)."
+      "_note": "Local file URI conversion (PDF, Office, images). Do NOT use for library docs (context7) or live search."
     },
     "fetch": {
       "command": "uvx",
@@ -115,13 +115,13 @@
       "_bucket": "web",
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "Single known URL → markdown. Do NOT use for library docs (context7) or news/latest (Tavily)."
+      "_note": "Single known URL → markdown. Do NOT use for library docs (context7) or news/latest."
     },
     "filesystem": {
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-filesystem",
+        "@modelcontextprotocol/server-filesystem@latest",
         "${financeDir}"
       ],
       "_bucket": "core",
@@ -138,13 +138,13 @@
       "_bucket": "data",
       "_requires": [],
       "_requiresCommand": "uvx",
-      "_note": "SQL on CSV, Parquet, Excel exports, and local analytics DB. Replaces sqlite MCP."
+      "_note": "SQL on CSV, Parquet, Excel exports, and local analytics DB."
     },
     "fal-ai": {
       "command": "npx",
       "args": [
         "-y",
-        "fal-ai-mcp-server"
+        "fal-ai-mcp-server@latest"
       ],
       "_bucket": "mediagen",
       "env": {
@@ -153,7 +153,7 @@
       "_requires": [
         "FAL_KEY"
       ],
-      "_note": "AI image/video/audio generation via fal.ai models — ad creative, thumbnails, b-roll. Auto-skipped unless FAL_KEY is set in Alfred .env (get one at fal.ai/dashboard/keys)."
+      "_note": "AI image/video/audio generation via fal.ai. Auto-skipped unless FAL_KEY is set in Alfred .env."
     },
     "magic": {
       "command": "npx",
@@ -163,24 +163,24 @@
       ],
       "_bucket": "mediagen",
       "_requires": [],
-      "_note": "Magic UI components — generate animated React/Tailwind UI blocks (hero, marquee, bento, etc.). No key required. Frontend/landing-page work."
+      "_note": "Magic UI components — animated React/Tailwind UI blocks. No key required."
     },
     "parallel-search": {
       "command": "npx",
       "args": [
         "-y",
-        "mcp-remote",
+        "mcp-remote@latest",
         "https://search.parallel.ai/mcp"
       ],
-      "_bucket": "core",
+      "_bucket": "web",
       "_requires": [],
-      "_note": "LLM-optimized web search + fetch (citation-backed excerpts in one call). Works key-free for anonymous use via the mcp-remote stdio bridge. Prefer over fetch for research after context7/docs. For higher rate limits set PARALLEL_API_KEY and add an Authorization header."
+      "_note": "LLM-optimized web search + fetch. Opt-in via web bucket (not in work default) to keep always-on tool context small. For higher rate limits set PARALLEL_API_KEY."
     },
     "firecrawl": {
       "command": "npx",
       "args": [
         "-y",
-        "firecrawl-mcp"
+        "firecrawl-mcp@latest"
       ],
       "_bucket": "web",
       "env": {
@@ -189,7 +189,7 @@
       "_requires": [
         "FIRECRAWL_API_KEY"
       ],
-      "_note": "Firecrawl — web scraping, crawling, site mapping, structured extraction, and deep research (scrape/crawl/map/extract/search). Returns clean markdown/JSON from JS-heavy pages. Auto-skipped unless FIRECRAWL_API_KEY (fc-...) is set in Alfred .env. Get one at https://www.firecrawl.dev/app/api-keys"
+      "_note": "Web scraping/crawling. Auto-skipped unless FIRECRAWL_API_KEY is set. Get one at https://www.firecrawl.dev/app/api-keys"
     },
     "longhand": {
       "command": "longhand",
@@ -199,44 +199,31 @@
       "_bucket": "data",
       "_requires": [],
       "_requiresCommand": "longhand",
-      "_note": "Lossless Claude Code session history — verbatim recall of tool calls, file edits, and thinking blocks from ~/.claude/projects/*.jsonl into local SQLite + ChromaDB before Claude rotates them. Install: pip install longhand && longhand setup. Auto-skipped if 'longhand' is not on PATH."
-    },
-    "outlook-calendar": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "outlook-calendar-mcp"
-      ],
-      "_bucket": "office365",
-      "_requires": [],
-      "_requiresCommand": "npx",
-      "_windowsOnly": true,
-      "_note": "Read and manage local Microsoft Outlook calendar on Windows — list events in a date range, create/update meetings, find free time slots, check attendee status, access multiple calendars. Requires Outlook desktop client installed. Windows 11 24H2+ users must enable VBScript via Settings → Apps → Optional features → VBScript before this server will work. No API key needed."
+      "_note": "Lossless Claude Code session history. Install: pip install -U longhand && longhand setup. Auto-skipped if not on PATH."
     },
     "supabase": {
       "url": "https://mcp.supabase.com/mcp?project_ref=${env:SUPABASE_PROJECT_REF}",
-      "_bucket": "cloud",
+      "_bucket": "webdev",
       "_requires": [
         "SUPABASE_PROJECT_REF"
       ],
       "_oauthOnFirstUse": true,
-      "_note": "Supabase MCP — SQL, migrations, edge functions, advisors, logs. OAuth on first use. Also install agent skills: npx skills add supabase/agent-skills. Auto-skipped unless SUPABASE_PROJECT_REF is set in Alfred .env. Skill: supabase.md."
+      "_note": "Supabase MCP — SaaS/webdev only (not work). OAuth on first use. Also: npx skills add supabase/agent-skills. Auto-skipped unless SUPABASE_PROJECT_REF is set. Never put secrets in git."
     },
     "vercel": {
       "url": "https://mcp.vercel.com",
-      "_bucket": "cloud",
+      "_bucket": "webdev",
       "_requires": [],
       "_oauthOnFirstUse": true,
-      "_note": "Vercel MCP — deployments, projects, build/runtime logs, docs search. OAuth on first use. Also install the Vercel plugin: npx plugins add vercel/vercel-plugin. Skill: vercel.md."
+      "_note": "Vercel MCP — SaaS/webdev only (not work). OAuth on first use. Also: npx plugins add vercel/vercel-plugin."
     }
   },
   "_buckets": {
-    "core": "Always installed — universal day-to-day dev everyone benefits from (GitHub, docs, filesystem, web search, code review, debugging, Jean Paul/Mr Smith).",
-    "office365": "Excel + Outlook calendar (live + closed workbooks). ms-365 Graph MCP is retired from default provision (TENANT-FORBIDDEN device-code login).",
-    "powerbi": "Power BI semantic-model editing (needs the VS Code Power BI Modeling MCP extension).",
-    "web": "Heavy browsing + scraping (Playwright, Firecrawl, fetch). Lightweight parallel-search now lives in core.",
-    "data": "Local data + history (DuckDB SQL, markitdown, longhand session recall).",
-    "mediagen": "Image/video/audio + UI generation (fal.ai, Magic UI).",
-    "cloud": "Web apps, game development, and hosted backends (Supabase, Vercel, Next.js/React/game subagents)."
+    "core": "Always installed — GitHub, library docs (context7), finance-scoped filesystem.",
+    "powerbi": "Power BI semantic-model editing + Fabric skills (incl. report/visual design skills). No design MCPs.",
+    "data": "Analyst data stack — DuckDB, markitdown, live Excel (excellm), closed Excel (ExcelMcp), optional longhand.",
+    "web": "Browsing/search/scraping — parallel-search, Playwright, Firecrawl, fetch. Not in work default.",
+    "mediagen": "Image/video/audio + Magic UI generation MCPs (fal.ai, magic). SaaS/personal only — not work.",
+    "webdev": "SaaS / web-app backends — Supabase, Vercel. Never on work installs."
   }
 }

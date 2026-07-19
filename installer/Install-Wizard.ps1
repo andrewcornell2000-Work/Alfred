@@ -136,9 +136,8 @@ function Show-AlfredInstallWizard {
 
     # ── Machine-type profile selector ──────────────────────────────────────────
     # Chooses which MCP bucket set Provision-Cursor.ps1 installs:
-    #   work     -> core,office365,powerbi,data,mediagen
-    #               (OFF: fetch, playwright, firecrawl, vercel, supabase, ms-365)
-    #   personal -> all  (adds web browsing/scraping + cloud/web-app dev)
+    #   work     -> core,powerbi,data  (analyst; Fabric design skills; NO supabase/vercel/design MCPs)
+    #   personal -> core,web,webdev,mediagen,data  (SaaS / web-app machine)
     $profileState = @{ Profile = $DefaultProfile }
 
     $profileLabel = New-Object System.Windows.Forms.Label
@@ -228,8 +227,8 @@ function Show-AlfredInstallWizard {
         return $card
     }
 
-    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'work' -Title 'Work machine' -Desc "PBI, Excel, DuckDB, docs, design. No fetch/playwright/ms-365/vercel."))
-    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'personal' -Title 'Personal machine' -Desc "Everything: adds browser automation + cloud/web-app dev."))
+    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'work' -Title 'Work machine' -Desc "Analyst: PBI+Fabric visuals, Excel, DuckDB. No Supabase/Vercel/design MCPs."))
+    [void]$profileRow.Controls.Add((New-AlfredProfileCard -Id 'personal' -Title 'Personal / SaaS' -Desc "Web apps: Supabase, Vercel, browse/search, design MCPs + design skills."))
 
     $pathLabel = New-Object System.Windows.Forms.Label
     $pathLabel.Text = 'INSTALL FOLDER'

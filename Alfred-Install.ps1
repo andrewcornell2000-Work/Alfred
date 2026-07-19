@@ -505,22 +505,21 @@ function Write-EnvVar([string]$EnvPath, [string]$Key, [string]$Value) {
 # ── Machine profile → MCP bucket mapping ──────────────────────────────────────
 # The installer offers two profiles. Each maps to a bucket set consumed by
 # Provision-Cursor.ps1 -Buckets (the single source of truth for MCP servers):
-#   work     -> core,office365,powerbi,data,mediagen
-#               Analyst set: Power BI, Excel/Outlook, DuckDB, markitdown, parallel-search
-#               (in core), context7, Magic UI design. Explicitly OFF on Work:
-#               fetch, playwright, firecrawl (web bucket); vercel, supabase (cloud);
-#               ms-365 (retired — TENANT-FORBIDDEN device-code Graph login).
-#   personal -> all (adds web browsing/scraping + cloud/web-app dev).
+#   work     -> core,powerbi,data
+#               Analyst: Power BI (+ Fabric report/visual design skills), Excel, DuckDB.
+#               OFF: web, mediagen MCPs, webdev (supabase/vercel). Never secrets in git.
+#   personal -> core,web,webdev,mediagen,data  (SaaS / web-app machine; no Power BI required)
+#               Use 'all' only if you also want powerbi on a personal box.
 function Get-AlfredProfileBuckets([string]$Profile) {
     switch (($Profile + '').ToLower()) {
-        'personal' { return 'all' }
-        default     { return 'core,office365,powerbi,data,mediagen' }  # work / default
+        'personal' { return 'core,web,webdev,mediagen,data' }
+        'webdev'   { return 'core,web,webdev,mediagen,data' }
+        'all'      { return 'all' }
+        default     { return 'core,powerbi,data' }  # work
     }
 }
 
-# On a re-run, infer the prior choice from ALFRED_BUCKETS in .env so we default the
-# wizard to what the machine already is (and don't flip a personal box back to work).
-# Work now includes mediagen (design), so only the web/cloud buckets mark a personal box.
+# Personal/SaaS = web, webdev, or mediagen selected (or 'all'). Otherwise work.
 function Get-AlfredDefaultProfile([string]$InstallPath) {
     $envFile = Join-Path $InstallPath '.env'
     if (Test-Path $envFile) {
@@ -528,7 +527,7 @@ function Get-AlfredDefaultProfile([string]$InstallPath) {
             Where-Object { $_ -match '^\s*ALFRED_BUCKETS\s*=' } | Select-Object -First 1
         if ($line) {
             $val = ($line -replace '^\s*ALFRED_BUCKETS\s*=', '').Trim().ToLower()
-            if ($val -eq 'all' -or $val -match '(^|,)\s*(web|cloud)\s*($|,)') { return 'personal' }
+            if ($val -eq 'all' -or $val -match '(^|,)\s*(web|webdev|cloud|mediagen)\s*($|,)') { return 'personal' }
             if ($val) { return 'work' }
         }
     }
