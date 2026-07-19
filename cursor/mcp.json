@@ -146,7 +146,7 @@
         "-y",
         "fal-ai-mcp-server@latest"
       ],
-      "_bucket": "mediagen",
+      "_bucket": "webdev",
       "env": {
         "FAL_KEY": "${env:FAL_KEY}"
       },
@@ -161,7 +161,7 @@
         "-y",
         "@magicuidesign/mcp@latest"
       ],
-      "_bucket": "mediagen",
+      "_bucket": "webdev",
       "_requires": [],
       "_note": "Magic UI components — animated React/Tailwind UI blocks. No key required."
     },
@@ -223,7 +223,7 @@
     "powerbi": "Power BI semantic-model editing + Fabric skills (incl. report/visual design skills). No design MCPs.",
     "data": "Analyst data stack — DuckDB, markitdown, live Excel (excellm), closed Excel (ExcelMcp), optional longhand.",
     "web": "Browsing/search/scraping — parallel-search, Playwright, Firecrawl, fetch. Not in work default.",
-    "mediagen": "Image/video/audio + Magic UI generation MCPs (fal.ai, magic). SaaS/personal only — not work.",
-    "webdev": "SaaS / web-app backends — Supabase, Vercel. Never on work installs."
+    "mediagen": "Personal design-skill stack (ui-design-brain, frontend-design, accessibility). SaaS/personal only — not work. (Generation MCPs fal.ai/magic moved to webdev.)",
+    "webdev": "SaaS / web-app + generation MCPs — Supabase, Vercel, fal.ai (image/video), magic (Magic UI). Never on work installs."
   }
 }
