@@ -1355,6 +1355,87 @@ if ($pbiExt) {
     Write-Warn2 "Power BI Modeling MCP extension not found — install from VS Code/Cursor marketplace."
 }
 
+# ── Self-heal sweep: reconcile LIVE config vs expected, remove drift ───────────
+# After every write, re-read each target and delete any Alfred-managed/known server
+# that should NOT be here on this machine: retired, bucket-deselected, or belonging to
+# a target that's intentionally skipped (e.g. Claude Desktop when ALFRED_SKIP_CLAUDE_DESKTOP=1,
+# which the per-target skip path leaves behind → the duplication class of bug).
+# Names NOT in Alfred's template (the user's own servers) are never touched. This is
+# what makes provisioning self-correcting instead of only additive.
+function Get-AlfredKnownServerNames {
+    $names = @()
+    if (Test-Path $McpTemplatePath) {
+        try {
+            $t = Get-Content $McpTemplatePath -Raw | ConvertFrom-Json
+            if ($t.mcpServers) { $names += @($t.mcpServers.PSObject.Properties.Name) }
+            if ($t.PSObject.Properties.Name -contains '_retiredServers') { $names += @($t._retiredServers) }
+        } catch {}
+    }
+    return @($names | Where-Object { $_ } | Select-Object -Unique)
+}
+function Read-JsonMcpNames([string]$path) {
+    if (-not (Test-Path $path)) { return @() }
+    try { $j = Get-Content $path -Raw | ConvertFrom-Json; if ($j.mcpServers) { return @($j.mcpServers.PSObject.Properties.Name) } } catch {}
+    return @()
+}
+function Read-CodexMcpNames([string]$path) {
+    if (-not (Test-Path $path)) { return @() }
+    return @(Select-String -Path $path -Pattern '^\[mcp_servers\.([^.\]]+)\]' -AllMatches |
+             ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value.Trim('"') })
+}
+function Remove-DriftFromJson([string]$path, [string[]]$known, [string[]]$expected, [string]$label) {
+    if (-not (Test-Path $path)) { return 0 }
+    try { $j = Get-Content $path -Raw | ConvertFrom-Json } catch { return 0 }
+    if (-not $j.mcpServers) { return 0 }
+    $present  = @($j.mcpServers.PSObject.Properties.Name)
+    $toRemove = @($present | Where-Object { ($known -contains $_) -and ($expected -notcontains $_) })
+    if ($toRemove.Count -eq 0) { return 0 }
+    $root = [ordered]@{}
+    foreach ($p in $j.PSObject.Properties) { if ($p.Name -ne 'mcpServers') { $root[$p.Name] = $p.Value } }
+    $srv = [ordered]@{}
+    foreach ($p in $j.mcpServers.PSObject.Properties) { if ($toRemove -notcontains $p.Name) { $srv[$p.Name] = $p.Value } }
+    $root['mcpServers'] = $srv
+    Write-TextNoBom $path ($root | ConvertTo-Json -Depth 30)
+    foreach ($r in $toRemove) { Write-OK "Swept drift '$r' from $label config" }
+    return $toRemove.Count
+}
+function Invoke-SelfHealSweep {
+    Write-Step "Self-heal sweep: reconciling live config against expected (removing drift)"
+    if ($managed.Count -eq 0) { Write-Skip "No managed servers resolved -- skipping sweep (won't guess an empty expected set)."; return }
+    $known = Get-AlfredKnownServerNames
+    if ($known.Count -eq 0) { Write-Skip "No template servers known -- nothing to reconcile."; return }
+    $managedKeys = @($managed.Keys)
+    $oauthKeys   = @($oauthDeferred.Keys)
+    $expCursor   = $managedKeys                                   # cursor gets all managed (incl oauth)
+    $expDesktop  = if ($SkipClaudeDesktop) { @() } else { $managedKeys }
+    $expCli      = @($managedKeys | Where-Object { $oauthKeys -notcontains $_ })  # claude/codex skip oauth
+    $fixed = 0
+
+    if (-not $SkipCursor) {
+        $fixed += Remove-DriftFromJson (Join-Path $HOME ".cursor\mcp.json") $known $expCursor 'cursor'
+    }
+    # Desktop is swept even when skipped, so leftover managed servers (the duplicate host) are cleared.
+    $fixed += Remove-DriftFromJson (Join-Path $env:APPDATA "Claude\claude_desktop_config.json") $known $expDesktop 'claude-desktop'
+
+    if (-not $SkipClaude -and (Get-Command claude -ErrorAction SilentlyContinue)) {
+        foreach ($n in (Read-JsonMcpNames (Join-Path $HOME ".claude.json"))) {
+            if (($known -contains $n) -and ($expCli -notcontains $n)) {
+                try { & claude mcp remove $n --scope user 2>$null | Out-Null; Write-OK "Swept drift '$n' from claude-code"; $fixed++ } catch {}
+            }
+        }
+    }
+    if (-not $SkipCodex -and (Get-Command codex -ErrorAction SilentlyContinue)) {
+        foreach ($n in (Read-CodexMcpNames (Join-Path $HOME ".codex\config.toml"))) {
+            if (($known -contains $n) -and ($expCli -notcontains $n)) {
+                try { & codex mcp remove $n 2>$null | Out-Null; Write-OK "Swept drift '$n' from codex"; $fixed++ } catch {}
+            }
+        }
+    }
+    if ($fixed -eq 0) { Write-OK "No drift -- every target already matches expected." }
+    else { Write-OK "Self-heal removed $fixed drifted registration(s). Restart affected apps to release them." }
+}
+if (-not $SyncOnly) { Invoke-SelfHealSweep }
+
 # ── summary ───────────────────────────────────────────────────────────────────
 if ($skippedServers.Count -gt 0) {
     Write-Step "Skipped servers (add the secret/prereq to Alfred .env, then re-run):"
