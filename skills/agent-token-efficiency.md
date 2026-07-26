@@ -138,6 +138,17 @@ The cache expires after **~5 minutes** of inactivity on the API, or between Curs
 
 ## 7. Context compression checkpoints
 
+### Alfred early auto-compact (Claude Code)
+
+Provision sets `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (default **35**; override with `ALFRED_AUTOCOMPACT_PCT` in Alfred `.env`) and wires:
+
+1. **PreCompact** → `scripts/hooks/pre-compact-handoff.py` writes project-root `HANDOFF.md`
+2. **SessionStart (matcher: compact)** → `scripts/hooks/post-compact-continue.py` re-injects the handoff and tells Claude to **continue the task immediately**
+
+Platform limit: compact runs between turns when the threshold is hit — it cannot interrupt a mid-turn tool loop. After compact, the continue hook resumes from `HANDOFF.md`.
+
+### Manual checkpoints
+
 On tasks that span many turns, use these prompts to compress context before it overflows:
 
 **Checkpoint (every 20+ tool calls):**

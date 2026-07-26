@@ -1,5 +1,5 @@
 # Alfred Capability Registry
-*Version: 2026-07-05*
+*Version: 2026-07-17*
 
 ## Purpose
 
@@ -34,6 +34,13 @@ Use **`python -m backend.cli diagnose`** for live readiness on this machine.
 ## Safety (skill and manifest authors)
 
 Destructive-operation guidance: **`requirements/safety-gates.md`**
+
+## User-visible workflow skills
+
+- `web-release-hardening` — pre-launch evidence gate across environment parity, managed
+  services, repository checks, browser journeys, deployment health, and handoff
+- `powerbi-custom-visual-development` — `pbiviz` metadata/capabilities validation,
+  representative data-shape testing, packaging, and Power BI Desktop verification
 
 ## Adding a new capability
 

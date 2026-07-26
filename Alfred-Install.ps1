@@ -1194,6 +1194,15 @@ $settingsObj = [ordered]@{
             [ordered]@{ hooks = @(
                 [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/session-start-instincts.py"' }
             ) }
+            # After auto/manual compact: reinject HANDOFF.md and continue the task.
+            [ordered]@{ matcher = "compact"; hooks = @(
+                [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/post-compact-continue.py"' }
+            ) }
+        )
+        PreCompact = @(
+            [ordered]@{ matcher = "auto|manual"; hooks = @(
+                [ordered]@{ type = "command"; command = 'python "$CLAUDE_PROJECT_DIR/scripts/hooks/pre-compact-handoff.py"' }
+            ) }
         )
         PreToolUse = @(
             [ordered]@{ matcher = "Edit|Write|MultiEdit"; hooks = @(
@@ -1212,7 +1221,7 @@ $settingsObj = [ordered]@{
 }
 $settingsJson = $settingsObj | ConvertTo-Json -Depth 10
 Set-Content $settingsPath $settingsJson -Encoding UTF8
-Write-Done ".claude\settings.json written (permissions + continuous-learning/guardrail hooks; MCPs in Step 10)."
+Write-Done ".claude\settings.json written (permissions + continuous-learning/guardrail + early-compact hooks; MCPs in Step 10)."
 if ($mcpServers.Count -gt 0) {
     Write-Host "  Detected $($mcpServers.Count) local MCP prerequisite(s) — full stack registered via Provision-Cursor.ps1" -ForegroundColor DarkGray
 } else {

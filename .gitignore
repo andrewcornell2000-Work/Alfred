@@ -57,6 +57,9 @@ tmp_*.json
 tmp_*.xlsx
 tmp_*.csv
 
+# Auto-compact markers (HANDOFF.md is intentional when users keep it)
+.alfred/
+
 # Runtime data (DuckDB MCP, local DBs) — never block git pull
 data/*
 !data/.gitkeep

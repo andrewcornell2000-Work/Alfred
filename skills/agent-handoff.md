@@ -4,9 +4,13 @@ Use this skill when you are switching AI tools mid-task, ending a session and re
 tomorrow, or handing a partially-complete task to Codex (cloud) or Claude Code (terminal)
 after starting in Cursor (IDE).
 
-*Companion skills: `agent-workflow-orchestration.md` (orchestrating multi-step chains),
-`agent-spec-driven.md` (spec files that persist across all sessions), `agents-md-project-context.md`
-(project-wide permanent context).*
+Use `prompt-handoff.md` instead when the deliverable is a copy-paste executor prompt rather
+than a record of current repository state. Use `agent-planning.md` to design work that will
+continue in the current session.
+
+Do not create a handoff file automatically. If the user asks for a portable file, write it to
+the requested path (default `HANDOFF.md` at the repo root). If they only ask for handoff text,
+return the block in chat and do not add repository clutter.
 
 ---
 
@@ -19,9 +23,9 @@ deliberately left unfinished. You either:
 - Re-explain everything from scratch (slow, lossy), or
 - Paste a **HANDOFF.md** that the new session reads in 10 seconds.
 
-The HANDOFF.md is not a project README (too broad) and not a checkpoint artifact (too
-task-specific). It is a **living session-end document** — rewritten at the end of every
-meaningful session, always reflecting *right now*, never accumulating stale history.
+The HANDOFF.md is not a project README (too broad) or a transcript (too noisy). It is a
+**living session-end document** — rewritten when requested, always reflecting *right now*,
+never accumulating stale history.
 
 ---
 
@@ -52,8 +56,9 @@ Pattern B. Each worker gets a slimmed handoff covering only its own slice.
 
 ## The HANDOFF.md Template
 
-Place `HANDOFF.md` at the **repo root** (or a task-specific `tasks/HANDOFF.md`).
-Regenerate it at the end of every session. Never append — always overwrite.
+When the user requests a file, place `HANDOFF.md` at the **repo root** (or their requested
+task path). Never append — always overwrite after confirming that replacing an existing
+handoff is intended.
 
 ```markdown
 # HANDOFF — [Task Name]
@@ -63,6 +68,12 @@ _Status: IN PROGRESS | BLOCKED | READY FOR NEXT PHASE_
 
 ## What we're building
 [One sentence. The goal. Not the approach — the goal.]
+
+## Repository state
+- Repo / branch: [owner/repo] / [branch]
+- Base commit: [short SHA]
+- Working tree: [clean | modified files listed]
+- Remote state: [unpushed commits, open PR, or none]
 
 ## What's done ✓
 - [Concrete thing completed] — files affected: [list]
@@ -89,6 +100,12 @@ _Status: IN PROGRESS | BLOCKED | READY FOR NEXT PHASE_
 
 ## Open questions (needs human input before proceeding)
 - [Question]: [context for why it's blocked]
+
+## Verification and environment
+- Commands run: [command → result]
+- Next verification command: [exact command]
+- Required environment variable names: [names only — never values]
+- Machine assumptions: [OS, local services, authenticated CLIs]
 
 ## Starting prompt for next session
 > [Paste-ready. What you'll type in the new session's first message to orient the agent immediately.]
@@ -124,14 +141,17 @@ I'm handing this task to Codex to run autonomously. Write HANDOFF.md at the repo
 It must be self-contained — Codex will start with ONLY this file and no other context.
 Include:
 1. Exact goal (one sentence, measurable)
-2. Everything confirmed done (file names + what changed)
-3. Every decision made and WHY (Codex must not guess rationale)
-4. Ordered steps with expected outputs for each
-5. Hard constraints (files not to touch, patterns not to use, things that will break prod)
-6. Test/verify command Codex should run to confirm each step is done
-7. A paste-ready starting prompt for Codex
+2. Repository state (repo, branch, base commit, dirty files, unpushed commits or PR)
+3. Everything confirmed done (file names + what changed)
+4. Every decision made and WHY (Codex must not guess rationale)
+5. Ordered steps with expected outputs for each
+6. Hard constraints (files not to touch, patterns not to use, things that will break prod)
+7. Exact verification commands and their latest results
+8. Environment variable NAMES only, authentication prerequisites, and machine assumptions
+9. A paste-ready starting prompt for Codex
 
 Be specific. Codex has no memory of our conversation.
+Never include tokens, passwords, connection strings, private data, or environment values.
 ```
 
 ### Parallel worker handoff (one per worker)
@@ -178,16 +198,9 @@ affects the "What to do next" steps before we proceed.
 
 ## Cursor → Claude Code → Codex: which tool for which phase
 
-| Phase | Best tool | Why |
-|-------|-----------|-----|
-| Explore / design / ask questions | **Cursor** | Interactive, fast context switching, inline diffs |
-| Plan + write HANDOFF.md | **Cursor** | You're in the loop, can review before committing |
-| Long autonomous execution | **Claude Code** (terminal) | Larger effective context, native multi-agent, MCP |
-| Parallel workstreams | **Codex** (cloud) | Cloud sandbox, parallel tasks, no local resource use |
-| Review / confirm output | **Cursor** | You see the diffs, run tests, approve or reject |
-
-**Practical routing rule:** Design in Cursor. Execute in Claude Code or Codex. Review in Cursor.
-HANDOFF.md is the bridge at every transition.
+Choose the next tool based on the task, not a fixed hierarchy. The handoff must remain
+tool-neutral except for explicit prerequisites. Cursor, Claude Code, and Codex should all be
+able to recover repository state, constraints, and the next verified step from the same file.
 
 ---
 

@@ -19,6 +19,7 @@
     "data-reconciliation": "data",
 
     "powerbi-model-editing": "powerbi",
+    "powerbi-custom-visual-development": "powerbi",
     "power-query-transformations": "powerbi",
     "powerquery-column-errors": "powerbi",
 
@@ -27,7 +28,8 @@
 
     "sharepoint-graph": "webdev",
     "supabase": "webdev",
-    "vercel": "webdev"
+    "vercel": "webdev",
+    "web-release-hardening": "webdev"
   },
   "packs": {
     "fabric": "powerbi"

@@ -11,6 +11,22 @@ Provisioned by Alfred. One primary path per task. No ping-pong between similar t
 Use **Read, Grep, Glob, Shell, Edit, Write** for repo work unless a row below names a better primary tool.
 If any MCP call errors or takes more than ~5 seconds, **stop using that MCP for the rest of the turn** and fall back to native tools.
 
+### Repository orientation
+When `graphify-out/graph.json` exists, run `graphify query`, `graphify path`, or
+`graphify explain` before raw code searches. Use the graph to narrow subsequent Read/Grep/Glob
+calls. If the graph is absent, continue with native tools; do not block ordinary work on a
+new graph build unless the user requested one.
+
+### Windows shell safety
+On Windows, assume Shell commands run in PowerShell unless the tool explicitly says otherwise.
+
+- Do not use Bash-only utilities or command substitution.
+- Do not use `&&` when Windows PowerShell 5.1 compatibility is possible. Run dependent
+  commands as separate tool calls, or guard the second command with
+  `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`.
+- Quote paths containing spaces and use PowerShell-native environment syntax such as
+  `$env:USERPROFILE`.
+
 ## Layer 2 — Domain MCPs (task-specific, not interchangeable)
 | Task | Use | Never substitute |
 |------|-----|------------------|
@@ -31,6 +47,7 @@ If any MCP call errors or takes more than ~5 seconds, **stop using that MCP for 
 
 ## Layer 3 — Skills
 - **Alfred + third-party skills** live in `~/.agents/skills` (cross-tool standard for Cursor, Claude Code, Codex).
+  Alfred-authored skills provision as `alfred-*`; third-party skills (e.g. `design-taste-frontend`) sit alongside them.
 - **Project skills** (`.cursor/skills/` or `.agents/skills/` in repo) — repo-specific only.
 Prefer the `~/.agents/skills` copy when both exist.
 

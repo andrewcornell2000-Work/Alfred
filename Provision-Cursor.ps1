@@ -1026,6 +1026,107 @@ function Sync-Impeccable([hashtable]$harnessRoots) {
     Write-OK "Synced impeccable design skill -> $($harnessRoots.Values -join ', ')"
 }
 
+# Early Claude Code auto-compact + HANDOFF reinjection.
+# 1) User env CLAUDE_AUTOCOMPACT_PCT_OVERRIDE (default 35; override via ALFRED_AUTOCOMPACT_PCT in .env)
+# 2) ~/.claude/settings.json hooks: PreCompact -> HANDOFF.md, SessionStart(compact) -> continue
+# Absolute script paths so this works in every project, not only the Alfred repo.
+function Wire-ClaudeEarlyCompact {
+    if ($SkipClaude) {
+        Write-Skip "Claude Code skipped (--SkipClaude) — early-compact hooks not wired"
+        return
+    }
+
+    $pctRaw = $null
+    if ($EnvMap.ContainsKey('ALFRED_AUTOCOMPACT_PCT')) { $pctRaw = [string]$EnvMap['ALFRED_AUTOCOMPACT_PCT'] }
+    elseif ($env:ALFRED_AUTOCOMPACT_PCT) { $pctRaw = [string]$env:ALFRED_AUTOCOMPACT_PCT }
+    $pct = 35
+    if ($pctRaw -match '^\s*(\d{1,3})\s*$') {
+        $pct = [int]$Matches[1]
+        if ($pct -lt 1) { $pct = 1 }
+        if ($pct -gt 95) { $pct = 95 }
+    }
+    try {
+        [System.Environment]::SetEnvironmentVariable('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE', "$pct", 'User')
+        $env:CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = "$pct"
+        Write-OK "Set User env CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=$pct (restart Claude Code / new terminals pick this up)"
+    } catch {
+        Write-Warn2 "Could not set CLAUDE_AUTOCOMPACT_PCT_OVERRIDE User env: $($_.Exception.Message)"
+    }
+
+    $preScript = Join-Path $Root "scripts\hooks\pre-compact-handoff.py"
+    $postScript = Join-Path $Root "scripts\hooks\post-compact-continue.py"
+    if (-not (Test-Path $preScript) -or -not (Test-Path $postScript)) {
+        Write-Warn2 "Early-compact hook scripts missing under scripts/hooks — skip Claude settings merge"
+        return
+    }
+
+    $py = $null
+    foreach ($c in @('python', 'py')) {
+        if (Get-Command $c -ErrorAction SilentlyContinue) { $py = $c; break }
+    }
+    if (-not $py) {
+        Write-Warn2 "python not on PATH — Claude early-compact hooks not wired"
+        return
+    }
+
+    $preCmd = "$py `"$preScript`""
+    $postCmd = "$py `"$postScript`""
+    $settingsPath = Join-Path $HOME ".claude\settings.json"
+    $settingsDir = Split-Path $settingsPath -Parent
+    if (-not (Test-Path $settingsDir)) {
+        New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+    }
+
+    $settings = $null
+    if (Test-Path $settingsPath) {
+        try { $settings = Get-Content $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $settings = $null }
+    }
+    if (-not $settings) { $settings = [pscustomobject]@{} }
+    if (-not ($settings.PSObject.Properties.Name -contains 'hooks') -or -not $settings.hooks) {
+        $settings | Add-Member -NotePropertyName hooks -NotePropertyValue ([pscustomobject]@{}) -Force
+    }
+
+    function Add-HookEntry {
+        param(
+            [Parameter(Mandatory = $true)][string]$EventName,
+            [Parameter(Mandatory = $true)]$Entry,
+            [Parameter(Mandatory = $true)][string]$Marker
+        )
+        $existing = @()
+        if (($settings.hooks.PSObject.Properties.Name -contains $EventName) -and $settings.hooks.$EventName) {
+            $existing = @($settings.hooks.$EventName)
+        }
+        $kept = @($existing | Where-Object {
+            $blob = ($_ | ConvertTo-Json -Depth 20 -Compress)
+            $blob -notmatch [regex]::Escape($Marker)
+        })
+        $kept += $Entry
+        if ($settings.hooks.PSObject.Properties.Name -contains $EventName) {
+            $settings.hooks.$EventName = $kept
+        } else {
+            $settings.hooks | Add-Member -NotePropertyName $EventName -NotePropertyValue $kept -Force
+        }
+    }
+
+    $preEntry = [pscustomobject]@{
+        matcher = 'auto|manual'
+        hooks   = @(
+            [pscustomobject]@{ type = 'command'; command = $preCmd }
+        )
+    }
+    $postEntry = [pscustomobject]@{
+        matcher = 'compact'
+        hooks   = @(
+            [pscustomobject]@{ type = 'command'; command = $postCmd }
+        )
+    }
+    Add-HookEntry -EventName 'PreCompact' -Entry $preEntry -Marker 'pre-compact-handoff.py'
+    Add-HookEntry -EventName 'SessionStart' -Entry $postEntry -Marker 'post-compact-continue.py'
+
+    Write-TextNoBom $settingsPath ($settings | ConvertTo-Json -Depth 30)
+    Write-OK "Wired Claude early-compact hooks into ~/.claude/settings.json (HANDOFF then continue)"
+}
+
 # Wire impeccable's deterministic pre-edit detector hook into Cursor's GLOBAL hooks.json
 # (preToolUse), with an absolute node path so it runs without relying on the user's PATH.
 # Merges into the existing file (preserves other hooks). Idempotent.
@@ -1297,7 +1398,8 @@ if ($seedList.Count -gt 0) {
 
 Sync-AlfredRepoCtxRules -RepoRoot $Root
 
-# ── Impeccable Cursor hook ──
+# ── Claude early compact (35% default) + Cursor impeccable hook ──
+Wire-ClaudeEarlyCompact
 Wire-ImpeccableCursorHook
 
 # ── Toolchain / MCP freshness (informational; does not auto-upgrade) ───────────

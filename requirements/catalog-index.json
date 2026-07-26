@@ -27,6 +27,14 @@
     "data-reconciliation": {
       "path": "skills/data-reconciliation.md",
       "aliases": ["data-root-cause", "tie-out"]
+    },
+    "web-release-hardening": {
+      "path": "skills/web-release-hardening.md",
+      "aliases": ["pre-launch-audit", "release-readiness", "go-live-check"]
+    },
+    "powerbi-custom-visual-development": {
+      "path": "skills/powerbi-custom-visual-development.md",
+      "aliases": ["pbiviz", "powerbi-custom-visual", "custom-visual-packaging"]
     }
   },
   "mcp_fingerprints": {
