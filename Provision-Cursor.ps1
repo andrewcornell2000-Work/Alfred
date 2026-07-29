@@ -39,6 +39,8 @@
     Skip Codex (codex mcp add) provisioning.
 .PARAMETER SkipThirdPartySkills
     Skip npx install of third-party agent skills (e.g. Leonxlnx/taste-skill).
+.PARAMETER ClaudeOnly
+    Provision Claude Code only -- equivalent to -SkipCursor -SkipCodex -SkipClaudeDesktop.
 #>
 [CmdletBinding()]
 param(
@@ -52,10 +54,16 @@ param(
     [switch]$SkipCloseAgentApps,
     [switch]$SkipThirdPartySkills,
     [switch]$SkipOptionalPlugins,
+    [switch]$ClaudeOnly,
     [string]$Buckets = '',
     [switch]$SyncOnly,
     [switch]$InstallerMode
 )
+
+# -ClaudeOnly: skip Cursor, Codex, and Claude Desktop provisioning -- Claude Code only.
+if ($ClaudeOnly) {
+    $SkipCursor = $true; $SkipCodex = $true; $SkipClaudeDesktop = $true
+}
 
 # -SyncOnly: fast path for Alfred-Sync.ps1 — sync skills + subagents only, no MCP
 # registration, no app-closing, no doctor. Reuses the existing per-target skips.
@@ -787,6 +795,22 @@ if (-not $SkipClaude -and $managed.Count -gt 0) {
             $argList += $srv.command
             $argList += $srv.args
             Invoke-McpCliAdd 'claude' $name $argList | Out-Null
+        }
+    }
+}
+
+# ── Claude Code: caveman plugin (token-saving terser-replies skill) ───────────
+if (-not $SkipClaude -and -not $SkipThirdPartySkills) {
+    Write-Step "Claude Code: caveman plugin (JuliusBrussee/caveman)"
+    if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+        Write-Skip "claude CLI not found -- skipping caveman plugin install."
+    } else {
+        & claude plugin marketplace add JuliusBrussee/caveman 2>&1 | Out-Null
+        & claude plugin install caveman@caveman 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-OK "Installed caveman@caveman plugin."
+        } else {
+            Write-Warn2 "caveman plugin install failed (exit $LASTEXITCODE) -- run manually: claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman"
         }
     }
 }
