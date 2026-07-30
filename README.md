@@ -86,6 +86,17 @@ Re-provision after pulling updates:
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCloseAgentApps
 ```
 
+Only touching Claude Code (skip Cursor, Codex, and Claude Desktop):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ClaudeOnly
+```
+
+Provisioning Claude Code also installs the
+[`caveman`](https://github.com/JuliusBrussee/caveman) plugin — a token-saving
+skill that makes replies terser. Toggle it in-session with
+`/caveman [lite|full|ultra|wenyan]`, and check savings with `/caveman-stats`.
+
 Verify what each tool actually sees (runs automatically after provisioning):
 
 ```powershell
