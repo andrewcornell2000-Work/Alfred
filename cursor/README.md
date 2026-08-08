@@ -1,13 +1,24 @@
-# cursor/ — Alfred provisioning source of truth
+# cursor/ — MCP catalog + rule seeds (not Cursor-only)
 
 Despite the folder name, this is **not Cursor-only**. `Provision-Cursor.ps1` (repo root) reads
-`cursor/mcp.json` and provisions **Cursor, Claude Code, and Codex**.
+`cursor/mcp.json` as a **shared allowlist**, then installs that set into each tool
+**independently** via that tool’s native method:
 
-See [PACK.md](../PACK.md). Alfred is a catalog + installer — add tools to `mcp.json` / skills, then re-provision.
+1. Cursor → `~/.cursor/mcp.json`
+2. Claude Code → `claude mcp add/remove --scope user`
+3. Codex → `codex mcp add/remove`
+
+Claude Desktop Connectors stay **off** unless you pass `-ProvisionClaudeDesktop`.
+
+See [PACK.md](../PACK.md). Alfred is a catalog + installer — MCP/skill identities stay
+upstream/neutral (not “Alfred MCPs” / “Alfred skills”).
 
 ```powershell
-# MCP servers + skills for Cursor, Claude Code, and Codex:
+# Same allowlist → Cursor, then Claude Code, then Codex (separate configs):
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,powerbi,data"
+
+# Claude Code only:
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ClaudeOnly
 
 # Also seed Cursor rules + shared AGENTS.md into a project:
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ProjectPath C:\path\to\repo
@@ -17,11 +28,11 @@ powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ProjectPath C:\pa
 
 | Source | What it is | Destination |
 |--------|-----------|-------------|
-| `mcp.json` | MCP server template (`${env:VAR}` placeholders, no secrets) | `~/.cursor/mcp.json` + `claude mcp add --scope user` + `codex mcp add` |
-| `skills/*.md` (repo root) | Agent + tool how-to skills | `~/.agents/skills` (single copy) |
+| `mcp.json` | MCP allowlist template (`${env:VAR}` placeholders, no secrets) | Per-tool native install (see above) |
+| `skills/*.md` (repo root) | Agent + tool how-to skills | `~/.agents/skills/<slug>/` (neutral names) |
 | `rules/*.mdc` | Cursor project rules | `<project>/.cursor/rules/` (with `-ProjectPath` / `ALFRED_PROJECT_PATHS`) |
 | graphify | Local AST knowledge graph | CLI via `uv tool`; rule + `graphify-out/` per seeded repo |
 
 ## Buckets
 
-Work default: `core,powerbi,data`. Personal: `all` (adds `web`, `mediagen`, `cloud`).
+Work default: `core,powerbi,data`. Personal: `all` (adds `web`, `mediagen`, `webdev`).

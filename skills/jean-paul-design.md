@@ -26,12 +26,12 @@ Then read `Alfred/themes/<id>/THEME.md`.
 6. **`design-taste-frontend`** — anti-slop only; never override project/theme palette
 7. **Magic UI MCP** — when it improves UX without breaking brand
 
-## Global subagents (Alfred `agents/`, synced to `~/.cursor/agents`)
+## Global subagents (pack `agents/`, synced to `~/.cursor/agents`)
 
 | Name | Invoke |
 |------|--------|
 | Jean Paul | `design-agent` / "Jean Paul, …" |
-| Handoff prompts | Skill `alfred-prompt-handoff`. Ordinary plans → Cursor Plan Mode. |
+| Handoff prompts | Skill `prompt-handoff`. Ordinary plans → Cursor Plan Mode. |
 
 Project-only subagents stay in `<repo>/.cursor/agents/` (e.g. `session-hub`, `competitive-analyst`).
 

@@ -1,7 +1,7 @@
 # Labour Cost Forecasting
 
 **Source:** Best practices for workforce cost planning in regulated industries  
-**Adapted for Alfred:** Financial planning for Maersk MCL labour operations
+**Scope:** Financial planning for Maersk MCL labour operations
 
 ---
 

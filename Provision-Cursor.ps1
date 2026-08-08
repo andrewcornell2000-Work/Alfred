@@ -1,22 +1,27 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Provision MCP servers, skills, and (optionally) rules into Cursor, Claude Code,
-    AND Codex, machine-wide, from Alfred's single source of truth.
+    Surgical provisioner: install the same MCP allowlist into Cursor, Claude Code,
+    and Codex independently (native method per tool). Alfred is the installer only.
 .DESCRIPTION
-    Reads cursor/mcp.json (a template with ${env:VAR} placeholders) and:
-      * deep-merges the servers into ~/.cursor/mcp.json (Cursor, global, all projects),
-      * registers them with Claude Code at user scope (claude mcp add --scope user),
-      * merges them into Claude Desktop (%APPDATA%\Claude\claude_desktop_config.json).
+    Reads cursor/mcp.json (a template with ${env:VAR} placeholders) and provisions
+    each host separately — as if you installed MCPs one-by-one in that tool:
+      * Install-McpCursor  → ~/.cursor/mcp.json (file merge + retire)
+      * Install-McpClaude  → claude mcp add/remove --scope user
+      * Install-McpCodex   → codex mcp add/remove
+    Claude Desktop Connectors are OFF by default (opt-in: -ProvisionClaudeDesktop
+    or ALFRED_PROVISION_CLAUDE_DESKTOP=1) to avoid Cursor/Code/Desktop crossover.
+
     Secrets are resolved from Alfred's .env (or machine environment). A server whose
     REQUIRED secret or command is missing is skipped with a clear message.
     Tokens land in machine-local config files only — never committed to git.
 
-    Skills: every skills/*.md is wrapped as alfred-<name>/SKILL.md and synced once into
-    ~/.agents/skills (cross-tool standard read by Cursor, Claude Code, and Codex).
+    Skills: every skills/*.md syncs once into ~/.agents/skills/<slug>/SKILL.md with
+    neutral names (no alfred- prefix). Cursor, Claude Code, and Codex all scan that
+    shared catalog.
 
     Rules: pass -ProjectPath <repo> to seed cursor/rules/*.mdc into <repo>/.cursor/rules
-    and a shared AGENTS.md (read by both tools). Cursor rules are per-project by design.
+    and a shared AGENTS.md. Cursor rules are per-project by design.
 
     Idempotent and safe to re-run. Never commits secrets.
 .PARAMETER ProjectPath
@@ -28,19 +33,21 @@
 .PARAMETER SkipDoctor
     Skip the post-provision Alfred-Doctor.ps1 verification report.
 .PARAMETER SkipCursor
-    Skip Cursor (~/.cursor) provisioning.
+    Skip Cursor (~/.cursor) MCP + impeccable provisioning.
 .PARAMETER SkipClaude
     Skip Claude Code (claude mcp / ~/.claude) provisioning.
+.PARAMETER ProvisionClaudeDesktop
+    Opt-in: also write Claude Desktop Connectors (%APPDATA%\Claude\claude_desktop_config.json).
+    Off by default. Equivalent .env: ALFRED_PROVISION_CLAUDE_DESKTOP=1.
 .PARAMETER SkipClaudeDesktop
-    Skip Claude Desktop app (%APPDATA%\Claude\claude_desktop_config.json).
-    Also set via .env: ALFRED_SKIP_CLAUDE_DESKTOP=1 (use when you only run Claude Code
-    inside the Desktop Code tab / Cursor — not Claude chat Connectors).
+    Deprecated alias — Desktop is already skipped by default. Kept so older callers
+    and ALFRED_SKIP_CLAUDE_DESKTOP=1 still force-skip.
 .PARAMETER SkipCodex
     Skip Codex (codex mcp add) provisioning.
 .PARAMETER SkipThirdPartySkills
     Skip npx install of third-party agent skills (e.g. Leonxlnx/taste-skill).
 .PARAMETER ClaudeOnly
-    Provision Claude Code only -- equivalent to -SkipCursor -SkipCodex -SkipClaudeDesktop.
+    Provision Claude Code only -- equivalent to -SkipCursor -SkipCodex (Desktop stays off).
 #>
 [CmdletBinding()]
 param(
@@ -49,6 +56,7 @@ param(
     [switch]$SkipDoctor,
     [switch]$SkipCursor,
     [switch]$SkipClaude,
+    [switch]$ProvisionClaudeDesktop,
     [switch]$SkipClaudeDesktop,
     [switch]$SkipCodex,
     [switch]$SkipCloseAgentApps,
@@ -60,15 +68,15 @@ param(
     [switch]$InstallerMode
 )
 
-# -ClaudeOnly: skip Cursor, Codex, and Claude Desktop provisioning -- Claude Code only.
+# -ClaudeOnly: skip Cursor and Codex — Claude Code only (Desktop remains off by default).
 if ($ClaudeOnly) {
-    $SkipCursor = $true; $SkipCodex = $true; $SkipClaudeDesktop = $true
+    $SkipCursor = $true; $SkipCodex = $true; $SkipClaudeDesktop = $true; $ProvisionClaudeDesktop = $false
 }
 
 # -SyncOnly: fast path for Alfred-Sync.ps1 — sync skills + subagents only, no MCP
 # registration, no app-closing, no doctor. Reuses the existing per-target skips.
 if ($SyncOnly) {
-    $SkipCursor = $true; $SkipClaude = $true; $SkipClaudeDesktop = $true
+    $SkipCursor = $true; $SkipClaude = $true; $SkipClaudeDesktop = $true; $ProvisionClaudeDesktop = $false
     $SkipThirdPartySkills = $true; $SkipOptionalPlugins = $true; $SkipDoctor = $true; $SkipCloseAgentApps = $true
 }
 
@@ -395,17 +403,26 @@ if (-not $SkipCursor -and -not (Test-CursorInstalled)) {
 
 $EnvMap = Read-DotEnv (Join-Path $Root ".env")
 
-# Claude Desktop Connectors are a separate MCP host from Claude Code (including the
-# Code tab inside the Desktop app). Skip writing claude_desktop_config.json when the
-# machine only uses Cursor + Claude Code — set ALFRED_SKIP_CLAUDE_DESKTOP=1 in .env.
-if (-not $SkipClaudeDesktop) {
-    $skipDesk = ''
-    if ($EnvMap.ContainsKey('ALFRED_SKIP_CLAUDE_DESKTOP')) { $skipDesk = [string]$EnvMap['ALFRED_SKIP_CLAUDE_DESKTOP'] }
-    elseif ($env:ALFRED_SKIP_CLAUDE_DESKTOP) { $skipDesk = [string]$env:ALFRED_SKIP_CLAUDE_DESKTOP }
-    if ($skipDesk -match '^(1|true|yes|on)$') {
-        $SkipClaudeDesktop = $true
-        Write-Info "ALFRED_SKIP_CLAUDE_DESKTOP=$skipDesk -- skipping Claude Desktop Connectors MCP write."
-    }
+# Claude Desktop Connectors are a SEPARATE MCP host from Claude Code. Default OFF
+# so provision never creates Cursor/Code/Desktop crossover. Opt in only when you
+# deliberately use Desktop chat Connectors.
+$doDesktop = $false
+if ($ProvisionClaudeDesktop) { $doDesktop = $true }
+$optInDesk = ''
+if ($EnvMap.ContainsKey('ALFRED_PROVISION_CLAUDE_DESKTOP')) { $optInDesk = [string]$EnvMap['ALFRED_PROVISION_CLAUDE_DESKTOP'] }
+elseif ($env:ALFRED_PROVISION_CLAUDE_DESKTOP) { $optInDesk = [string]$env:ALFRED_PROVISION_CLAUDE_DESKTOP }
+if ($optInDesk -match '^(1|true|yes|on)$') { $doDesktop = $true }
+# Explicit skip (flag or legacy env) always wins.
+if ($SkipClaudeDesktop) { $doDesktop = $false }
+$skipDeskLegacy = ''
+if ($EnvMap.ContainsKey('ALFRED_SKIP_CLAUDE_DESKTOP')) { $skipDeskLegacy = [string]$EnvMap['ALFRED_SKIP_CLAUDE_DESKTOP'] }
+elseif ($env:ALFRED_SKIP_CLAUDE_DESKTOP) { $skipDeskLegacy = [string]$env:ALFRED_SKIP_CLAUDE_DESKTOP }
+if ($skipDeskLegacy -match '^(1|true|yes|on)$') { $doDesktop = $false }
+$SkipClaudeDesktop = -not $doDesktop
+if ($SkipClaudeDesktop -and -not $SyncOnly) {
+    Write-Info "Claude Desktop Connectors: skipped (default). Opt in with -ProvisionClaudeDesktop or ALFRED_PROVISION_CLAUDE_DESKTOP=1."
+} elseif (-not $SkipClaudeDesktop) {
+    Write-Info "Claude Desktop Connectors: ENABLED (opt-in)."
 }
 
 # ── MCP bucket selection (which categories install on THIS machine) ────────────
@@ -735,9 +752,14 @@ if ($bucketDeferred.Count -gt 0) {
     Write-Info "Add a bucket later: Provision-Cursor.ps1 -Buckets `"$($SelectedBuckets -join ',')`,powerbi`"  (or 'all'), or edit ALFRED_BUCKETS in .env"
 }
 
-# ── Cursor: ~/.cursor/mcp.json (deep merge, preserve existing servers) ────────
-if (-not $SkipCursor -and $managed.Count -gt 0) {
-    Write-Step "Cursor: ~/.cursor/mcp.json"
+# ── Per-tool MCP stages (surgical: each host uses its native install path only) ─
+# Same allowlist ($managed), independent registration — Cursor file vs claude CLI
+# vs codex CLI. Running one stage never writes another tool's config.
+
+function Install-McpCursor {
+    if ($SkipCursor) { Write-Skip "Cursor MCP stage skipped (-SkipCursor)."; return }
+    if ($managed.Count -eq 0) { Write-Skip "Cursor MCP: nothing resolved to install."; return }
+    Write-Step "Cursor MCP: ~/.cursor/mcp.json (file merge + retire)"
     $cursorDir = Join-Path $HOME ".cursor"
     if (-not (Test-Path $cursorDir)) { New-Item -ItemType Directory -Path $cursorDir -Force | Out-Null }
     $cursorMcpPath = Join-Path $cursorDir "mcp.json"
@@ -754,7 +776,7 @@ if (-not $SkipCursor -and $managed.Count -gt 0) {
             Copy-Item $cursorMcpPath "$cursorMcpPath.bak" -Force -ErrorAction SilentlyContinue
         }
     }
-    foreach ($k in $managed.Keys) { $final[$k] = $managed[$k] }   # ours win
+    foreach ($k in $managed.Keys) { $final[$k] = $managed[$k] }   # catalog wins for managed keys
     foreach ($r in $retiredServers) {
         if ($final.Contains($r)) {
             $final.Remove($r)
@@ -764,40 +786,160 @@ if (-not $SkipCursor -and $managed.Count -gt 0) {
 
     $json = [ordered]@{ mcpServers = $final } | ConvertTo-Json -Depth 12
     Write-TextNoBom $cursorMcpPath $json
-    Write-OK "Wrote $($managed.Count) managed server(s); $($final.Count) total in $cursorMcpPath"
-    Write-Info "This file is machine-local and may contain tokens -- it is never committed."
+    Write-OK "Cursor: wrote $($managed.Count) managed server(s); $($final.Count) total in $cursorMcpPath"
+    Write-Info "User-added servers not in the catalog (e.g. higgsfield) are preserved."
 }
 
-# ── Claude Code: claude mcp add --scope user (idempotent) ─────────────────────
-if (-not $SkipClaude -and $managed.Count -gt 0) {
-    Write-Step "Claude Code: registering servers at user scope"
+function Install-McpClaude {
+    if ($SkipClaude) { Write-Skip "Claude Code MCP stage skipped (-SkipClaude)."; return }
+    if ($managed.Count -eq 0) { Write-Skip "Claude Code MCP: nothing resolved to install."; return }
+    Write-Step "Claude Code MCP: claude mcp add/remove --scope user (native only)"
     if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
         Write-Skip "claude CLI not found -- skipping Claude Code MCP registration."
-    } else {
-        foreach ($r in $retiredServers) {
-            try { & claude mcp remove $r --scope user 2>$null | Out-Null } catch {}
+        return
+    }
+    foreach ($r in $retiredServers) {
+        try { & claude mcp remove $r --scope user 2>$null | Out-Null } catch {}
+    }
+    foreach ($name in $managed.Keys) {
+        $srv = $managed[$name]
+        if ($oauthDeferred[$name]) {
+            Write-Info "$name : OAuth deferred -- sign in from Cursor when you first use it (not registered on Claude CLI)."
+            continue
         }
-        foreach ($name in $managed.Keys) {
-            $srv = $managed[$name]
-            if ($oauthDeferred[$name]) {
-                Write-Info "$name : in mcp.json only -- sign in from Cursor/Claude when you first use it."
-                continue
-            }
-            try { & claude mcp remove $name --scope user 2>$null | Out-Null } catch {}
-            if ($srv.url) {
-                $argList = @('mcp', 'add', $name, '--scope', 'user', '--transport', 'http', [string]$srv.url)
-                Invoke-McpCliAdd 'claude' $name $argList | Out-Null
-                continue
-            }
-            $argList = @('mcp', 'add', $name, '--scope', 'user')
-            foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
-            $argList += '--'
-            $argList += $srv.command
-            $argList += $srv.args
+        try { & claude mcp remove $name --scope user 2>$null | Out-Null } catch {}
+        if ($srv.url) {
+            $argList = @('mcp', 'add', $name, '--scope', 'user', '--transport', 'http', [string]$srv.url)
             Invoke-McpCliAdd 'claude' $name $argList | Out-Null
+            continue
+        }
+        $argList = @('mcp', 'add', $name, '--scope', 'user')
+        foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
+        $argList += '--'
+        $argList += $srv.command
+        $argList += $srv.args
+        Invoke-McpCliAdd 'claude' $name $argList | Out-Null
+    }
+    Write-OK "Claude Code: registered $($managed.Count) managed server(s) (OAuth-deferred skipped)."
+}
+
+function Install-McpClaudeDesktop {
+    # Opt-in only. When skipped, prune catalog-known leftovers so Desktop can't duplicate Code.
+    $desktopPath = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
+    if ($SkipClaudeDesktop) {
+        if ($SyncOnly) { return }
+        if (-not (Test-Path $desktopPath)) { return }
+        try {
+            $existingDesktop = Get-Content $desktopPath -Raw | ConvertFrom-Json
+            if (-not $existingDesktop.mcpServers) { return }
+            $known = @()
+            if (Test-Path $McpTemplatePath) {
+                try {
+                    $t = Get-Content $McpTemplatePath -Raw | ConvertFrom-Json
+                    if ($t.mcpServers) { $known += @($t.mcpServers.PSObject.Properties.Name) }
+                    if ($t.PSObject.Properties.Name -contains '_retiredServers') { $known += @($t._retiredServers) }
+                } catch {}
+            }
+            $known = @($known + @($retiredServers) | Where-Object { $_ } | Select-Object -Unique)
+            $finalDesktop = [ordered]@{}
+            foreach ($p in $existingDesktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
+            $removed = 0
+            foreach ($r in $known) {
+                if ($finalDesktop.Contains($r)) {
+                    $finalDesktop.Remove($r)
+                    $removed++
+                    Write-Info "Cleared catalog MCP '$r' from Claude Desktop (Desktop stage off)."
+                }
+            }
+            if ($removed -gt 0) {
+                $desktopRoot = [ordered]@{}
+                foreach ($p in $existingDesktop.PSObject.Properties) {
+                    if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
+                }
+                $desktopRoot['mcpServers'] = $finalDesktop
+                Write-TextNoBom $desktopPath ($desktopRoot | ConvertTo-Json -Depth 30)
+                Write-OK "Pruned $removed catalog MCP(s) from Claude Desktop (no new servers added)."
+            }
+        } catch {
+            Write-Warn2 "Could not prune Claude Desktop config: $_"
+        }
+        return
+    }
+    if ($managed.Count -eq 0) { Write-Skip "Claude Desktop MCP: nothing resolved to install."; return }
+    Write-Step "Claude Desktop MCP: claude_desktop_config.json (opt-in)"
+    $claudeAppDir = Join-Path $env:APPDATA "Claude"
+    if (-not (Test-Path $claudeAppDir)) { New-Item -ItemType Directory -Path $claudeAppDir -Force | Out-Null }
+
+    $desktopRoot = [ordered]@{}
+    $finalDesktop = [ordered]@{}
+    if (Test-Path $desktopPath) {
+        try {
+            $existingDesktop = Get-Content $desktopPath -Raw | ConvertFrom-Json
+            foreach ($p in $existingDesktop.PSObject.Properties) {
+                if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
+            }
+            if ($existingDesktop.mcpServers) {
+                foreach ($p in $existingDesktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
+            }
+        } catch {
+            Write-Warn2 "Existing claude_desktop_config.json unreadable -- backing up and recreating mcpServers."
+            Copy-Item $desktopPath "$desktopPath.bak" -Force -ErrorAction SilentlyContinue
         }
     }
+    foreach ($k in $managed.Keys) { $finalDesktop[$k] = $managed[$k] }
+    foreach ($r in $retiredServers) {
+        if ($finalDesktop.Contains($r)) {
+            $finalDesktop.Remove($r)
+            Write-Info "Removed retired MCP '$r' from Claude Desktop config."
+        }
+    }
+    $desktopRoot['mcpServers'] = $finalDesktop
+    Write-TextNoBom $desktopPath ($desktopRoot | ConvertTo-Json -Depth 30)
+    Write-OK "Claude Desktop: wrote $($managed.Count) managed server(s); $($finalDesktop.Count) total."
+    Write-Info "Restart the Claude Desktop app to see Connectors update."
 }
+
+function Install-McpCodex {
+    if ($SkipCodex -or $SyncOnly) {
+        if ($SkipCodex) { Write-Skip "Codex MCP stage skipped (-SkipCodex)." }
+        return
+    }
+    if ($managed.Count -eq 0) { Write-Skip "Codex MCP: nothing resolved to install."; return }
+    Write-Step "Codex MCP: codex mcp add/remove (native only)"
+    if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
+        Write-Skip "codex CLI not found -- skipping Codex MCP registration."
+        return
+    }
+    foreach ($r in $retiredServers) {
+        try { & codex mcp remove $r 2>$null | Out-Null } catch {}
+    }
+    foreach ($name in $managed.Keys) {
+        $srv = $managed[$name]
+        if ($oauthDeferred[$name]) {
+            Write-Info "$name : OAuth deferred -- sign in from Cursor when you first use it (not registered on Codex CLI)."
+            continue
+        }
+        try { & codex mcp remove $name 2>$null | Out-Null } catch {}
+        if ($srv.url) {
+            $argList = @('mcp', 'add', $name, '--url', [string]$srv.url)
+            Invoke-McpCliAdd 'codex' $name $argList | Out-Null
+            continue
+        }
+        $argList = @('mcp', 'add', $name)
+        foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
+        $argList += '--'
+        $argList += $srv.command
+        $argList += $srv.args
+        Invoke-McpCliAdd 'codex' $name $argList | Out-Null
+    }
+    Write-OK "Codex: registered $($managed.Count) managed server(s) (OAuth-deferred skipped)."
+}
+
+# Run stages independently and in sequence (same allowlist, separate configs).
+Install-McpCursor
+Install-McpClaude
+Install-McpClaudeDesktop
+Install-McpCodex
 
 # ── Claude Code: caveman plugin (token-saving terser-replies skill) ───────────
 if (-not $SkipClaude -and -not $SkipThirdPartySkills) {
@@ -815,112 +957,9 @@ if (-not $SkipClaude -and -not $SkipThirdPartySkills) {
     }
 }
 
-# ── Claude Desktop app: %APPDATA%\Claude\claude_desktop_config.json ─────────────
-# Separate from Claude Code CLI (~/.claude.json). The Desktop "Connectors" UI reads this file.
-if (-not $SkipClaudeDesktop -and $managed.Count -gt 0) {
-    Write-Step "Claude Desktop: claude_desktop_config.json"
-    $claudeAppDir = Join-Path $env:APPDATA "Claude"
-    if (-not (Test-Path $claudeAppDir)) { New-Item -ItemType Directory -Path $claudeAppDir -Force | Out-Null }
-    $desktopPath = Join-Path $claudeAppDir "claude_desktop_config.json"
-
-    $desktopRoot = [ordered]@{}
-    if (Test-Path $desktopPath) {
-        try {
-            $existingDesktop = Get-Content $desktopPath -Raw | ConvertFrom-Json
-            foreach ($p in $existingDesktop.PSObject.Properties) {
-                if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
-            }
-            $finalDesktop = [ordered]@{}
-            if ($existingDesktop.mcpServers) {
-                foreach ($p in $existingDesktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
-            }
-        } catch {
-            Write-Warn2 "Existing claude_desktop_config.json unreadable -- backing up and recreating mcpServers."
-            Copy-Item $desktopPath "$desktopPath.bak" -Force -ErrorAction SilentlyContinue
-            $finalDesktop = [ordered]@{}
-        }
-    } else {
-        $finalDesktop = [ordered]@{}
-    }
-    foreach ($k in $managed.Keys) { $finalDesktop[$k] = $managed[$k] }
-    foreach ($r in $retiredServers) {
-        if ($finalDesktop.Contains($r)) {
-            $finalDesktop.Remove($r)
-            Write-Info "Removed retired MCP '$r' from Claude Desktop config."
-        }
-    }
-    $desktopRoot['mcpServers'] = $finalDesktop
-
-    $json = $desktopRoot | ConvertTo-Json -Depth 30
-    Write-TextNoBom $desktopPath $json
-    Write-OK "Wrote $($managed.Count) managed server(s); $($finalDesktop.Count) total in $desktopPath"
-    Write-Info "Restart the Claude Desktop app to see Connectors update."
-} elseif ($SkipClaudeDesktop -and -not $SyncOnly) {
-    # Still prune retired leftovers from Desktop Connectors without registering anything new.
-    $desktopPath = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
-    if (Test-Path $desktopPath) {
-        try {
-            $existingDesktop = Get-Content $desktopPath -Raw | ConvertFrom-Json
-            if ($existingDesktop.mcpServers) {
-                $finalDesktop = [ordered]@{}
-                foreach ($p in $existingDesktop.mcpServers.PSObject.Properties) { $finalDesktop[$p.Name] = $p.Value }
-                $removed = 0
-                foreach ($r in $retiredServers) {
-                    if ($finalDesktop.Contains($r)) {
-                        $finalDesktop.Remove($r)
-                        $removed++
-                        Write-Info "Removed retired MCP '$r' from Claude Desktop config (skip-write mode)."
-                    }
-                }
-                if ($removed -gt 0) {
-                    $desktopRoot = [ordered]@{}
-                    foreach ($p in $existingDesktop.PSObject.Properties) {
-                        if ($p.Name -ne 'mcpServers') { $desktopRoot[$p.Name] = $p.Value }
-                    }
-                    $desktopRoot['mcpServers'] = $finalDesktop
-                    Write-TextNoBom $desktopPath ($desktopRoot | ConvertTo-Json -Depth 30)
-                    Write-OK "Pruned $removed retired MCP(s) from Claude Desktop (no new servers added)."
-                }
-            }
-        } catch {
-            Write-Warn2 "Could not prune Claude Desktop config: $_"
-        }
-    }
-}
-
-# ── Codex: codex mcp add (global, idempotent) ─────────────────────────────────
-# Makes the SAME global MCP servers usable from Codex, not just Claude/Cursor.
-if (-not $SkipCodex -and -not $SyncOnly -and $managed.Count -gt 0) {
-    Write-Step "Codex: registering servers (global)"
-    if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
-        Write-Skip "codex CLI not found -- skipping Codex MCP registration."
-    } else {
-        foreach ($r in $retiredServers) {
-            try { & codex mcp remove $r 2>$null | Out-Null } catch {}
-        }
-        foreach ($name in $managed.Keys) {
-            $srv = $managed[$name]
-            if ($oauthDeferred[$name]) {
-                Write-Info "$name : in mcp.json only -- sign in from Codex when you first use it."
-                continue
-            }
-            try { & codex mcp remove $name 2>$null | Out-Null } catch {}
-            if ($srv.url) {
-                $argList = @('mcp', 'add', $name, '--url', [string]$srv.url)
-                Invoke-McpCliAdd 'codex' $name $argList | Out-Null
-                continue
-            }
-            $argList = @('mcp', 'add', $name)
-            foreach ($e in $managedEnvLists[$name]) { $argList += @('--env', $e) }
-            $argList += '--'
-            $argList += $srv.command
-            $argList += $srv.args
-            Invoke-McpCliAdd 'codex' $name $argList | Out-Null
-        }
-    }
-}
-
-# ── Skills: sync skills/*.md into both tools as alfred-<name>/SKILL.md ─────────
+# ── Skills: sync skills/*.md into ~/.agents/skills/<slug>/SKILL.md (neutral) ───
+# Alfred is the installer only — skill folder/frontmatter names stay tool-neutral
+# (web-search, repo-scout, …). Legacy alfred-* dirs are migrated away.
 $script:SkillSkipPatterns = @('taste-*', 'mcp-routing')
 
 function Test-SkillSkipped([string]$base) {
@@ -937,21 +976,20 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
     foreach ($root in $destRoots) {
         if (-not (Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
     }
-    $expectedSlugs = [System.Collections.Generic.HashSet[string]]::new()
+    $expectedSlugs = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $catalogSlugs = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $synced = 0
     $skipped = 0
     foreach ($f in $mdFiles) {
         $base = ($f.BaseName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
-        if (Test-SkillSkipped $base) {
+        $slug = if ($base -like 'alfred-*') { $base -replace '^alfred-', '' } else { $base }
+        if ([string]::IsNullOrWhiteSpace($slug)) { continue }
+        if (-not (Test-SkillSkipped $slug)) { [void]$catalogSlugs.Add($slug) }
+        if (Test-SkillSkipped $slug) { $skipped++; continue }
+        if ((Get-Command Test-SkillBucketSelected -ErrorAction SilentlyContinue) -and -not (Test-SkillBucketSelected $slug)) {
             $skipped++
             continue
         }
-        # Bucket filter: skip skills whose category isn't selected (auto-pruned below).
-        if ((Get-Command Test-SkillBucketSelected -ErrorAction SilentlyContinue) -and -not (Test-SkillBucketSelected $base)) {
-            $skipped++
-            continue
-        }
-        if ($base -like 'alfred-*') { $slug = $base } else { $slug = "alfred-$base" }
         [void]$expectedSlugs.Add($slug)
         $content = Get-Content $f.FullName -Raw
 
@@ -962,7 +1000,7 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
             $titleLine = $lines | Where-Object { $_ -match '^\s*#\s+\S' } | Select-Object -First 1
             if ($titleLine) { $title = ($titleLine -replace '^\s*#\s+', '').Trim() } else { $title = $f.BaseName }
             $descLine = $lines | Where-Object { $_.Trim() -ne '' -and $_ -notmatch '^\s*#' -and $_ -notmatch '^\s*---' } | Select-Object -First 1
-            if (-not $descLine) { $descLine = "Alfred skill: $title" }
+            if (-not $descLine) { $descLine = $title }
             $descLine = ($descLine.Trim() -replace '"', '')
             if ($descLine.Length -gt 120) { $descLine = $descLine.Substring(0, 120) }
             $skillBody = "---`nname: $slug`ndescription: $descLine`n---`n`n" + $content
@@ -972,19 +1010,32 @@ function Sync-Skills([string]$srcDir, [string[]]$destRoots) {
             $dir = Join-Path $root $slug
             if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
             Write-TextNoBom (Join-Path $dir "SKILL.md") $skillBody
+            $legacyDir = Join-Path $root "alfred-$slug"
+            if (Test-Path $legacyDir) {
+                Remove-Item $legacyDir -Recurse -Force
+                Write-OK "Migrated legacy skill 'alfred-$slug' -> '$slug' in $root"
+            }
         }
         $synced++
     }
     foreach ($root in $destRoots) {
         if (-not (Test-Path $root)) { continue }
+        # Remove every leftover alfred-* dir (managed catalog used to force this prefix).
         Get-ChildItem $root -Directory -Filter 'alfred-*' -ErrorAction SilentlyContinue | ForEach-Object {
-            if (-not $expectedSlugs.Contains($_.Name)) {
-                Remove-Item $_.FullName -Recurse -Force
-                Write-OK "Removed orphan skill '$($_.Name)' from $root"
+            Remove-Item $_.FullName -Recurse -Force
+            Write-OK "Removed legacy skill '$($_.Name)' from $root"
+        }
+        # Remove deselected/orphaned catalog skills (neutral names only; leave third-party alone).
+        foreach ($cand in $catalogSlugs) {
+            if ($expectedSlugs.Contains($cand)) { continue }
+            $orphan = Join-Path $root $cand
+            if (Test-Path $orphan) {
+                Remove-Item $orphan -Recurse -Force
+                Write-OK "Removed orphan skill '$cand' from $root"
             }
         }
     }
-    Write-OK "Synced $synced skill(s), skipped $skipped (taste/mcp-routing) -> $($destRoots -join ', ')"
+    Write-OK "Synced $synced skill(s), skipped $skipped -> $($destRoots -join ', ') (neutral names)"
 }
 
 # Folder skills (a directory with SKILL.md + bundled references) are copied whole,
@@ -1202,12 +1253,22 @@ function Remove-LegacySkillCopies {
                        Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') } |
                        ForEach-Object { $_.Name })
     }
+    $catalogNames = @()
+    $skillsSrc = Join-Path $Root "skills"
+    if (Test-Path $skillsSrc) {
+        $catalogNames = @(Get-ChildItem $skillsSrc -Filter *.md -File | ForEach-Object {
+            $b = ($_.BaseName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
+            if ($b -like 'alfred-*') { $b -replace '^alfred-', '' } else { $b }
+        })
+    }
     foreach ($tool in @('.cursor', '.claude', '.codex')) {
         $root = Join-Path $HOME "$tool\skills"
         if (-not (Test-Path $root)) { continue }
         $removed = 0
         Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            if (($_.Name -like 'alfred-*') -or ($packNames -contains $_.Name)) {
+            if (($_.Name -like 'alfred-*') -or ($packNames -contains $_.Name) -or ($catalogNames -contains $_.Name)) {
+                # Keep impeccable (per-harness by design).
+                if ($_.Name -eq 'impeccable') { return }
                 Remove-Item $_.FullName -Recurse -Force
                 $removed++
             }
@@ -1216,7 +1277,7 @@ function Remove-LegacySkillCopies {
     }
 }
 
-Write-Step "Skills: syncing Alfred skills once into ~/.agents/skills (read by Cursor + Claude Code + Codex)"
+Write-Step "Skills: syncing catalog once into ~/.agents/skills (neutral names; Cursor + Claude Code + Codex)"
 $agentsSkillsRoot = Join-Path $HOME ".agents\skills"
 Remove-AlfredVendoredTasteSkills @($agentsSkillsRoot)
 Sync-Skills (Join-Path $Root "skills") @($agentsSkillsRoot)
@@ -1509,6 +1570,23 @@ function Read-CodexMcpNames([string]$path) {
     return @(Select-String -Path $path -Pattern '^\[mcp_servers\.([^.\]]+)\]' -AllMatches |
              ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value.Trim('"') })
 }
+function Read-ClaudeLiveMcpNames {
+    # Prefer live CLI list (authoritative); fall back to ~/.claude.json mcpServers.
+    $names = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+        try {
+            $raw = & claude mcp list 2>&1 | Out-String
+            foreach ($line in ($raw -split "`r?`n")) {
+                # "name: command - status" or "name: …"
+                if ($line -match '^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*:') {
+                    [void]$names.Add($Matches[1])
+                }
+            }
+        } catch {}
+    }
+    foreach ($n in (Read-JsonMcpNames (Join-Path $HOME ".claude.json"))) { [void]$names.Add($n) }
+    return @($names)
+}
 function Remove-DriftFromJson([string]$path, [string[]]$known, [string[]]$expected, [string]$label) {
     if (-not (Test-Path $path)) { return 0 }
     try { $j = Get-Content $path -Raw | ConvertFrom-Json } catch { return 0 }
@@ -1526,7 +1604,7 @@ function Remove-DriftFromJson([string]$path, [string[]]$known, [string[]]$expect
     return $toRemove.Count
 }
 function Invoke-SelfHealSweep {
-    Write-Step "Self-heal sweep: reconciling live config against expected (removing drift)"
+    Write-Step "Self-heal sweep: reconciling each tool independently against expected"
     if ($managed.Count -eq 0) { Write-Skip "No managed servers resolved -- skipping sweep (won't guess an empty expected set)."; return }
     $known = Get-AlfredKnownServerNames
     if ($known.Count -eq 0) { Write-Skip "No template servers known -- nothing to reconcile."; return }
@@ -1540,14 +1618,19 @@ function Invoke-SelfHealSweep {
     if (-not $SkipCursor) {
         $fixed += Remove-DriftFromJson (Join-Path $HOME ".cursor\mcp.json") $known $expCursor 'cursor'
     }
-    # Desktop is swept even when skipped, so leftover managed servers (the duplicate host) are cleared.
+    # Desktop always swept to expected (empty when stage off) so Connectors can't duplicate Code.
     $fixed += Remove-DriftFromJson (Join-Path $env:APPDATA "Claude\claude_desktop_config.json") $known $expDesktop 'claude-desktop'
 
     if (-not $SkipClaude -and (Get-Command claude -ErrorAction SilentlyContinue)) {
-        foreach ($n in (Read-JsonMcpNames (Join-Path $HOME ".claude.json"))) {
+        foreach ($n in (Read-ClaudeLiveMcpNames)) {
             if (($known -contains $n) -and ($expCli -notcontains $n)) {
                 try { & claude mcp remove $n --scope user 2>$null | Out-Null; Write-OK "Swept drift '$n' from claude-code"; $fixed++ } catch {}
             }
+        }
+        # Also force-remove every retired name even if list parsing missed it.
+        foreach ($r in $retiredServers) {
+            if ($expCli -contains $r) { continue }
+            try { & claude mcp remove $r --scope user 2>$null | Out-Null } catch {}
         }
     }
     if (-not $SkipCodex -and (Get-Command codex -ErrorAction SilentlyContinue)) {
@@ -1556,8 +1639,12 @@ function Invoke-SelfHealSweep {
                 try { & codex mcp remove $n 2>$null | Out-Null; Write-OK "Swept drift '$n' from codex"; $fixed++ } catch {}
             }
         }
+        foreach ($r in $retiredServers) {
+            if ($expCli -contains $r) { continue }
+            try { & codex mcp remove $r 2>$null | Out-Null } catch {}
+        }
     }
-    if ($fixed -eq 0) { Write-OK "No drift -- every target already matches expected." }
+    if ($fixed -eq 0) { Write-OK "No drift -- every provisioned target already matches expected." }
     else { Write-OK "Self-heal removed $fixed drifted registration(s). Restart affected apps to release them." }
 }
 if (-not $SyncOnly) { Invoke-SelfHealSweep }
@@ -1575,7 +1662,8 @@ if ($script:ProvisionErrors.Count -gt 0) {
 }
 
 Write-Host ""
-Write-Host "Provisioning complete. Restart Cursor, Claude Desktop, Claude Code, and/or Codex." -ForegroundColor Green
+Write-Host "Provisioning complete. Restart the tools you provisioned (Cursor / Claude Code / Codex)." -ForegroundColor Green
+Write-Info "Each tool was updated via its native path only. Claude Desktop Connectors stay off unless opted in."
 Write-Info "MCP tokens are machine-local only — rotate keys in Alfred .env if configs are ever shared."
 Write-Host ""
 

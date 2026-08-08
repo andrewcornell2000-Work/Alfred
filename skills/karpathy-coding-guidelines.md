@@ -2,7 +2,7 @@
 
 **Source:** https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md  
 **Attribution:** Andrej Karpathy — behavioral guidelines for reducing common LLM coding mistakes.  
-**Adapted for Alfred:** applies to coding, refactoring, debugging, architecture design, UI/app design, and Alfred self-improvement tasks.
+**Scope:** applies to coding, refactoring, debugging, architecture design, UI/app design, and pack/installer self-improvement tasks.
 
 ---
 
@@ -15,7 +15,7 @@ Apply these guidelines to any coding task:
 - Debugging errors, exceptions, or unexpected behaviour
 - Architecture decisions (how to structure modules, APIs, data flows)
 - UI or app/dashboard design and layout changes
-- Alfred self-modification (installer scripts, provisioner, manifests)
+- Pack/installer self-modification (installer scripts, provisioner, manifests)
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial or clearly-scoped tasks, use judgment.
 

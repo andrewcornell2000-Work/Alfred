@@ -2,7 +2,7 @@
 
 **Source:** https://github.com/anthropics/skills/blob/main/skills/xlsx/SKILL.md  
 **Attribution:** Anthropic official skills repository.  
-**Adapted for Alfred:** applies to any financial model, budget, forecast, or structured Excel deliverable.
+**Scope:** applies to any financial model, budget, forecast, or structured Excel deliverable.
 
 ---
 

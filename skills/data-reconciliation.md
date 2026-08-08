@@ -2,7 +2,7 @@
 
 **Source:** https://github.com/nimrodfisher/data-analytics-skills  
 **Attribution:** nimrodfisher — data analytics skills collection.  
-**Adapted for Alfred:** particularly relevant for Power BI vs Excel vs source system discrepancies at Maersk.
+**Scope:** particularly relevant for Power BI vs Excel vs source system discrepancies at Maersk.
 
 ---
 

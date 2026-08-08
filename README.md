@@ -51,23 +51,30 @@ codex login
 
 **Updating (both machines):** just run the desktop shortcut (or `run-alfred.bat`) — it does `git pull` + re-provision. No exe needed to update. All steps are idempotent.
 
-### Cross-tool MCP + skills (Cursor, Claude Code, Codex)
+### Surgical MCP + skills (Cursor, Claude Code, Codex)
 
-`cursor/mcp.json` is the portable MCP template. `Provision-Cursor.ps1` resolves paths and secrets from `.env`, then writes **the same selected server set** into each client’s own config (not a shared process pool):
+Alfred is the **installer only** — MCP servers and skills keep their own identities
+(not “Alfred MCPs” / “Alfred skills”). `cursor/mcp.json` is the shared allowlist
+template. `Provision-Cursor.ps1` resolves paths/secrets from `.env`, then installs
+**the same selected set into each tool independently** via that tool’s native method
+(as if you added servers one-by-one in Cursor, then again in Claude, then Codex):
 
-| Tool | Where MCPs land |
-|------|-----------------|
-| Cursor | `~/.cursor/mcp.json` (Cursor reads this for all projects) |
-| Claude Code | `claude mcp add --scope user` (+ `~/.claude` agents/skills; also used by the **Code tab** inside Claude Desktop) |
-| Claude Desktop Connectors | `%APPDATA%\Claude\claude_desktop_config.json` (chat Connectors only — not required for Claude Code) |
-| Codex | `codex mcp add` |
+| Stage | Native method | Config |
+|------|-----------------|--------|
+| `Install-McpCursor` | file merge + retire | `~/.cursor/mcp.json` |
+| `Install-McpClaude` | `claude mcp add/remove --scope user` | Claude Code user scope |
+| `Install-McpCodex` | `codex mcp add/remove` | `~/.codex/config.toml` |
+| Claude Desktop Connectors | **off by default** | `%APPDATA%\Claude\claude_desktop_config.json` |
 
-If you only use **Cursor + Claude Code** (including Code inside the Desktop app) and never chat Connectors, set `ALFRED_SKIP_CLAUDE_DESKTOP=1` in Alfred `.env` (or pass `-SkipClaudeDesktop`) so provision does not write a second MCP host. Opening Cursor **and** Claude Desktop Connectors still starts a second copy of each server (RAM scales with clients open).
+Claude Desktop chat Connectors are a **fourth** MCP host and cause crossover with
+Claude Code. They stay skipped unless you opt in with `-ProvisionClaudeDesktop` or
+`ALFRED_PROVISION_CLAUDE_DESKTOP=1`. Opening Cursor **and** Desktop Connectors still
+starts a second copy of each server (RAM scales with clients open).
 
-Skills from `skills/` sync **once** to `~/.agents/skills` — the cross-tool Agent
-Skills standard that Cursor, Claude Code, and Codex all read. (Per-tool copies in
-`~/.cursor|.claude|.codex/skills` were retired: Cursor scans every root, so three
-copies meant every skill listed in triplicate. The provisioner cleans them up.)
+Skills from `skills/` sync **once** to `~/.agents/skills/<slug>/` with **neutral
+names** (e.g. `web-search`, not `alfred-web-search`) — the cross-tool Agent Skills
+standard that Cursor, Claude Code, and Codex all read. Per-tool copies under
+`~/.cursor|.claude|.codex/skills` are cleaned up (Cursor would list them in triplicate).
 
 Rules are **per-project** — Cursor has no global rules directory. List your repos
 in `.env` as `ALFRED_PROJECT_PATHS=C:\path\repo1;C:\path\repo2` and every provision
@@ -86,10 +93,16 @@ Re-provision after pulling updates:
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -SkipCloseAgentApps
 ```
 
-Only touching Claude Code (skip Cursor, Codex, and Claude Desktop):
+Only touching Claude Code (skip Cursor and Codex; Desktop stays off):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ClaudeOnly
+```
+
+Opt in Claude Desktop Connectors (usually unnecessary):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -ProvisionClaudeDesktop
 ```
 
 Provisioning Claude Code also installs the
@@ -103,21 +116,21 @@ Verify what each tool actually sees (runs automatically after provisioning):
 powershell -ExecutionPolicy Bypass -File Alfred-Doctor.ps1
 ```
 
-Doctor checks MCP registration per target (Cursor / Claude Code / Claude Desktop /
-Codex), single-copy skills, per-project rules, CLIs, and the Excel / Power BI
-stack, then diffs against the previous report (`%LOCALAPPDATA%\alfred\doctor.json`)
-so config drift is called out — "the script exited 0" is never trusted as success.
-Doctor also fails on **plaintext tokens** in any client config (rotate + move to
-`.env`) and on **duplicate** server entries.
+Doctor checks MCP registration per target (Cursor / Claude Code / Codex; Desktop
+only if opted in), single-copy neutral skills, per-project rules, CLIs, and the
+Excel / Power BI stack, then diffs against the previous report
+(`%LOCALAPPDATA%\alfred\doctor.json`) so config drift is called out — "the script
+exited 0" is never trusted as success. Doctor also fails on **plaintext tokens**
+in any client config (rotate + move to `.env`) and on **duplicate** server entries.
 
 ### Pick what you install: MCP buckets (why your RAM stays sane)
 
 Every registered MCP server is a live process in **each** client you run (Cursor,
-Claude Desktop chat, Cowork/Claude Code, Codex), and on Windows each `npx`/`uvx`
-server drags a `cmd → node → cmd → conhost → node` wrapper chain. Registering the
-full set on every machine is what makes Task Manager fill with Node/cmd/conhost —
-and you rarely need all of it (a laptop that never touches Power BI shouldn't run
-the Power BI server).
+Claude Code, Codex — plus Desktop Connectors only if opted in), and on Windows each
+`npx`/`uvx` server drags a `cmd → node → cmd → conhost → node` wrapper chain.
+Registering the full set on every machine is what makes Task Manager fill with
+Node/cmd/conhost — and you rarely need all of it (a laptop that never touches
+Power BI shouldn't run the Power BI server).
 
 So every server in `cursor/mcp.json` carries a `_bucket` category, and you choose
 which buckets install **per machine**:
@@ -144,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,pow
 # or "all"; the choice is saved to ALFRED_BUCKETS in .env so re-provisions are consistent
 ```
 
-**Skills follow the same buckets.** `skills/_buckets.json` maps each Alfred skill
+**Skills follow the same buckets.** `skills/_buckets.json` maps each catalog skill
 (and the vendored `_packs/fabric` set) to a bucket, so selecting `powerbi` also
 installs the Power BI / Power Query skills and the Fabric pack, and de-selecting a
 bucket prunes its skills from `~/.agents/skills` on the next provision. Unlisted
@@ -155,8 +168,8 @@ Notes:
   complementary — both live in `data`.
 - Real duplication (e.g. `powerbi-modeling-mcp` also arriving via a Claude Code
   plugin) is flagged by Doctor; pick one source.
-- Running Cursor **and** Claude Desktop at once still doubles whatever you selected —
-  set `ALFRED_SKIP_CLAUDE_DESKTOP=1` if you only use Cursor + Claude Code.
+- Desktop Connectors stay off by default; only enable them if you use Desktop chat
+  Connectors on purpose (`-ProvisionClaudeDesktop`).
 
 ### Reset / clean slate
 

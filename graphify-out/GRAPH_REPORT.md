@@ -1,22 +1,23 @@
-# Graph Report - .  (2026-07-26)
+# Graph Report - Alfred  (2026-08-08)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 302 files · ~524,568 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5336 nodes · 9223 edges · 333 communities (316 shown, 17 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 259 edges (avg confidence: 0.72)
+- 5359 nodes · 9246 edges · 329 communities (312 shown, 17 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 231 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6cabab1f`
+- Built from commit: `f5b185ac`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - live-browser.js
 - checks.mjs
-- detect-antipatterns.mjs
+- detect-text.mjs
 - index.mjs
 - setLiveState
 - resumeSession
@@ -65,12 +66,12 @@
 - resolveLengthPx
 - detect-html.mjs
 - readLiveServerInfo
-- memory/accounts.md
+- scripts/instinct-cli.py
 - Start-AlfredInstallProgress
 - cli.py
 - format_diagnose_report
 - impeccable-paths.mjs
-- parseRgb
+- detect-antipatterns.mjs
 - manual-edit-routes.mjs
 - agents/README.md
 - parseAnyColor
@@ -103,7 +104,7 @@
 - Output Destinations
 - validate_catalog.py
 - readWorkspacePatterns
-- expandScanTargets
+- renderDesignVisual
 - test_no_device_code_auth.py
 - PreCompactHandoffTests
 - live-target.mjs
@@ -120,7 +121,7 @@
 - _load
 - detect.mjs
 - CORE DIRECTIVE: PREMIUM MOBILE APP IMAGE DIRECTION
-- writeAuditLog
+- readConfig
 - config/__init__.py
 - context.py
 - diagnostics/__init__.py
@@ -132,7 +133,7 @@
 - Connection Management via CLI
 - High-Agency Frontend Skill
 - Theme Authoring — theme.json Reference
-- documentRefForElement
+- applyDeferredSvelteComponentAccepts
 - DAX Performance Decision Guide
 - Core Authoring via CLI
 - executeQuery — Fabric Dataflow Mashup Preview API
@@ -156,7 +157,7 @@
 - The Toolkit
 - Design Audit
 - Agent Handoff — Passing Work Between Sessions and Tools
-- Power BI Consumption — FabricIQ Skill
+- DAX Rules
 - Dark Mode Authoring Checklist
 - Executive Summary Dashboard
 - Design Brief Contract
@@ -223,10 +224,11 @@
 - tasteskill: Anti-Slop Frontend Skill
 - GitHub MCP
 - Script Templates
-- DAX Rules
+- 1. THE THREE DIALS (Core Configuration)
 - Add a Filter
 - Power BI Desktop Verification
 - Interactivity & Storytelling
+- semantic-model-authoring/SKILL.md
 - critique.md
 - Nielsen's 10 Heuristics
 - Handle `generate`
@@ -252,7 +254,6 @@
 - 18. EXTRA CREATIVITY & IMPLEMENTATION EDGE
 - Data Analysis — Plan, explore, measure, summarise
 - Workflow
-- End-to-end Workflow
 - Power BI Project file (PBIP)
 - Common Cognitive Load Violations
 - 12. THE COMBINATORIAL VARIATION ENGINE
@@ -302,15 +303,12 @@
 - Filter Pane & Filter Card Formatting
 - Azure Map Visual Authoring Guide
 - Chromatic signatures
-- Phase 1: Establish Baseline
-- Direct Lake Modeling Guidelines
-- Must/Prefer/Avoid
 - SharePoint & Microsoft 365 (Graph MCP — quarantined)
 - 4. Plan three variants: identity first, then mode, then axes
 - Handle fallback
 - checkHeroEyebrow
 - Alfred themes
-- cursor/ — Alfred provisioning source of truth
+- cursor/ — MCP catalog + rule seeds (not Cursor-only)
 - 33. DEFAULT SECTION PACKS
 - 14. HERO MINIMALISM RULES
 - 37. EXAMPLE INTERPRETATIONS
@@ -331,7 +329,7 @@
 - taste-skill/README.md
 
 ## God Nodes (most connected - your core abstractions)
-1. `el()` - 55 edges
+1. `el()` - 42 edges
 2. `CORE DIRECTIVE: IMAGE-FIRST WEBSITE DESIGN TO CODE` - 39 edges
 3. `CORE DIRECTIVE: PREMIUM MOBILE APP IMAGE DIRECTION` - 39 edges
 4. `runHook()` - 32 edges
@@ -362,47 +360,47 @@
 - **DLP Tool v2.0 medallion dataflow lineage (Bronze -> Silver FactPlan/Dimensions -> Audit)** — df_bronze_plans, df_silver_factplan, df_silver_dimensions, df_silver_audit, dlp_tool_v2_dashboard [EXTRACTED 0.90]
 - **Destructive-tool safety governance across manifests** — requirements_safety_gates_md, alfred_tools_json, requirements_mcp_tools_md, agents_md_alfred_specific_rules [INFERRED 0.85]
 
-## Communities (333 total, 17 thin omitted)
+## Communities (329 total, 17 thin omitted)
 
 ### Community 0 - "live-browser.js"
 Cohesion: 0.03
-Nodes (134): acceptedDomAlreadyClean(), applyPlaceholderSizingStyles(), applySvelteComponentVariantStyle(), attachSteerFocusGuard(), averageRgb01(), bufferToBase64(), buildCollapsible(), buildColorModels() (+126 more)
+Nodes (119): acceptedDomAlreadyClean(), addManualContextText(), applyPlaceholderSizingStyles(), applySvelteComponentVariantStyle(), averageRgb01(), bufferToBase64(), buildColorModels(), buildLocatorForLeaf() (+111 more)
 
 ### Community 1 - "checks.mjs"
 Cohesion: 0.05
-Nodes (76): borderColorsFromStyle(), borderWidthsFromStyle(), checkClippedOverflow(), checkCreamPalette(), checkElementClippedOverflow(), checkElementClippedOverflowDOM(), checkElementGptBorderShadow(), checkElementGptBorderShadowDOM() (+68 more)
+Nodes (83): borderColorsFromStyle(), borderWidthsFromStyle(), checkClippedOverflow(), checkCreamPalette(), checkElementClippedOverflow(), checkElementClippedOverflowDOM(), checkElementGptBorderShadow(), checkElementGptBorderShadowDOM() (+75 more)
 
-### Community 2 - "detect-antipatterns.mjs"
+### Community 2 - "detect-text.mjs"
 Cohesion: 0.08
-Nodes (52): confirm(), detectCli(), formatFindings(), formatFindingSummary(), handleStdin(), printUsage(), loadDesignSystemForCwd(), resolveDesignSidecarPath() (+44 more)
+Nodes (47): confirm(), detectCli(), formatFindings(), formatFindingSummary(), handleStdin(), printUsage(), loadDesignSystemForCwd(), resolveDesignSidecarPath() (+39 more)
 
 ### Community 3 - "index.mjs"
 Cohesion: 0.06
-Nodes (68): addBrowserFindings(), addVisualContrastFindings(), addVisualContrastResult(), analyzeVisualContrast(), analyzeVisualContrastCandidate(), blendRgba(), browserColorsClose(), browserDesignSystemConfig() (+60 more)
+Nodes (69): addBrowserFindings(), addVisualContrastFindings(), addVisualContrastResult(), analyzeVisualContrast(), analyzeVisualContrastCandidate(), blendRgba(), browserColorsClose(), browserDesignSystemConfig() (+61 more)
 
 ### Community 4 - "setLiveState"
 Cohesion: 0.09
-Nodes (69): abortSvelteComponentInjection(), applyEditing(), buildLocatorForLeaf(), buildPickedAnchorSnapshot(), cancelEditing(), cancelEditingToPicking(), cancelInsertConfigure(), cleanup() (+61 more)
+Nodes (70): abortSvelteComponentInjection(), applyEditing(), buildPickedAnchorSnapshot(), cancelEditing(), cancelEditingToPicking(), cancelInsertConfigure(), cleanup(), cleanupAcceptedSession() (+62 more)
 
 ### Community 5 - "resumeSession"
-Cohesion: 0.07
-Nodes (62): applyOriginalAttrsToSvelteAnchor(), applySavedSessionMeta(), buildInsertPlaceholderSnapshotFromDom(), checkpointPayload(), clampVariantIndex(), clearHandled(), commitAcceptedSvelteComponentToDom(), elementMatchesOriginalMarkup() (+54 more)
+Cohesion: 0.08
+Nodes (56): applyOriginalAttrsToSvelteAnchor(), applySavedSessionMeta(), clampVariantIndex(), clearHandled(), commitAcceptedSvelteComponentToDom(), elementMatchesOriginalMarkup(), ensureInsertPlaceholder(), enterRecoveryWaitingForAnchor() (+48 more)
 
 ### Community 6 - "initPageChat"
-Cohesion: 0.09
-Nodes (46): applyGlobalBarLabelState(), armPageChatForTyping(), attachSteerFocusDebug(), buildSteerProcessingDots(), clearSteerAwaitTimer(), collapsePageChat(), configureVoiceContext(), expandPageChat() (+38 more)
+Cohesion: 0.07
+Nodes (58): applyGlobalBarLabelState(), armPageChatForTyping(), attachSteerFocusDebug(), attachSteerFocusGuard(), buildSteerProcessingDots(), checkpointPayload(), clearSteerAwaitTimer(), clearSteerFocusRecoverTimer() (+50 more)
 
 ### Community 7 - "modern-screenshot.umd.js"
 Cohesion: 0.09
 Nodes (52): ae(), be(), bt(), Ce(), Ct(), de(), dt(), _e() (+44 more)
 
 ### Community 8 - "design-system.mjs"
-Cohesion: 0.10
-Nodes (48): addColorObject(), addDesignColor(), addRoundedScale(), addRoundedToken(), addSidecarColors(), addSidecarRadii(), addTypographyFonts(), canonicalDesignFindingKey() (+40 more)
+Cohesion: 0.09
+Nodes (49): addColorObject(), addDesignColor(), addRoundedScale(), addRoundedToken(), addSidecarColors(), addSidecarRadii(), addTypographyFonts(), canonicalDesignFindingKey() (+41 more)
 
 ### Community 9 - "live-inject.mjs"
 Cohesion: 0.07
-Nodes (50): detectCsp(), INLINE_HEADER_SIGNALS, LAYOUT_EXTS, MONOREPO_HELPER_SIGNALS, NUXT_ROUTE_RULES_SIGNALS, NUXT_SECURITY_SIGNALS, SCAN_EXTS, SKIP_DIRS (+42 more)
+Nodes (54): detectCsp(), INLINE_HEADER_SIGNALS, LAYOUT_EXTS, MONOREPO_HELPER_SIGNALS, NUXT_ROUTE_RULES_SIGNALS, NUXT_SECURITY_SIGNALS, SCAN_EXTS, SKIP_DIRS (+46 more)
 
 ### Community 10 - "live-commit-manual-edits.mjs"
 Cohesion: 0.10
@@ -417,20 +415,20 @@ Cohesion: 0.04
 Nodes (46): #000000, #0072B2, #009E73, #56B4E9, #CC79A7, #D55E00, #E69F00, #F0E442 (+38 more)
 
 ### Community 13 - "hook-lib.mjs"
-Cohesion: 0.07
-Nodes (45): ACK_EXTS, applyConfigSource(), applyDetectorConfigSource(), applyPatchText(), clampByte(), cloneDefaultConfig(), CO_SCAN_STYLE_NAMES, colorIgnoreKey() (+37 more)
+Cohesion: 0.08
+Nodes (43): ACK_EXTS, applyPatchText(), clampByte(), CO_SCAN_STYLE_NAMES, coLocatedStylesheets(), colorIgnoreKey(), DEFAULT_CONFIG, DETECTOR_CANDIDATES (+35 more)
 
 ### Community 14 - "el"
-Cohesion: 0.09
-Nodes (47): actionLabel(), applyConfigureBarChrome(), bindConfigureCountPillTooltip(), bindConfigureInlineControlHover(), bindConfigureModifierPillHover(), buildConfigureActionControl(), buildConfigureCountControl(), buildConfigureRow() (+39 more)
+Cohesion: 0.08
+Nodes (53): actionLabel(), applyConfigureBarChrome(), bindConfigureCountPillTooltip(), bindConfigureInlineControlHover(), bindConfigureModifierPillHover(), buildConfigureActionControl(), buildConfigureCountControl(), buildConfigureRow() (+45 more)
 
 ### Community 15 - "manual-apply.mjs"
 Cohesion: 0.10
 Nodes (36): addOpToManualApplyChunk(), APPLY_EVENT_HARD_TIMEOUT_MS, APPLY_EVENT_SOFT_DEADLINE_MS, buildManualApplyAgentAction(), clearManualApplyTransaction(), collectManualApplyFiles(), compactManualApplyBatch(), compactManualApplyCandidates() (+28 more)
 
 ### Community 16 - "svelte-component.mjs"
-Cohesion: 0.10
-Nodes (44): applyLegacyDeferredAcceptsOnStartup(), appendCssToSvelteStyle(), appendSanitizedCssRule(), applyDeferredSvelteComponentAccepts(), bakeParamValuesInCss(), buildInsertVariantStub(), buildPropContract(), buildPropsScript() (+36 more)
+Cohesion: 0.11
+Nodes (39): appendCssToSvelteStyle(), appendSanitizedCssRule(), bakeParamValuesInCss(), buildInsertVariantStub(), buildPropContract(), buildPropsScript(), buildVariantStub(), componentSessionDir() (+31 more)
 
 ### Community 17 - "css-cascade.mjs"
 Cohesion: 0.09
@@ -442,7 +440,7 @@ Nodes (39): ACTIONS, addIgnoreFile(), addIgnoreRule(), addIgnoreValue(), DETECTO
 
 ### Community 19 - "hook-before-edit.mjs"
 Cohesion: 0.11
-Nodes (39): allow(), bumpCursorDenial(), cursorBlockMessage(), deny(), done(), escapeRegExp(), findingSignature(), firstMatch() (+31 more)
+Nodes (40): allow(), bumpCursorDenial(), cursorBlockMessage(), deny(), done(), escapeRegExp(), findingSignature(), firstMatch() (+32 more)
 
 ### Community 20 - "live-server.mjs"
 Cohesion: 0.09
@@ -454,11 +452,11 @@ Nodes (34): checkBorders(), checkClippedOverflow(), checkElementBorders(), check
 
 ### Community 22 - "Provision-Cursor.ps1"
 Cohesion: 0.13
-Nodes (33): Add-HookEntry(), Convert-AgentMdToCodexToml(), Expand-EnvPlaceholders(), Get-AlfredKnownServerNames(), Install-ThirdPartyAgentSkills(), Invoke-McpCliAdd(), Invoke-NpxBackgroundJob(), Invoke-ProjectSeed() (+25 more)
+Nodes (38): Add-HookEntry(), Convert-AgentMdToCodexToml(), Expand-EnvPlaceholders(), Get-AlfredKnownServerNames(), Install-McpClaude(), Install-McpClaudeDesktop(), Install-McpCodex(), Install-McpCursor() (+30 more)
 
 ### Community 23 - "insert-ui.mjs"
-Cohesion: 0.11
-Nodes (10): canCreateInsert(), clampPlaceholderSize(), computeInsertPosition(), groupSiblingRows(), hitSiblingInsertGap(), horizontalOverlap(), insertCreateDisabledReason(), insertLineCoords() (+2 more)
+Cohesion: 0.09
+Nodes (13): canCreateInsert(), clampPlaceholderSize(), computeInsertPosition(), groupSiblingRows(), hitSiblingInsertGap(), horizontalOverlap(), insertCreateDisabledReason(), insertLineCoords() (+5 more)
 
 ### Community 24 - "live-wrap.mjs"
 Cohesion: 0.13
@@ -481,8 +479,8 @@ Cohesion: 0.14
 Nodes (31): applyMockWrites(), buildCopyEditBatchPrompt(), checkFrameworkSourceSyntax(), chooseCopyEditAgent(), COMMAND_AUTH_CACHE, commandAuthed(), commandExists(), compactBatchForPrompt() (+23 more)
 
 ### Community 29 - "initGlobalBar"
-Cohesion: 0.14
-Nodes (24): barPaletteForTheme(), brandMarkSvg(), buildParamsPanel(), detectPageTheme(), ensureAgentPollTooltip(), fetchAgentPollingStatus(), formatRangeValue(), hideAgentPollTooltip() (+16 more)
+Cohesion: 0.16
+Nodes (22): barPaletteForTheme(), brandMarkSvg(), detectPageTheme(), ensureAgentPollTooltip(), fetchAgentPollingStatus(), hideAgentPollTooltip(), initActionPicker(), initBar() (+14 more)
 
 ### Community 30 - "requirements/mcp-tools.md (MCP Tools doc)"
 Cohesion: 0.09
@@ -505,20 +503,20 @@ Cohesion: 0.16
 Nodes (26): analyzeSourceHint(), buildCandidatesForOp(), buildContextHintsByRef(), buildManualEditEvidence(), collectSearchFiles(), countOps(), decodeBasicHtml(), escapeRegExp() (+18 more)
 
 ### Community 35 - "CLAUDE.md"
-Cohesion: 0.08
-Nodes (30): Alfred-Common.ps1, Alfred-CoreSetup.ps1, Alfred-Install.exe, backend/config/env.py, backend/context.py, backend/diagnostics/, backend/provision/registry.py, backend/routing/registry.py (backward-compat shim) (+22 more)
+Cohesion: 0.10
+Nodes (23): Alfred-specific rules, Core Rules (coding agent guidelines), Alfred-Common.ps1, Alfred-CoreSetup.ps1, andrej-karpathy-skills (multica-ai GitHub), backend/config/env.py, backend/context.py, backend/diagnostics/ (+15 more)
 
 ### Community 36 - "Alfred-Install.ps1"
 Cohesion: 0.15
 Nodes (20): Complete-InstallStage(), Confirm-AlfredAuthLogin(), Get-AlfredInstallerRoot(), Get-InstallDefaultYes(), Import-AlfredInstallerModules(), Install-Tool(), Install-Uv(), Invoke-AlfredPowerShellScript() (+12 more)
 
 ### Community 37 - "live-poll.mjs"
-Cohesion: 0.18
-Nodes (24): completionAckForAcceptResult(), completionTypeForAcceptResult(), augmentEventWithAcceptHandling(), buildAcceptScriptArgs(), buildPollReplyPayload(), EVENT_TYPES_NEEDING_AGENT_REPLY, fetchNextEvent(), fetchServerStatus() (+16 more)
+Cohesion: 0.16
+Nodes (26): completionAckForAcceptResult(), completionTypeForAcceptResult(), augmentEventWithAcceptHandling(), buildAcceptScriptArgs(), buildPollReplyPayload(), DEFAULT_EVENT_LEASE_MS, EVENT_TYPES_NEEDING_AGENT_REPLY, fetchNextEvent() (+18 more)
 
 ### Community 38 - "README.md"
-Cohesion: 0.09
-Nodes (24): Alfred-Doctor.ps1, Alfred-Reset.ps1, Installer overhaul (work profile, skills sync, per-project rules+graphify, doctor), backend/cli.py, backend/main.py (deprecated shim), ECC continuous-learning-v2 (ported engine source), ECC harness (affaan-m/ECC), fal-ai MCP (+16 more)
+Cohesion: 0.08
+Nodes (28): Alfred-Doctor.ps1, Alfred-Install.exe, Alfred-Reset.ps1, Installer overhaul (work profile, skills sync, per-project rules+graphify, doctor), backend/cli.py, backend/main.py (deprecated shim), check-updates.ps1, cursor/mcp.json (+20 more)
 
 ### Community 39 - "instinct-cli.py"
 Cohesion: 0.28
@@ -537,8 +535,8 @@ Cohesion: 0.16
 Nodes (20): buildMissingTargetDirective(), buildResolvedContextDirective(), buildTargetSelectionDirective(), buildUpdateDirective(), cli(), compareSemver(), computeUpdateDirective(), DESIGN_NAMES (+12 more)
 
 ### Community 43 - "runHook"
-Cohesion: 0.15
-Nodes (21): bumpEditCount(), clampGroupedToBudget(), clampToBudget(), dedupeAgainstCache(), depthIsSet(), directiveFooter(), ensureFile(), ensureSession() (+13 more)
+Cohesion: 0.13
+Nodes (24): bumpEditCount(), clampGroupedToBudget(), clampToBudget(), dedupeAgainstCache(), depthIsSet(), directiveFooter(), ensureFile(), ensureSession() (+16 more)
 
 ### Community 44 - "onAnnotDown"
 Cohesion: 0.15
@@ -561,16 +559,16 @@ Cohesion: 0.15
 Nodes (15): checkElementOversizedH1(), checkElementOversizedH1DOM(), checkElementQuality(), checkElementQualityDOM(), checkOversizedH1(), checkRepeatedSectionKickers(), checkRepeatedSectionKickersDOM(), checkRepeatedSectionKickersFromDoc() (+7 more)
 
 ### Community 49 - "detect-html.mjs"
-Cohesion: 0.11
-Nodes (23): checkPageTypography(), checkStaticPageTypography(), STATIC_ELEMENT_RULES, checkBorders(), checkElementBorders(), checkElementBordersDOM(), checkElementGlow(), checkElementItalicSerif() (+15 more)
+Cohesion: 0.13
+Nodes (19): checkPageTypography(), checkStaticPageTypography(), STATIC_ELEMENT_RULES, checkBorders(), checkElementBorders(), checkElementBordersDOM(), checkHtmlPatterns(), checkPageQualityDOM() (+11 more)
 
 ### Community 50 - "readLiveServerInfo"
-Cohesion: 0.21
-Nodes (17): isLiveServerPidReachable(), readLiveServerInfo(), completeCli(), completeThroughServer(), parseArgs(), readServerInfo(), collectManualApplyFiles(), manualApplyReplyCommand() (+9 more)
+Cohesion: 0.22
+Nodes (16): readLiveServerInfo(), completeCli(), completeThroughServer(), parseArgs(), readServerInfo(), collectManualApplyFiles(), manualApplyReplyCommand(), manualApplyResumeHint() (+8 more)
 
-### Community 51 - "memory/accounts.md"
-Cohesion: 0.15
-Nodes (11): Alfred GitHub repo account (andrewcornell2000-Work/Alfred), Alfred Gmail account (alfredTCP2000@gmail.com), Alfred Supabase account (queryable brain, PENDING), Instinct (confidence-scored when-X-do-Y lesson), supabase MCP server, External account rules (free tier only, unique passwords, .env storage), Discovery / learning loop (GitHub Actions), Frontier: Project Mode, richer instincts, stronger validate CI (+3 more)
+### Community 51 - "scripts/instinct-cli.py"
+Cohesion: 0.11
+Nodes (17): Alfred GitHub repo account (andrewcornell2000-Work/Alfred), Alfred Gmail account (alfredTCP2000@gmail.com), Alfred Supabase account (queryable brain, PENDING), ECC continuous-learning-v2 (ported engine source), ECC harness (affaan-m/ECC), scripts/instinct-cli.py, Instinct (confidence-scored when-X-do-Y lesson), supabase MCP server (+9 more)
 
 ### Community 52 - "Start-AlfredInstallProgress"
 Cohesion: 0.18
@@ -585,12 +583,12 @@ Cohesion: 0.19
 Nodes (17): load_tool_manifest(), mcp_runtime_status(), _count_cursor_rules(), format_diagnose_report(), format_status_summary(), Plain-text diagnostic and status reporting., Short one-screen status for `alfred status`., Developer-focused health report for `alfred diagnose`. (+9 more)
 
 ### Community 55 - "impeccable-paths.mjs"
-Cohesion: 0.22
-Nodes (18): resolveProjectRoot(), firstExisting(), getDesignSidecarCandidates(), getDesignSidecarPath(), getImpeccableDir(), getLegacyLiveAnnotationsDir(), getLegacyLiveConfigPath(), getLegacyLiveServerPath() (+10 more)
+Cohesion: 0.16
+Nodes (22): resolveProjectRoot(), CRITIQUE_DIR, firstExisting(), getDesignSidecarCandidates(), getDesignSidecarPath(), getImpeccableDir(), getLegacyLiveAnnotationsDir(), getLegacyLiveConfigPath() (+14 more)
 
-### Community 56 - "parseRgb"
-Cohesion: 0.21
-Nodes (22): checkColors(), checkElementAIPaletteDOM(), checkElementColors(), checkElementColorsDOM(), checkElementGlowDOM(), checkElementIconTile(), checkElementIconTileDOM(), checkGlow() (+14 more)
+### Community 56 - "detect-antipatterns.mjs"
+Cohesion: 0.20
+Nodes (22): GATED_PROVIDERS, getRuleEngineSupport(), getRulesForCategory(), RULE_ENGINE_SUPPORT, checkColors(), checkElementAIPaletteDOM(), checkElementColors(), checkElementColorsDOM() (+14 more)
 
 ### Community 57 - "manual-edit-routes.mjs"
 Cohesion: 0.19
@@ -613,8 +611,8 @@ Cohesion: 0.25
 Nodes (9): buildSelectorSegment(), generateSelector(), isElementHidden(), isLikelyHashedClass(), postSerializedFindings(), renderBrowserFindings(), scanResultMeta(), serializeFindings() (+1 more)
 
 ### Community 62 - "refreshParamsPanel"
-Cohesion: 0.20
-Nodes (16): applyParamDefaults(), applyParamValue(), buildCyclingRow(), closedClipPath(), cycleVariant(), getVisibleVariantEl(), hideParamsPanel(), navBtn() (+8 more)
+Cohesion: 0.24
+Nodes (14): applyParamDefaults(), applyParamValue(), buildParamsPanel(), closedClipPath(), formatRangeValue(), getVisibleVariantEl(), hideParamsPanel(), openTunePopover() (+6 more)
 
 ### Community 63 - "agents/dlp-doctor.md (DLP Doctor subagent def)"
 Cohesion: 0.14
@@ -653,8 +651,8 @@ Cohesion: 0.18
 Nodes (13): addBrowserFindings(), addVisualContrastFindings(), addVisualContrastResult(), clearOverlays(), detachOverlay(), disconnectLazyVisualContrastObserver(), postExtensionError(), rememberVisualContrastAnalysis() (+5 more)
 
 ### Community 73 - "Karpathy Coding Guidelines"
-Cohesion: 0.20
-Nodes (9): Alfred-specific rules, Core Rules (coding agent guidelines), andrej-karpathy-skills (multica-ai GitHub), 1. Think Before Coding, 2. Simplicity First, 3. Surgical Changes, 4. Goal-Driven Execution, Karpathy Coding Guidelines (+1 more)
+Cohesion: 0.33
+Nodes (6): 1. Think Before Coding, 2. Simplicity First, 3. Surgical Changes, 4. Goal-Driven Execution, Karpathy Coding Guidelines, When This Skill Applies
 
 ### Community 74 - "Alfred-Doctor.ps1"
 Cohesion: 0.20
@@ -716,13 +714,13 @@ Nodes (7): check_cursorrules(), check_discovered_tools(), check_mcp(), check_ski
 Cohesion: 0.32
 Nodes (8): parseYamlFlowList(), readJson(), readLernaWorkspaces(), readPackageWorkspaces(), readPnpmWorkspaces(), readWorkspacePatterns(), stripYamlInlineComment(), unquoteYamlValue()
 
-### Community 90 - "expandScanTargets"
-Cohesion: 0.36
-Nodes (8): coLocatedStylesheets(), expandScanTargets(), hasPathTraversal(), isInsideProject(), normalizeScanTargets(), parseStaticStyleImports(), STYLE_EXTS, UI_CODE_EXTS
+### Community 90 - "renderDesignVisual"
+Cohesion: 0.09
+Nodes (36): buildCollapsible(), buildDesignHeader(), buildListHtml(), buildRadiiModels(), copyToClipboard(), cssSafe(), designPanelCss(), escapeHtml() (+28 more)
 
 ### Community 91 - "test_no_device_code_auth.py"
 Cohesion: 0.38
-Nodes (5): _is_allowlisted(), _iter_text_files(), NoDeviceCodeAuthTests, Path, Acceptance: Alfred-owned docs must not normalize device-code auth.  Corporate
+Nodes (5): _is_allowlisted(), _iter_text_files(), NoDeviceCodeAuthTests, Path, Acceptance: Alfred-owned docs must not normalize device-code auth. Corporate…
 
 ### Community 93 - "live-target.mjs"
 Cohesion: 0.43
@@ -746,7 +744,7 @@ Nodes (4): hasGeneratedHeader(), HEADER_MARKERS, isGeneratedFile(), isGitIgnored
 
 ### Community 100 - "main"
 Cohesion: 0.50
-Nodes (3): main(), Backward-compatible entry point for Alfred.  The interactive chat/menu CLI was, Deprecated entry: runs ``backend.cli update`` (check updates + provision).
+Nodes (3): main(), Backward-compatible entry point for Alfred. The interactive chat/menu CLI was…, Deprecated entry: runs ``backend.cli update`` (check updates + provision).
 
 ### Community 101 - "email_utils.py"
 Cohesion: 0.50
@@ -772,9 +770,9 @@ Nodes (3): candidates, detectorPath, __dirname
 Cohesion: 0.06
 Nodes (34): 10. DEVICE MOCKUP FRAME RULE, 11. ONBOARDING FLOW RULE, 12. FIRST SCREEN CLEANLINESS RULE, 13. SAFE AREA AND SYSTEM REGION RULE, 14. NAVIGATION RULE, 15. CLEAN LAYOUT RULE, 16. CREATIVE IMAGE DIRECTION RULE, 17. BACKGROUND TEXTURE AND SURFACE RULE (+26 more)
 
-### Community 108 - "writeAuditLog"
-Cohesion: 0.83
-Nodes (3): writeAuditLog(), main(), readStdin()
+### Community 108 - "readConfig"
+Cohesion: 0.18
+Nodes (12): applyConfigSource(), applyDetectorConfigSource(), cloneDefaultConfig(), detectorSection(), hookSection(), ignoreValueFilesKey(), mergeIgnoreValues(), numberOr() (+4 more)
 
 ### Community 129 - "Formatting Patterns"
 Cohesion: 0.06
@@ -792,13 +790,13 @@ Nodes (30): 10. FINAL PRE-FLIGHT CHECK, 1. ACTIVE BASELINE CONFIGURATION, 2. DEF
 Cohesion: 0.07
 Nodes (30): 10. Custom Icons, 1. Data Colors (`dataColors`), 2. Sentiment Colors, 3. Gradient Defaults, 4. Structural Colors, 5. Text Classes (`textClasses`), 6. Visual Styles (`visualStyles`), 7. Style Presets (+22 more)
 
-### Community 133 - "documentRefForElement"
-Cohesion: 0.08
-Nodes (30): addManualContextText(), canRestoreManualEditElement(), collectManualContextPieces(), contextElementForManualEdit(), copyEditContainerContext(), copyEditLeafContext(), cssIdent(), directMixedTextRestoreNodes() (+22 more)
+### Community 133 - "applyDeferredSvelteComponentAccepts"
+Cohesion: 0.32
+Nodes (8): applyLegacyDeferredAcceptsOnStartup(), applyDeferredSvelteComponentAccepts(), deferredAcceptsPath(), findSvelteComponentManifest(), manifestPathForSession(), readDeferredAccepts(), readManifest(), writeDeferredAccept()
 
 ### Community 134 - "DAX Performance Decision Guide"
-Cohesion: 0.07
-Nodes (29): Analyzing Trace Events, Compression, Segments, and Parallelism, Consult When Needed, DAX Performance Decision Guide, DAX vs. Data Layout: Reading the Signal, Decision Guide, Error Handling, Further Reading (+21 more)
+Cohesion: 0.06
+Nodes (34): Analyzing Trace Events, Compression, Segments, and Parallelism, Consult When Needed, DAX Performance Decision Guide, DAX vs. Data Layout: Reading the Signal, Decision Guide, Error Handling, Further Reading (+26 more)
 
 ### Community 135 - "Core Authoring via CLI"
 Cohesion: 0.07
@@ -845,8 +843,8 @@ Cohesion: 0.08
 Nodes (23): Analytical Canvas, Analytical Visuals, Chart Selection, Color & Typography, Control Selection Table, Core Principles, Decision Checklist, Do NOT Use (+15 more)
 
 ### Community 146 - "Power BI Semantic Model Authoring — CLI Skill"
-Cohesion: 0.08
-Nodes (24): Connecting to a Semantic Model, Connection Binding, Data Sources & Parameters, Example 1: Modify an Existing Semantic Model, Example 2: Create a New Semantic Model from a Fabric Lakehouse, Example 3: Bind a Semantic Model to a Fabric Connection, Examples, Permissions (+16 more)
+Cohesion: 0.07
+Nodes (29): AVOID, Connecting to a Semantic Model, Connection Binding, Data Sources & Parameters, DENY, Example 1: Modify an Existing Semantic Model, Example 2: Create a New Semantic Model from a Fabric Lakehouse, Example 3: Bind a Semantic Model to a Fabric Connection (+21 more)
 
 ### Community 147 - "Operational Monitor Dashboard"
 Cohesion: 0.09
@@ -888,9 +886,9 @@ Nodes (19): Code Quality, Color and Surfaces, Component Patterns, Content, Desig
 Cohesion: 0.10
 Nodes (19): Agent Handoff — Passing Work Between Sessions and Tools, Codex autonomous start, Common mistakes, Conflict check (after coming back to a repo that may have changed), Cursor → Claude Code → Codex: which tool for which phase, Full handoff (cross-tool, before handing to Codex), Parallel worker handoff (one per worker), Prompts to CONSUME a HANDOFF.md (starting a new session) (+11 more)
 
-### Community 158 - "Power BI Consumption — FabricIQ Skill"
-Cohesion: 0.10
-Nodes (20): Available Tools, AVOID, Discover and Query, Error Recovery, Error Taxonomy, Examples, Follow-up Questions, Follow-up with Context (+12 more)
+### Community 158 - "DAX Rules"
+Cohesion: 0.06
+Nodes (31): Additional Rules, Available Tools, AVOID, CALCULATE / CALCULATETABLE Boolean Filters, Date Context for Time Intelligence, DAX Rules, Discover and Query, Error Recovery (+23 more)
 
 ### Community 159 - "Dark Mode Authoring Checklist"
 Cohesion: 0.10
@@ -1081,8 +1079,8 @@ Cohesion: 0.15
 Nodes (12): Alignment Rules, Archetype Calibration, Core Principles, Custom font fallback caveat, Density & Readability, Font Family Guidance, Number Format Decision Table, Power BI Formatting Keys (+4 more)
 
 ### Community 207 - "Semantic Model Connection Binding Reference"
-Cohesion: 0.15
-Nodes (12): AVOID, Common scenarios, `connectivityType` values, Endpoint, Limitations, MUST, Must / Avoid, Prerequisites (+4 more)
+Cohesion: 0.09
+Nodes (21): AVOID, Bind to a gateway or cloud connection, Bind using default / automatic settings (SSO), Common scenarios, `connectivityType` values, End-to-end Workflow, Endpoint, Limitations (+13 more)
 
 ### Community 208 - "typeset.md"
 Cohesion: 0.15
@@ -1145,8 +1143,8 @@ Cohesion: 0.17
 Nodes (11): Accessibility Resilience, Assess Hardening Needs, Edge Cases & Boundary Conditions, Error Handling, Hardening Dimensions, Input Validation & Sanitization, Internationalization (i18n), Performance Resilience (+3 more)
 
 ### Community 223 - "tasteskill: Anti-Slop Frontend Skill"
-Cohesion: 0.13
-Nodes (15): 0.A Read these signals first, 0.B Output a one-line "Design Read" before generating, 0. BRIEF INFERENCE (Read the Room Before Anything Else), 0.C If the brief is ambiguous, ask one question, do not guess, 0.D Anti-Default Discipline, 13. OUT OF SCOPE, 14. FINAL PRE-FLIGHT CHECK, 1.A Dial Inference (design read → dial values) (+7 more)
+Cohesion: 0.18
+Nodes (11): 0.A Read these signals first, 0.B Output a one-line "Design Read" before generating, 0. BRIEF INFERENCE (Read the Room Before Anything Else), 0.C If the brief is ambiguous, ask one question, do not guess, 0.D Anti-Default Discipline, 13. OUT OF SCOPE, 14. FINAL PRE-FLIGHT CHECK, 2.A When to reach for a real design system (use official packages) (+3 more)
 
 ### Community 224 - "GitHub MCP"
 Cohesion: 0.18
@@ -1156,9 +1154,9 @@ Nodes (10): Commits and releases, Core operations, GitHub MCP, Issues, Pull requ
 Cohesion: 0.18
 Nodes (11): Bash — Full Definition Decode and Report, Bash — List Dataflows with Pagination, Bash — Monitor Refresh with Polling Loop, Bash — Parameter Discovery Report, Bash — Query Execution and Arrow Conversion, Batch Query Execution with Error Handling, PowerShell — Definition Decode, PowerShell — Job History Report (+3 more)
 
-### Community 226 - "DAX Rules"
-Cohesion: 0.18
-Nodes (11): Additional Rules, CALCULATE / CALCULATETABLE Boolean Filters, Date Context for Time Intelligence, DAX Rules, GROUPBY, Other Rules, Query Structure, Report Measures (+3 more)
+### Community 226 - "1. THE THREE DIALS (Core Configuration)"
+Cohesion: 0.50
+Nodes (4): 1.A Dial Inference (design read → dial values), 1.B Use-Case Presets, 1.C How the Dials Drive Output, 1. THE THREE DIALS (Core Configuration)
 
 ### Community 227 - "Add a Filter"
 Cohesion: 0.18
@@ -1171,6 +1169,10 @@ Nodes (10): Command Reference, Commands, Common Outcomes, Core Rule, Fix-Retry P
 ### Community 229 - "Interactivity & Storytelling"
 Cohesion: 0.18
 Nodes (10): 5 Clusters, Bookmark Design Rules, Core Principles, Cross-Filter Etiquette, Descriptive Titles & Information Scent, Interaction Complexity Budget, Interaction Taxonomy, Interactivity & Storytelling (+2 more)
+
+### Community 230 - "semantic-model-authoring/SKILL.md"
+Cohesion: 0.19
+Nodes (5): Direct Lake Modeling Guidelines, Important, Partition Configuration, Process to create a direct lake model, TMDL example of a Direct Lake table configuration
 
 ### Community 231 - "critique.md"
 Cohesion: 0.18
@@ -1272,10 +1274,6 @@ Nodes (8): Anti-patterns, Data Analysis — Plan, explore, measure, summarise, P
 Cohesion: 0.22
 Nodes (9): Step 0 — Data-First Investigation, Step 1 — Design Identity, Step 2 — Archetype Router, Step 3 — Chart Selection, Step 4 — Visual Configuration, Step 5 — Theme, Step 6 — Canonical Design Contract, Step 7 — Review and Handoff (+1 more)
 
-### Community 256 - "End-to-end Workflow"
-Cohesion: 0.22
-Nodes (9): Bind to a gateway or cloud connection, Bind using default / automatic settings (SSO), End-to-end Workflow, Step 1 - List the semantic model's data source references, Step 2 - List connections you can access, Step 3 - Match (or create) a connection, Step 4 - Submit one bind request per data source reference, Step 5 - Validate (+1 more)
-
 ### Community 257 - "Power BI Project file (PBIP)"
 Cohesion: 0.22
 Nodes (9): Copilot/examplePrompts.json, Copilot/Instructions/instructions.md, Copilot/schema.json, Copilot/settings.json, definition.pbir, definition.pbism file, .pbip file, Power BI Project file (PBIP) (+1 more)
@@ -1302,7 +1300,7 @@ Nodes (7): Approach, Excel Live Editing, Key tools, Requirements, Safety rules, 
 
 ### Community 263 - "Jean Paul design stack"
 Cohesion: 0.25
-Nodes (7): Between-steps rule, Boostl override (when theme id is `boostl`), Global subagents (Alfred `agents/`, synced to `~/.cursor/agents`), Jean Paul design stack, Provision on new machine, Skill precedence, Theme resolution (first match wins)
+Nodes (7): Between-steps rule, Boostl override (when theme id is `boostl`), Global subagents (pack `agents/`, synced to `~/.cursor/agents`), Jean Paul design stack, Provision on new machine, Skill precedence, Theme resolution (first match wins)
 
 ### Community 264 - "Consumption CLI Quick Reference"
 Cohesion: 0.25
@@ -1472,18 +1470,6 @@ Nodes (5): Azure Map Visual Authoring Guide, Overview, Roles, Template, When a M
 Cohesion: 0.40
 Nodes (5): Chromatic signatures, S5. Single-accent discipline, S6. Highlight-and-grey, S7. FT pink (or any tinted) surface, S8. Status-coded KPI cards
 
-### Community 306 - "Phase 1: Establish Baseline"
-Cohesion: 0.40
-Nodes (5): Phase 1: Establish Baseline, Step 1: Resolve All Measure and Function Definitions, Step 2: Gather Model Context, Step 3: Execute Baseline (1 warm-up + 2+ measured runs), Step 4: Analyze Baseline
-
-### Community 307 - "Direct Lake Modeling Guidelines"
-Cohesion: 0.40
-Nodes (5): Direct Lake Modeling Guidelines, Important, Partition Configuration, Process to create a direct lake model, TMDL example of a Direct Lake table configuration
-
-### Community 308 - "Must/Prefer/Avoid"
-Cohesion: 0.40
-Nodes (5): AVOID, DENY, MUST, Must/Prefer/Avoid, PREFER
-
 ### Community 309 - "SharePoint & Microsoft 365 (Graph MCP — quarantined)"
 Cohesion: 0.40
 Nodes (4): Agent rules, Historical note, SharePoint & Microsoft 365 (Graph MCP — quarantined), What to use instead
@@ -1504,9 +1490,9 @@ Nodes (5): checkElementHeroEyebrow(), checkElementHeroEyebrowDOM(), checkHeroEye
 Cohesion: 0.40
 Nodes (4): Alfred themes, Available themes, Create a new theme, Resolution order (first match wins)
 
-### Community 314 - "cursor/ — Alfred provisioning source of truth"
+### Community 314 - "cursor/ — MCP catalog + rule seeds (not Cursor-only)"
 Cohesion: 0.50
-Nodes (3): Buckets, cursor/ — Alfred provisioning source of truth, What lands where
+Nodes (3): Buckets, cursor/ — MCP catalog + rule seeds (not Cursor-only), What lands where
 
 ### Community 315 - "33. DEFAULT SECTION PACKS"
 Cohesion: 0.50
@@ -1557,24 +1543,24 @@ Cohesion: 0.50
 Nodes (4): Heuristics Scoring Guide, Issue Severity (P0–P3), Reference Material, Score Summary
 
 ## Knowledge Gaps
-- **2270 isolated node(s):** `${powerBiMcp}`, `${repoRoot}\.venv\Scripts\python.exe`, `${repoRoot}\bin\excel-mcp\mcp-excel.exe`, `docker`, `GITHUB_PERSONAL_ACCESS_TOKEN` (+2265 more)
+- **2286 isolated node(s):** `${powerBiMcp}`, `${repoRoot}\.venv\Scripts\python.exe`, `${repoRoot}\bin\excel-mcp\mcp-excel.exe`, `docker`, `GITHUB_PERSONAL_ACCESS_TOKEN` (+2281 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `el()` connect `el` to `parseRgb`, `checks.mjs`, `detect-antipatterns.mjs`, `index.mjs`, `collectBrowserFindings`, `live-browser.js`, `initPageChat`, `setLiveState`, `design-system.mjs`, `resolveLengthPx`, `detect-html.mjs`, `css-cascade.mjs`, `initGlobalBar`, `detect-antipatterns-browser.js`, `parseAnyColor`, `serializeFindings`, `refreshParamsPanel`?**
-  _High betweenness centrality (0.031) - this node is a cross-community bridge._
-- **Why does `v()` connect `modern-screenshot.umd.js` to `live-browser.js`, `context-signals.mjs`, `css-cascade.mjs`, `checkHeroEyebrow`, `design-parser.mjs`, `initGlobalBar`?**
-  _High betweenness centrality (0.023) - this node is a cross-community bridge._
-- **Why does `createRequestHandler()` connect `live-server.mjs` to `live-inject.mjs`, `event-validation.mjs`, `css-cascade.mjs`, `impeccable-paths.mjs`, `design-parser.mjs`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
-- **Are the 29 inferred relationships involving `el()` (e.g. with `browserFindingsFromMap()` and `collectVisualContrastCandidates()`) actually correct?**
-  _`el()` has 29 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `el()` connect `el` to `parseRgb`, `checks.mjs`, `detect-text.mjs`, `index.mjs`, `collectBrowserFindings`, `live-browser.js`, `initPageChat`, `setLiveState`, `design-system.mjs`, `detect-html.mjs`, `css-cascade.mjs`, `initGlobalBar`, `detect-antipatterns-browser.js`, `serializeFindings`, `refreshParamsPanel`?**
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `buffer` connect `live-inject.mjs` to `detect-text.mjs`, `isGeneratedFile`, `runHook`, `hook-before-edit.mjs`, `live-server.mjs`, `manual-edit-routes.mjs`?**
+  _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Why does `applyOriginalAttrsToSvelteAnchor()` connect `resumeSession` to `live-browser.js`, `StaticElement`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Are the 16 inferred relationships involving `el()` (e.g. with `collectVisualContrastCandidates()` and `renderBrowserFindings()`) actually correct?**
+  _`el()` has 16 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `${powerBiMcp}`, `${repoRoot}\.venv\Scripts\python.exe`, `${repoRoot}\bin\excel-mcp\mcp-excel.exe` to the rest of the system?**
-  _2270 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2286 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `live-browser.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.030592528982395877 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.032109470261482184 - nodes in this community are weakly interconnected._
 - **Should `checks.mjs` be split into smaller, more focused modules?**
-  _Cohesion score 0.053613053613053616 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.049019607843137254 - nodes in this community are weakly interconnected._

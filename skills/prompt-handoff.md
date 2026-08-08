@@ -90,7 +90,7 @@ For **plan-then-build:** Phase A (plan, no edits) then Phase B (implement after 
 
 | Situation | Add to prompt |
 |-----------|---------------|
-| 3+ new UI components or new routes | `design-agent` (Jean Paul) via `.alfred-theme` / `Alfred/themes/` |
+| 3+ new UI components or new routes | `design-agent` (Jean Paul) via `.alfred-theme` / pack `themes/` |
 | Large codebase exploration | `graphify query` in step 1; `explore` subagent if context would balloon |
 | Session continuity | Project `session-hub` only on explicit ask |
 

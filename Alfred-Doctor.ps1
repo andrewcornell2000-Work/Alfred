@@ -297,7 +297,8 @@ if (Test-Path $skillsSrc) {
         $key = ($base -replace '^alfred-',''); $b = $skDefault
         if ($skBucketMap.ContainsKey($key)) { $b = $skBucketMap[$key] }
         if ($selectedBuckets -notcontains $b) { continue }   # not selected on this machine
-        if ($base -like 'alfred-*') { $expectedSkills += $base } else { $expectedSkills += "alfred-$base" }
+        # Neutral slugs (Alfred is installer-only — no alfred- prefix on skill identity).
+        $expectedSkills += $key
     }
 }
 $packNames = @()
@@ -314,16 +315,22 @@ foreach ($s in ($expectedSkills + $packNames)) {
     if (-not (Test-Path (Join-Path $agentsSkills "$s\SKILL.md"))) { $missingSkills += $s }
 }
 if ($missingSkills.Count -eq 0) {
-    Write-Pass "~/.agents/skills has all $($expectedSkills.Count + $packNames.Count) Alfred skills (incl. $($packNames.Count) pack skills)"
+    Write-Pass "~/.agents/skills has all $($expectedSkills.Count + $packNames.Count) catalog skills (incl. $($packNames.Count) pack skills)"
 } else {
     Add-Failure "~/.agents/skills missing: $($missingSkills -join ', ')"
 }
+$legacyAlfred = @()
+if (Test-Path $agentsSkills) {
+    $legacyAlfred = @(Get-ChildItem $agentsSkills -Directory -Filter 'alfred-*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+}
+if ($legacyAlfred.Count -eq 0) { Write-Pass "no legacy alfred-* skill folders in ~/.agents/skills" }
+else { Add-Warning "legacy alfred-* skills remain: $($legacyAlfred -join ', ') -- re-run Provision-Cursor.ps1" }
 $legacyDupes = @()
 foreach ($tool in @('.cursor', '.claude', '.codex')) {
     $r = Join-Path $HOME "$tool\skills"
     if (-not (Test-Path $r)) { continue }
     $hits = @(Get-ChildItem $r -Directory -ErrorAction SilentlyContinue |
-              Where-Object { ($_.Name -like 'alfred-*') -or ($packNames -contains $_.Name) })
+              Where-Object { ($_.Name -like 'alfred-*') -or ($packNames -contains $_.Name) -or ($expectedSkills -contains $_.Name) })
     if ($hits.Count -gt 0) { $legacyDupes += "$tool ($($hits.Count))" }
 }
 if ($legacyDupes.Count -eq 0) { Write-Pass "no legacy per-tool duplicates (Cursor would list each copy separately)" }

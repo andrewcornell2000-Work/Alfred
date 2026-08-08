@@ -3,9 +3,11 @@
 **Alfred is not a chatbot.** It is a **Windows catalog + installer** that:
 
 1. Installs CLIs from upstream (Claude Code, Codex, gh, pbi, …)
-2. Provisions **MCP servers** into each host’s native config (Cursor, Claude Code, Codex)
-3. Syncs **skills** once to `~/.agents/skills` and seeds **rules / graphify / subagents** per project
+2. Provisions the **same MCP allowlist** into each host **independently** via that host’s native method (Cursor file / `claude mcp` / `codex mcp`)
+3. Syncs **skills** once to `~/.agents/skills` with **neutral names** (no `alfred-` prefix) and seeds **rules / graphify / subagents** per project
 4. On update: `git pull` → upgrade packages from upstream → re-provision → doctor
+
+MCP servers and skills keep their own identities — Alfred does not rebrand them as “Alfred MCPs” or “Alfred skills.”
 
 ## What you do day-to-day
 
@@ -20,21 +22,22 @@ You do **not** open Alfred to chat or use a menu.
 | Fresh machine | Run **`Alfred-Install.exe`** or `Alfred-Install.ps1` once |
 | Weekly / after updates | Re-run **`run-alfred.bat`** (git pull → setup → provision) |
 | "What's installed?" | `Alfred-Doctor.ps1` or `python -m backend.cli diagnose` |
-| Claude Desktop Connectors empty | Prefer `ALFRED_SKIP_CLAUDE_DESKTOP=1` if you only use Cursor + Claude Code |
+| Claude Desktop Connectors | Off by default; opt in with `-ProvisionClaudeDesktop` / `ALFRED_PROVISION_CLAUDE_DESKTOP=1` |
 
-## Provision pipeline (single source of truth)
+## Provision pipeline (surgical per tool)
 
 ```
-cursor/mcp.json          → MCP catalog (no secrets; buckets; upstream package ids)
-skills/*.md              → agent how-to skills
+cursor/mcp.json          → shared MCP allowlist (no secrets; buckets; upstream ids)
+skills/*.md              → catalog how-to skills (neutral slugs)
 skills/_packs/**/SKILL.md→ vendored multi-file skill packs
 cursor/rules/*.mdc       → Cursor rules (per-project seed)
-Provision-Cursor.ps1     → ~/.cursor/mcp.json
-                         → claude mcp add --scope user
-                         → codex mcp add
-                         → ~/.agents/skills (single copy)
-                         → retire leftover servers from prior catalogs
-                         → uv tool upgrade graphifyy
+Provision-Cursor.ps1
+  Install-McpCursor      → ~/.cursor/mcp.json (+ retire)
+  Install-McpClaude      → claude mcp add/remove --scope user
+  Install-McpCodex       → codex mcp add/remove
+  (Desktop Connectors)   → skipped unless opted in
+  skills                 → ~/.agents/skills/<slug>/ (single copy, no alfred- prefix)
+  self-heal              → remove catalog drift per tool independently
 ```
 
 ## Work vs personal (SaaS)
