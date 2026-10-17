@@ -18,6 +18,7 @@ See **`.cursor/rules/00-agent-tooling.mdc`** (and `cursor/rules/00-agent-tooling
 | excel-mcp | **Closed** workbook / Power Query / COM batch |
 | github | Remote GitHub API |
 | playwright | Browser automation |
+| parallel-search | Web search + page fetching (opt-in `web` bucket) |
 | context7 | Library/SDK docs |
 | markitdown | Local file → markdown |
 | fetch | Single URL → markdown |
@@ -77,6 +78,50 @@ See **`.cursor/rules/00-agent-tooling.mdc`** (and `cursor/rules/00-agent-tooling
 - **Purpose:** Browser automation - navigate pages, fill forms, scrape data, take screenshots
 - **Trust:** official
 - **Destructive:** false
+
+### parallel-search
+- **Source:** [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)
+- **Command:** `npx -y mcp-remote@latest https://search.parallel.ai/mcp`
+- **Purpose:** Search the live web with `web_search`, then read selected pages with `web_fetch`
+- **Bucket:** `web` (excluded from the work profile's `core,powerbi,data` selection)
+- **Requires:** Node.js/npm (`npx`), installed by Alfred setup; no Parallel account or API key
+- **Destructive:** false (read-only search and page extraction)
+
+To add web research to a work-profile install, run this from the Alfred repository
+root in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Provision-Cursor.ps1 -Buckets "core,powerbi,data,web"
+```
+
+`-Buckets` replaces and saves the machine's bucket selection in Alfred `.env` as
+`ALFRED_BUCKETS`. Keep any other buckets you already use in that list. This enables
+the entire `web` bucket, including Playwright and fetch (and Firecrawl when its key
+is set), plus the corresponding skills. Alfred registers the catalog's
+`parallel-search` entry independently in Cursor, Claude Code, and Codex; do not add
+a second copy at project scope.
+
+After provisioning, restart your host and check its MCP connection:
+
+- **Cursor:** find `parallel-search` in Settings → Tools & MCP and check its tools.
+- **Claude Code:** run `claude mcp get parallel-search`, or inspect `/mcp` in a session.
+- **Codex:** run `codex mcp list`, then inspect `/mcp` in a session.
+
+The server exposes two separate tools, `web_search` and `web_fetch` (the host may
+prefix their names). Try asking:
+
+> Use parallel-search to find the official Python 3.14 release announcement, then
+> fetch that page and report its release date with the source URL.
+
+Anonymous search uses Fast mode. Free access has rate limits; if a call is limited,
+wait before retrying. For library/SDK syntax use context7, and for interactive
+browser work use Playwright, following the routing table above.
+
+**Authentication:** Alfred's current catalog entry connects anonymously. Setting
+`PARALLEL_API_KEY` in Alfred `.env` or the machine environment alone does not
+authenticate it: the entry does not forward an `Authorization` header. Higher
+limits require an authenticated connection; see the [Parallel authentication
+options](https://docs.parallel.ai/integrations/mcp/search-mcp#installation).
 
 ### context7
 - **Source:** npm `@upstash/context7-mcp`
