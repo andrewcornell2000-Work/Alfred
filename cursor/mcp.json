@@ -174,7 +174,7 @@
       ],
       "_bucket": "web",
       "_requires": [],
-      "_note": "LLM-optimized web search + fetch. Opt-in via web bucket (not in work default) to keep always-on tool context small. For higher rate limits set PARALLEL_API_KEY."
+      "_note": "LLM-optimized web search + fetch. Opt-in via web bucket (not in work default) to keep always-on tool context small. Anonymous setup: no key required. Setting PARALLEL_API_KEY alone does not authenticate this entry; see requirements/mcp-tools.md#parallel-search."
     },
     "firecrawl": {
       "command": "npx",

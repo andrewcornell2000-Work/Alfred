@@ -314,10 +314,13 @@ Cherry-picked from a read-only review of the ECC harness (`affaan-m/ECC`) — on
 |-----|--------------|-----|
 | `fal-ai` | AI image/video/audio generation — ad creative, thumbnails, b-roll | `FAL_KEY` in `.env` |
 | `magic` | Magic UI components — animated React/Tailwind blocks | none |
-| `parallel-search` | Citation-backed web search + fetch in one call (via `mcp-remote`) | none (key-free) |
+| `parallel-search` | Web search + page fetching via separate tools (via `mcp-remote`) | none (key-free) |
 | `longhand` | Lossless Claude Code session history → local SQLite+ChromaDB | `pip install longhand && longhand setup` |
 
 Each is auto-skipped by `Provision-Cursor.ps1` if its key/command is missing, so they never break a provision.
+
+For Parallel's `web` bucket setup, connection checks, and a search-then-fetch example,
+see [Parallel Search MCP](requirements/mcp-tools.md#parallel-search).
 
 ---
 
